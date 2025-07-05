@@ -5,14 +5,16 @@ pub enum Status {
     Busy,
     Away,
     AppearOffline,
+    PersonalSettings,
 }
 
 impl Status {
-    pub const ALL: [Status; 4] = [
+    pub const ALL: [Status; 5] = [
         Status::Online,
         Status::Busy,
         Status::Away,
         Status::AppearOffline,
+        Status::PersonalSettings,
     ];
 }
 
@@ -23,6 +25,7 @@ impl std::fmt::Display for Status {
             Self::Busy => "Busy",
             Self::Away => "Away",
             Self::AppearOffline => "Appear Offline",
+            Self::PersonalSettings => "Personal Settings",
         })
     }
 }
