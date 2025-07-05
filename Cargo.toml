@@ -1,0 +1,9 @@
+[package]
+name = "icedm"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+dark-light = "2.0.0"
+iced = { version = "0.13.1", features = ["debug", "tokio", "image"] }
+msnp11-sdk = "0.3.2"
