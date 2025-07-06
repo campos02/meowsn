@@ -1,90 +1,141 @@
-use crate::screens::{contacts, sign_in};
+use crate::icedm_window::{Action, Window};
+use crate::screens::screen::Screen;
+use crate::screens::{contacts, personal_settings, sign_in};
+use crate::window_type::WindowType;
 use dark_light::Mode;
+use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
-use iced::{Element, Size, Theme};
+use iced::{Element, Size, Subscription, Task, Theme, window};
+use std::collections::BTreeMap;
 
+mod icedm_window;
 mod screens;
 mod status;
-
-enum Screen {
-    SignIn(sign_in::SignIn),
-    Contacts(contacts::Contacts),
-}
+mod window_type;
 
 #[derive(Debug)]
 enum Message {
-    SignIn(sign_in::Message),
-    Contacts(contacts::Message),
+    OpenWindow(WindowType),
+    WindowOpened(window::Id, WindowType),
+    WindowClosed(window::Id),
+    SignIn(window::Id, sign_in::Message),
+    Contacts(window::Id, contacts::Message),
+    PersonalSettings(window::Id, personal_settings::Message),
 }
 
 struct IcedM {
-    screen: Screen,
+    windows: BTreeMap<window::Id, Window>,
 }
 
 impl IcedM {
-    fn new() -> Self {
-        Self {
-            screen: Screen::SignIn(sign_in::SignIn::default()),
-        }
+    fn new() -> (Self, Task<Message>) {
+        let (_id, open) = window::open(IcedM::window_settings(Size::new(350.0, 700.0)));
+        (
+            Self {
+                windows: BTreeMap::new(),
+            },
+            open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
+        )
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::SignIn(message) => {
-                if let Screen::SignIn(sign_in) = &mut self.screen {
-                    if let Some(action) = sign_in.update(message) {
-                        match action {
-                            sign_in::Action::SignIn => {
-                                self.screen = Screen::Contacts(contacts::Contacts::new());
-                            }
+            Message::OpenWindow(window_type) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
 
-                            sign_in::Action::PersonalSettings => {
-                                self.screen = Screen::Contacts(contacts::Contacts::new());
-                            }
-                        }
+                let (_id, open) = window::open(IcedM::window_settings(Size::new(500.0, 600.0)));
+                open.map(move |id| Message::WindowOpened(id, window_type.clone()))
+            }
+
+            Message::WindowOpened(id, window_type) => {
+                let screen = match window_type {
+                    WindowType::MainWindow => Screen::SignIn(sign_in::SignIn::default()),
+                    WindowType::PersonalSettings => {
+                        Screen::PersonalSettings(personal_settings::PersonalSettings::default())
                     }
+                };
+
+                let window = Window::new(screen);
+                self.windows.insert(id, window);
+                Task::none()
+            }
+
+            Message::WindowClosed(id) => {
+                if let Some(window) = self.windows.remove(&id) {
+                    match window.get_screen() {
+                        Screen::SignIn(..) | Screen::Contacts(..) => iced::exit(),
+                        _ => Task::none(),
+                    }
+                } else {
+                    Task::none()
                 }
             }
 
-            Message::Contacts(message) => {
-                if let Screen::Contacts(contacts) = &mut self.screen {
-                    contacts.update(message);
+            Message::SignIn(id, ..) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    if let Some(Action::PersonalSettings(window_type)) = window.update(message) {
+                        return Task::done(Message::OpenWindow(window_type.clone()));
+                    };
                 }
+
+                Task::none()
+            }
+
+            Message::Contacts(id, ..) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.update(message);
+                }
+
+                Task::none()
+            }
+
+            Message::PersonalSettings(id, ..) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.update(message);
+                }
+
+                Task::none()
             }
         }
     }
 
-    fn view(&self) -> Element<Message> {
-        match &self.screen {
-            Screen::SignIn(sign_in) => sign_in.view().map(Message::SignIn),
-            Screen::Contacts(contacts) => contacts.view().map(Message::Contacts),
+    fn view(&self, window_id: window::Id) -> Element<Message> {
+        if let Some(window) = self.windows.get(&window_id) {
+            window.view(window_id).into()
+        } else {
+            horizontal_space().into()
         }
     }
-}
 
-impl Default for IcedM {
-    fn default() -> Self {
-        Self::new()
+    fn subscription(&self) -> Subscription<Message> {
+        window::close_events().map(Message::WindowClosed)
+    }
+
+    fn window_settings(size: Size) -> Settings {
+        Settings {
+            size,
+            min_size: Some(size),
+            position: Position::Centered,
+            icon: if let Ok(icon) = icon::from_file("assets/icedm.png") {
+                Some(icon)
+            } else {
+                None
+            },
+            ..Settings::default()
+        }
     }
 }
 
 pub fn main() -> iced::Result {
-    let mut window_settings = Settings::default();
-    window_settings.size = Size::new(350.0, 700.0);
-    window_settings.min_size = Some(window_settings.size);
-    window_settings.position = Position::Centered;
-
-    if let Ok(icon) = icon::from_file("assets/icedm.png") {
-        window_settings.icon = Some(icon);
-    }
-
-    iced::application("icedm", IcedM::update, IcedM::view)
-        .window(window_settings)
+    iced::daemon("icedm", IcedM::update, IcedM::view)
+        .subscription(IcedM::subscription)
         .theme(
-            |_| match dark_light::detect().unwrap_or(Mode::Unspecified) {
+            |_, _| match dark_light::detect().unwrap_or(Mode::Unspecified) {
                 Mode::Dark => Theme::CatppuccinMocha,
                 _ => Theme::CatppuccinLatte,
             },
         )
-        .run()
+        .run_with(IcedM::new)
 }

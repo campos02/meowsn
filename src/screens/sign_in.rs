@@ -14,7 +14,6 @@ pub enum Message {
     SignIn,
 }
 
-#[derive(Debug, Clone)]
 pub enum Action {
     SignIn,
     PersonalSettings,
