@@ -1,12 +1,7 @@
 use crate::Message;
 use crate::screens::screen::Screen;
-use crate::screens::{contacts, personal_settings, sign_in};
-use crate::window_type::WindowType;
-use iced::{Element, window};
-
-pub enum Action {
-    PersonalSettings(WindowType),
-}
+use crate::screens::{contacts, sign_in};
+use iced::{Element, Task, widget, window};
 
 pub struct Window {
     screen: Screen,
@@ -17,9 +12,7 @@ impl Window {
         Self { screen }
     }
 
-    pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut window_action: Option<Action> = None;
-
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SignIn(.., message) => {
                 if let Screen::SignIn(sign_in) = &mut self.screen {
@@ -30,33 +23,56 @@ impl Window {
                             }
 
                             sign_in::Action::PersonalSettings => {
-                                window_action =
-                                    Some(Action::PersonalSettings(WindowType::PersonalSettings));
+                                return Task::done(Message::OpenPersonalSettings);
                             }
                         }
                     }
                 }
+
+                Task::none()
             }
 
             Message::Contacts(.., message) => {
                 if let Screen::Contacts(contacts) = &mut self.screen {
-                    contacts.update(message);
-                    self.screen = Screen::Contacts(contacts::Contacts::new());
+                    if let Some(action) = contacts.update(message) {
+                        match action {
+                            contacts::Action::PersonalSettings => {
+                                return Task::done(Message::OpenPersonalSettings);
+                            }
+
+                            contacts::Action::SignOut => {
+                                self.screen = Screen::SignIn(sign_in::SignIn::default());
+                            }
+
+                            contacts::Action::FocusNext => return widget::focus_next(),
+                            contacts::Action::Conversation(contact) => {
+                                return Task::done(Message::OpenConversation(contact));
+                            }
+                        };
+                    }
                 }
+
+                Task::none()
             }
 
             Message::PersonalSettings(.., message) => {
                 if let Screen::PersonalSettings(personal_settings) = &mut self.screen {
                     personal_settings.update(message);
-                    self.screen =
-                        Screen::PersonalSettings(personal_settings::PersonalSettings::new());
                 }
+
+                Task::none()
             }
 
-            _ => (),
-        }
+            Message::Conversation(.., message) => {
+                if let Screen::Conversation(conversation) = &mut self.screen {
+                    conversation.update(message);
+                }
 
-        window_action
+                Task::none()
+            }
+
+            _ => Task::none(),
+        }
     }
 
     pub fn view(&self, id: window::Id) -> Element<Message> {
@@ -72,6 +88,10 @@ impl Window {
             Screen::PersonalSettings(personal_settings) => personal_settings
                 .view()
                 .map(move |message| Message::PersonalSettings(id, message)),
+
+            Screen::Conversation(conversation) => conversation
+                .view()
+                .map(move |message| Message::Conversation(id, message)),
         }
     }
 

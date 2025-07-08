@@ -1,26 +1,30 @@
-use crate::icedm_window::{Action, Window};
+use crate::icedm_window::Window;
 use crate::screens::screen::Screen;
-use crate::screens::{contacts, personal_settings, sign_in};
+use crate::screens::{contacts, conversation, personal_settings, sign_in};
 use crate::window_type::WindowType;
 use dark_light::Mode;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, window};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
+mod contact_list_status;
 mod icedm_window;
 mod screens;
-mod status;
+mod sign_in_status;
 mod window_type;
 
 #[derive(Debug)]
-enum Message {
-    OpenWindow(WindowType),
+pub enum Message {
     WindowOpened(window::Id, WindowType),
     WindowClosed(window::Id),
     SignIn(window::Id, sign_in::Message),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
+    Conversation(window::Id, conversation::Message),
+    OpenPersonalSettings,
+    OpenConversation(Arc<String>),
 }
 
 struct IcedM {
@@ -29,7 +33,7 @@ struct IcedM {
 
 impl IcedM {
     fn new() -> (Self, Task<Message>) {
-        let (_id, open) = window::open(IcedM::window_settings(Size::new(350.0, 700.0)));
+        let (_id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
         (
             Self {
                 windows: BTreeMap::new(),
@@ -40,20 +44,15 @@ impl IcedM {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OpenWindow(window_type) => {
-                if self.windows.keys().last().is_none() {
-                    return Task::none();
-                };
-
-                let (_id, open) = window::open(IcedM::window_settings(Size::new(500.0, 600.0)));
-                open.map(move |id| Message::WindowOpened(id, window_type.clone()))
-            }
-
             Message::WindowOpened(id, window_type) => {
                 let screen = match window_type {
                     WindowType::MainWindow => Screen::SignIn(sign_in::SignIn::default()),
                     WindowType::PersonalSettings => {
                         Screen::PersonalSettings(personal_settings::PersonalSettings::default())
+                    }
+
+                    WindowType::Conversation(contact) => {
+                        Screen::Conversation(conversation::Conversation::new(contact))
                     }
                 };
 
@@ -73,30 +72,43 @@ impl IcedM {
                 }
             }
 
-            Message::SignIn(id, ..) => {
+            Message::Contacts(id, ..)
+            | Message::PersonalSettings(id, ..)
+            | Message::SignIn(id, ..)
+            | Message::Conversation(id, ..) => {
                 if let Some(window) = self.windows.get_mut(&id) {
-                    if let Some(Action::PersonalSettings(window_type)) = window.update(message) {
-                        return Task::done(Message::OpenWindow(window_type.clone()));
-                    };
+                    return window.update(message);
                 }
 
                 Task::none()
             }
 
-            Message::Contacts(id, ..) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.update(message);
+            Message::OpenPersonalSettings => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                if let Some(window) = self
+                    .windows
+                    .iter()
+                    .find(|window| matches!(window.1.get_screen(), Screen::PersonalSettings(..)))
+                {
+                    return window::gain_focus(*window.0);
                 }
 
-                Task::none()
+                let (_id, open) = window::open(IcedM::window_settings(Size::new(500.0, 500.0)));
+                open.map(move |id| Message::WindowOpened(id, WindowType::PersonalSettings))
             }
 
-            Message::PersonalSettings(id, ..) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.update(message);
-                }
+            Message::OpenConversation(contact) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
 
-                Task::none()
+                let (_id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
+                open.map(move |id| {
+                    Message::WindowOpened(id, WindowType::Conversation(contact.clone()))
+                })
             }
         }
     }
