@@ -3,12 +3,14 @@ use iced::Color;
 use iced::border::radius;
 use iced::widget::{button, checkbox, column, container, image, pick_list, row, text, text_input};
 use iced::{Border, Center, Element, Fill, Theme};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     EmailChanged(String),
     PasswordChanged(String),
     StatusSelected(SignInStatus),
+    ForgetMe,
     RememberMeToggled(bool),
     RememberMyPasswordToggled(bool),
     SignIn,
@@ -17,6 +19,7 @@ pub enum Message {
 pub enum Action {
     SignIn,
     PersonalSettings,
+    Dialog(Arc<String>),
 }
 
 pub struct SignIn {
@@ -98,7 +101,7 @@ impl SignIn {
                                     }
                                 }
                             })
-                            .on_press(Message::RememberMyPasswordToggled(true))
+                            .on_press(Message::ForgetMe)
                     ]
                     .spacing(15)
                     .align_y(Center),
@@ -121,7 +124,6 @@ impl SignIn {
         match message {
             Message::EmailChanged(email) => self.email = email,
             Message::PasswordChanged(password) => self.password = password,
-
             Message::StatusSelected(status) => {
                 if let SignInStatus::PersonalSettings = status {
                     action = Some(Action::PersonalSettings);
@@ -139,7 +141,24 @@ impl SignIn {
                 self.remember_my_password = remember_my_password;
             }
 
-            Message::SignIn => action = Some(Action::SignIn),
+            Message::SignIn => {
+                if self.email.is_empty() || self.password.is_empty() {
+                    action = Some(Action::Dialog(Arc::new(
+                        "Please type your e-mail address and password in their corresponding forms."
+                            .to_string(),
+                    )))
+                } else {
+                    action = Some(Action::SignIn);
+                }
+            }
+
+            Message::ForgetMe => {
+                self.email = String::new();
+                self.password = String::new();
+                self.remember_me = false;
+                self.remember_my_password = false;
+                self.status = Some(SignInStatus::Online);
+            }
         }
 
         action

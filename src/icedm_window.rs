@@ -25,6 +25,10 @@ impl Window {
                             sign_in::Action::PersonalSettings => {
                                 return Task::done(Message::OpenPersonalSettings);
                             }
+
+                            sign_in::Action::Dialog(message) => {
+                                return Task::done(Message::OpenDialog(message));
+                            }
                         }
                     }
                 }
@@ -71,6 +75,16 @@ impl Window {
                 Task::none()
             }
 
+            Message::Dialog(id, message) => {
+                if let Screen::Dialog(dialog) = &mut self.screen {
+                    if let Some(_action) = dialog.update(message) {
+                        return window::close::<Message>(id);
+                    }
+                }
+
+                Task::none()
+            }
+
             _ => Task::none(),
         }
     }
@@ -92,6 +106,10 @@ impl Window {
             Screen::Conversation(conversation) => conversation
                 .view()
                 .map(move |message| Message::Conversation(id, message)),
+
+            Screen::Dialog(dialog) => dialog
+                .view()
+                .map(move |message| Message::Dialog(id, message)),
         }
     }
 

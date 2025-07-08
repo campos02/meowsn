@@ -1,6 +1,6 @@
 use crate::icedm_window::Window;
 use crate::screens::screen::Screen;
-use crate::screens::{contacts, conversation, personal_settings, sign_in};
+use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
 use crate::window_type::WindowType;
 use dark_light::Mode;
 use iced::widget::horizontal_space;
@@ -17,18 +17,21 @@ mod window_type;
 
 #[derive(Debug)]
 pub enum Message {
+    WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
-    WindowClosed(window::Id),
     SignIn(window::Id, sign_in::Message),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
+    Dialog(window::Id, dialog::Message),
     OpenPersonalSettings,
     OpenConversation(Arc<String>),
+    OpenDialog(Arc<String>),
 }
 
 struct IcedM {
     windows: BTreeMap<window::Id, Window>,
+    modal_id: Option<window::Id>,
 }
 
 impl IcedM {
@@ -37,6 +40,7 @@ impl IcedM {
         (
             Self {
                 windows: BTreeMap::new(),
+                modal_id: None,
             },
             open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
         )
@@ -54,6 +58,8 @@ impl IcedM {
                     WindowType::Conversation(contact) => {
                         Screen::Conversation(conversation::Conversation::new(contact))
                     }
+
+                    WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                 };
 
                 let window = Window::new(screen);
@@ -61,21 +67,38 @@ impl IcedM {
                 Task::none()
             }
 
-            Message::WindowClosed(id) => {
-                if let Some(window) = self.windows.remove(&id) {
-                    match window.get_screen() {
-                        Screen::SignIn(..) | Screen::Contacts(..) => iced::exit(),
-                        _ => Task::none(),
+            Message::WindowEvent((id, event)) => match event {
+                window::Event::Closed => {
+                    if let Some(window) = self.windows.remove(&id) {
+                        match window.get_screen() {
+                            Screen::SignIn(..) | Screen::Contacts(..) => iced::exit(),
+                            Screen::Dialog(..) => {
+                                self.modal_id = None;
+                                Task::none()
+                            }
+                            _ => Task::none(),
+                        }
+                    } else {
+                        Task::none()
                     }
-                } else {
-                    Task::none()
                 }
-            }
+
+                window::Event::Focused => {
+                    if let Some(modal) = self.modal_id {
+                        window::gain_focus(modal)
+                    } else {
+                        Task::none()
+                    }
+                }
+
+                _ => Task::none(),
+            },
 
             Message::Contacts(id, ..)
             | Message::PersonalSettings(id, ..)
             | Message::SignIn(id, ..)
-            | Message::Conversation(id, ..) => {
+            | Message::Conversation(id, ..)
+            | Message::Dialog(id, ..) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     return window.update(message);
                 }
@@ -110,6 +133,21 @@ impl IcedM {
                     Message::WindowOpened(id, WindowType::Conversation(contact.clone()))
                 })
             }
+
+            Message::OpenDialog(message) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                if let Some(id) = self.modal_id {
+                    return window::gain_focus(id);
+                }
+
+                let (id, open) = window::open(IcedM::window_settings(Size::new(400.0, 150.0)));
+                self.modal_id = Some(id);
+
+                open.map(move |id| Message::WindowOpened(id, WindowType::Dialog(message.clone())))
+            }
         }
     }
 
@@ -122,7 +160,7 @@ impl IcedM {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        window::close_events().map(Message::WindowClosed)
+        window::events().map(Message::WindowEvent)
     }
 
     fn window_settings(size: Size) -> Settings {

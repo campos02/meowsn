@@ -5,4 +5,5 @@ pub enum WindowType {
     MainWindow,
     PersonalSettings,
     Conversation(Arc<String>),
+    Dialog(Arc<String>),
 }
