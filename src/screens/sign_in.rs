@@ -3,6 +3,9 @@ use iced::Color;
 use iced::border::radius;
 use iced::widget::{button, checkbox, column, container, image, pick_list, row, text, text_input};
 use iced::{Border, Center, Element, Fill, Theme};
+use msnp11_sdk::sdk_error::SdkError;
+use msnp11_sdk::{MsnpStatus, PersonalMessage};
+use std::fmt::Debug;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -14,6 +17,7 @@ pub enum Message {
     RememberMeToggled(bool),
     RememberMyPasswordToggled(bool),
     SignIn,
+    SignInFailed,
 }
 
 pub enum Action {
@@ -28,6 +32,7 @@ pub struct SignIn {
     status: Option<SignInStatus>,
     remember_me: bool,
     remember_my_password: bool,
+    signing_in: bool,
 }
 
 impl SignIn {
@@ -38,6 +43,7 @@ impl SignIn {
             status: Some(SignInStatus::Online),
             remember_me: false,
             remember_my_password: false,
+            signing_in: false,
         }
     }
 
@@ -109,7 +115,11 @@ impl SignIn {
                         .on_toggle(Message::RememberMyPasswordToggled)
                         .size(12),
                 ],
-                button("Sign In").on_press(Message::SignIn),
+                if self.signing_in {
+                    button("Sign In")
+                } else {
+                    button("Sign In").on_press(Message::SignIn)
+                },
             ]
             .spacing(20)
             .align_x(Center),
@@ -148,6 +158,7 @@ impl SignIn {
                             .to_string(),
                     )))
                 } else {
+                    self.signing_in = true;
                     action = Some(Action::SignIn);
                 }
             }
@@ -159,9 +170,21 @@ impl SignIn {
                 self.remember_my_password = false;
                 self.status = Some(SignInStatus::Online);
             }
+
+            Message::SignInFailed => {
+                self.signing_in = false;
+            }
         }
 
         action
+    }
+
+    pub fn get_sign_in_info(&self) -> (String, String, Option<SignInStatus>) {
+        (
+            self.email.clone(),
+            self.password.clone(),
+            self.status.clone(),
+        )
     }
 }
 
@@ -169,4 +192,63 @@ impl Default for SignIn {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub struct Client {
+    pub inner: Arc<msnp11_sdk::Client>,
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client").finish()
+    }
+}
+
+pub async fn sign_in(
+    email: String,
+    password: String,
+    status: Option<SignInStatus>,
+) -> Result<Client, SdkError> {
+    let mut client =
+        msnp11_sdk::Client::new("r2m.camposs.net".to_string(), "1863".to_string()).await?;
+
+    if let msnp11_sdk::Event::RedirectedTo { server, port } = client
+        .login(
+            email.clone(),
+            password.clone(),
+            "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
+        )
+        .await?
+    {
+        client = msnp11_sdk::Client::new(server, port).await?;
+        client
+            .login(
+                email,
+                password,
+                "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
+            )
+            .await?;
+    }
+
+    let status = match status {
+        Some(status) => match status {
+            SignInStatus::Busy => MsnpStatus::Busy,
+            SignInStatus::Away => MsnpStatus::Away,
+            SignInStatus::AppearOffline => MsnpStatus::AppearOffline,
+            _ => MsnpStatus::Online,
+        },
+        None => MsnpStatus::Online,
+    };
+
+    client.set_presence(status).await?;
+    client
+        .set_personal_message(&PersonalMessage {
+            psm: "".to_string(),
+            current_media: "".to_string(),
+        })
+        .await?;
+
+    Ok(Client {
+        inner: Arc::new(client),
+    })
 }

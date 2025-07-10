@@ -2,11 +2,12 @@ use crate::contact_list_status::ContactListStatus;
 use iced::border::radius;
 use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Theme};
+use msnp11_sdk::Client;
 use std::sync::Arc;
 
 pub enum Action {
     PersonalSettings,
-    SignOut,
+    SignOut(Arc<Client>),
     FocusNext,
     Conversation(Arc<String>),
 }
@@ -22,13 +23,15 @@ pub enum Message {
 pub struct Contacts {
     personal_message: String,
     status: Option<ContactListStatus>,
+    client: Arc<Client>,
 }
 
 impl Contacts {
-    pub fn new() -> Self {
+    pub fn new(client: Arc<Client>) -> Self {
         Self {
             personal_message: String::new(),
             status: Some(ContactListStatus::Online),
+            client,
         }
     }
 
@@ -176,7 +179,7 @@ impl Contacts {
             Message::PersonalMessageSubmit => action = Some(Action::FocusNext),
             Message::StatusSelected(status) => match status {
                 ContactListStatus::PersonalSettings => action = Some(Action::PersonalSettings),
-                ContactListStatus::SignOut => action = Some(Action::SignOut),
+                ContactListStatus::SignOut => action = Some(Action::SignOut(self.client.clone())),
                 _ => self.status = Some(status),
             },
 
@@ -184,11 +187,5 @@ impl Contacts {
         }
 
         action
-    }
-}
-
-impl Default for Contacts {
-    fn default() -> Self {
-        Self::new()
     }
 }

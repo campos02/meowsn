@@ -1,16 +1,20 @@
 use crate::icedm_window::Window;
+use crate::msnp_events::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
 use crate::window_type::WindowType;
 use dark_light::Mode;
+use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, window};
+use msnp11_sdk::sdk_error::SdkError;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 mod contact_list_status;
 mod icedm_window;
+mod msnp_events;
 mod screens;
 mod sign_in_status;
 mod window_type;
@@ -20,6 +24,7 @@ pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
     SignIn(window::Id, sign_in::Message),
+    SignedIn(window::Id, Result<sign_in::Client, SdkError>),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
@@ -27,11 +32,14 @@ pub enum Message {
     OpenPersonalSettings,
     OpenConversation(Arc<String>),
     OpenDialog(Arc<String>),
+    MsnpEvent(msnp_events::Event),
+    EmptyResultFuture(Result<(), SdkError>),
 }
 
 struct IcedM {
     windows: BTreeMap<window::Id, Window>,
     modal_id: Option<window::Id>,
+    msnp_subscription_sender: Option<Sender<Input>>,
 }
 
 impl IcedM {
@@ -41,6 +49,7 @@ impl IcedM {
             Self {
                 windows: BTreeMap::new(),
                 modal_id: None,
+                msnp_subscription_sender: None,
             },
             open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
         )
@@ -106,6 +115,24 @@ impl IcedM {
                 Task::none()
             }
 
+            Message::SignedIn(id, ref result) => {
+                if let Some(sender) = self.msnp_subscription_sender.as_mut() {
+                    if let Ok(client) = result {
+                        if let Err(error) =
+                            sender.start_send(Input::NewClient(client.inner.clone()))
+                        {
+                            return Task::done(Message::OpenDialog(Arc::new(error.to_string())));
+                        }
+                    }
+                }
+
+                if let Some(window) = self.windows.get_mut(&id) {
+                    return window.update(message);
+                }
+
+                Task::none()
+            }
+
             Message::OpenPersonalSettings => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
@@ -148,6 +175,29 @@ impl IcedM {
 
                 open.map(move |id| Message::WindowOpened(id, WindowType::Dialog(message.clone())))
             }
+
+            Message::MsnpEvent(ref event) => match event {
+                msnp_events::Event::Ready(sender) => {
+                    self.msnp_subscription_sender = Some(sender.clone());
+                    Task::none()
+                }
+
+                msnp_events::Event::NsEvent(..) => {
+                    if let Some(window) = self
+                        .windows
+                        .iter_mut()
+                        .find(|window| matches!(window.1.get_screen(), Screen::Contacts(..)))
+                    {
+                        return window.1.update(message);
+                    }
+
+                    Task::none()
+                }
+
+                msnp_events::Event::SbEvent { .. } => Task::none(),
+            },
+
+            _ => Task::none(),
         }
     }
 
@@ -160,7 +210,10 @@ impl IcedM {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        window::events().map(Message::WindowEvent)
+        Subscription::batch([
+            window::events().map(Message::WindowEvent),
+            Subscription::run(msnp_events::listen).map(Message::MsnpEvent),
+        ])
     }
 
     fn window_settings(size: Size) -> Settings {
