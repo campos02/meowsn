@@ -1,15 +1,18 @@
 use crate::contact_list_status::ContactListStatus;
+use crate::models::contact::Contact;
 use iced::border::radius;
 use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
-use iced::{Background, Border, Center, Color, Element, Fill, Theme};
-use msnp11_sdk::Client;
+use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
+use msnp11_sdk::{Client, Event, MsnpStatus, PersonalMessage};
 use std::sync::Arc;
 
 pub enum Action {
     PersonalSettings,
-    SignOut(Arc<Client>),
-    FocusNext,
-    Conversation(Arc<String>),
+    Conversation(Contact),
+    SignOut(Task<crate::Message>),
+    StatusSelected(Task<crate::Message>),
+    PersonalMessageSubmit(Task<crate::Message>),
+    ContactUpdated(Contact),
 }
 
 #[derive(Debug, Clone)]
@@ -17,12 +20,14 @@ pub enum Message {
     PersonalMessageChanged(String),
     PersonalMessageSubmit,
     StatusSelected(ContactListStatus),
-    Conversation(Arc<String>),
+    Conversation(Contact),
+    MsnpEvent(Event),
 }
 
 pub struct Contacts {
     personal_message: String,
     status: Option<ContactListStatus>,
+    contacts: Vec<Contact>,
     client: Arc<Client>,
 }
 
@@ -31,13 +36,12 @@ impl Contacts {
         Self {
             personal_message: String::new(),
             status: Some(ContactListStatus::Online),
+            contacts: Vec::new(),
             client,
         }
     }
 
     pub fn view(&self) -> Element<Message> {
-        let contacts = ["test 1", "test 2", "test 3"].iter();
-
         container(
             column![
                 row![
@@ -118,7 +122,7 @@ impl Contacts {
                         }
                     })
                     .on_press(Message::PersonalMessageSubmit),
-                column(contacts.map(|contact| {
+                column(self.contacts.iter().map(|contact| {
                     button(
                         row![
                             row![
@@ -132,7 +136,7 @@ impl Contacts {
                                         ..Default::default()
                                     })
                                     .padding(3),
-                                text(*contact)
+                                text(&*contact.display_name)
                             ]
                             .spacing(10)
                             .width(Fill)
@@ -148,7 +152,7 @@ impl Contacts {
                         .align_y(Center)
                         .spacing(120),
                     )
-                    .on_press(Message::Conversation(Arc::new(contact.to_string())))
+                    .on_press(Message::Conversation(contact.clone()))
                     .style(|theme: &Theme, status| match status {
                         button::Status::Hovered | button::Status::Pressed => {
                             button::secondary(theme, status)
@@ -176,14 +180,122 @@ impl Contacts {
                 self.personal_message = personal_message;
             }
 
-            Message::PersonalMessageSubmit => action = Some(Action::FocusNext),
+            Message::PersonalMessageSubmit => {
+                let client = self.client.clone();
+                let personal_message = PersonalMessage {
+                    psm: self.personal_message.clone(),
+                    current_media: "".to_string(),
+                };
+
+                action = Some(Action::PersonalMessageSubmit(Task::batch([
+                    Task::perform(
+                        async move { client.set_personal_message(&personal_message).await },
+                        |result| crate::Message::EmptyResultFuture(result),
+                    ),
+                    widget::focus_next(),
+                ])));
+            }
+
             Message::StatusSelected(status) => match status {
                 ContactListStatus::PersonalSettings => action = Some(Action::PersonalSettings),
-                ContactListStatus::SignOut => action = Some(Action::SignOut(self.client.clone())),
-                _ => self.status = Some(status),
+                ContactListStatus::SignOut => {
+                    let client = self.client.clone();
+                    action = Some(Action::SignOut(Task::perform(
+                        async move { client.disconnect().await },
+                        |result| crate::Message::EmptyResultFuture(result),
+                    )))
+                }
+
+                _ => {
+                    let client = self.client.clone();
+                    let presence = match status {
+                        ContactListStatus::Online => MsnpStatus::Online,
+                        ContactListStatus::Busy => MsnpStatus::Busy,
+                        ContactListStatus::Away => MsnpStatus::Away,
+                        ContactListStatus::AppearOffline => MsnpStatus::AppearOffline,
+                        _ => MsnpStatus::Online,
+                    };
+
+                    action = Some(Action::StatusSelected(Task::perform(
+                        async move { client.set_presence(presence).await },
+                        |result| crate::Message::EmptyResultFuture(result),
+                    )));
+
+                    self.status = Some(status);
+                }
             },
 
             Message::Conversation(contact) => action = Some(Action::Conversation(contact)),
+            Message::MsnpEvent(event) => match event {
+                Event::ContactInForwardList {
+                    email,
+                    display_name,
+                    guid,
+                    lists,
+                    ..
+                } => {
+                    self.contacts.push(Contact {
+                        email: Arc::new(email),
+                        display_name: Arc::new(display_name),
+                        guid: Arc::new(guid),
+                        lists: Arc::new(lists),
+                        status: None,
+                        personal_message: None,
+                    });
+                }
+
+                Event::PresenceUpdate {
+                    email,
+                    display_name,
+                    presence,
+                } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        contact.display_name = Arc::new(display_name);
+                        contact.status = Some(Arc::new(presence));
+                        action = Some(Action::ContactUpdated(contact.clone()));
+                    }
+
+                    self.contacts
+                        .sort_unstable_by_key(|contact| contact.status.is_none());
+                }
+
+                Event::PersonalMessageUpdate {
+                    email,
+                    personal_message,
+                } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        contact.personal_message = Some(Arc::new(personal_message.psm));
+                        action = Some(Action::ContactUpdated(contact.clone()));
+                    }
+                }
+
+                Event::ContactOffline { email } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        contact.status = None;
+                        action = Some(Action::ContactUpdated(contact.clone()));
+                    }
+
+                    self.contacts
+                        .sort_unstable_by_key(|contact| contact.status.is_none());
+                }
+
+                _ => (),
+            },
         }
 
         action

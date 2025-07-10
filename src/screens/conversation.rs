@@ -1,22 +1,23 @@
+use crate::models::contact::Contact;
 use iced::border::radius;
 use iced::widget::{
     column, container, image, rich_text, row, span, text, text_editor, vertical_space,
 };
 use iced::{Border, Element, Fill, Font, Theme, font};
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Edit(text_editor::Action),
+    ContactUpdated(Contact),
 }
 
 pub struct Conversation {
-    contact: Arc<String>,
+    contact: Contact,
     message: text_editor::Content,
 }
 
 impl Conversation {
-    pub fn new(contact: Arc<String>) -> Self {
+    pub fn new(contact: Contact) -> Self {
         Self {
             contact,
             message: text_editor::Content::new(),
@@ -29,16 +30,16 @@ impl Conversation {
                 column![
                     row![
                         "To: ",
-                        text(&*self.contact).font(Font {
+                        text(&*self.contact.display_name).font(Font {
                             weight: font::Weight::Bold,
                             ..Font::default()
                         }),
                         " ",
-                        "<testing@example.com>"
+                        text(format!("<{}>", &*self.contact.email))
                     ]
                     .width(Fill),
                     column![
-                        row![text(&*self.contact), " said:"],
+                        row![text(&*self.contact.display_name), " said:"],
                         container(rich_text([span("Test Message")]).height(Fill)).padding(10)
                     ],
                     text_editor(&self.message)
@@ -81,6 +82,14 @@ impl Conversation {
             Message::Edit(action) => {
                 self.message.perform(action);
             }
+
+            Message::ContactUpdated(contact) => {
+                self.contact = contact;
+            }
         }
+    }
+
+    pub fn get_contact(&self) -> &Contact {
+        &self.contact
     }
 }

@@ -1,4 +1,5 @@
 use crate::icedm_window::Window;
+use crate::models::contact::Contact;
 use crate::msnp_events::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
@@ -14,6 +15,7 @@ use std::sync::Arc;
 
 mod contact_list_status;
 mod icedm_window;
+mod models;
 mod msnp_events;
 mod screens;
 mod sign_in_status;
@@ -30,10 +32,11 @@ pub enum Message {
     Conversation(window::Id, conversation::Message),
     Dialog(window::Id, dialog::Message),
     OpenPersonalSettings,
-    OpenConversation(Arc<String>),
+    OpenConversation(Contact),
     OpenDialog(Arc<String>),
     MsnpEvent(msnp_events::Event),
     EmptyResultFuture(Result<(), SdkError>),
+    ContactUpdated(Contact),
 }
 
 struct IcedM {
@@ -176,19 +179,22 @@ impl IcedM {
                 open.map(move |id| Message::WindowOpened(id, WindowType::Dialog(message.clone())))
             }
 
-            Message::MsnpEvent(ref event) => match event {
+            Message::MsnpEvent(event) => match event {
                 msnp_events::Event::Ready(sender) => {
                     self.msnp_subscription_sender = Some(sender.clone());
                     Task::none()
                 }
 
-                msnp_events::Event::NsEvent(..) => {
+                msnp_events::Event::NsEvent(event) => {
                     if let Some(window) = self
                         .windows
                         .iter_mut()
                         .find(|window| matches!(window.1.get_screen(), Screen::Contacts(..)))
                     {
-                        return window.1.update(message);
+                        return window.1.update(Message::Contacts(
+                            *window.0,
+                            contacts::Message::MsnpEvent(event),
+                        ));
                     }
 
                     Task::none()
@@ -196,6 +202,23 @@ impl IcedM {
 
                 msnp_events::Event::SbEvent { .. } => Task::none(),
             },
+
+            Message::ContactUpdated(contact) => {
+                if let Some(window) = self.windows.iter_mut().find(|window| {
+                    if let Screen::Conversation(conversation) = window.1.get_screen() {
+                        return conversation.get_contact().email == contact.email;
+                    } else {
+                        false
+                    }
+                }) {
+                    return window.1.update(Message::Conversation(
+                        *window.0,
+                        conversation::Message::ContactUpdated(contact),
+                    ));
+                }
+
+                Task::none()
+            }
 
             _ => Task::none(),
         }

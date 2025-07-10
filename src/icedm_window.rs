@@ -1,7 +1,7 @@
 use crate::Message;
 use crate::screens::screen::Screen;
 use crate::screens::{contacts, sign_in};
-use iced::{Element, Task, widget, window};
+use iced::{Element, Task, window};
 use std::sync::Arc;
 
 pub struct Window {
@@ -49,16 +49,20 @@ impl Window {
                                 Task::done(Message::OpenPersonalSettings)
                             }
 
-                            contacts::Action::SignOut(client) => {
+                            contacts::Action::SignOut(task) => {
                                 self.screen = Screen::SignIn(sign_in::SignIn::default());
-                                Task::perform(async move { client.disconnect().await }, |result| {
-                                    Message::EmptyResultFuture(result)
-                                })
+                                task
                             }
 
-                            contacts::Action::FocusNext => widget::focus_next(),
+                            contacts::Action::PersonalMessageSubmit(task)
+                            | contacts::Action::StatusSelected(task) => task,
+
                             contacts::Action::Conversation(contact) => {
                                 Task::done(Message::OpenConversation(contact))
+                            }
+
+                            contacts::Action::ContactUpdated(contact) => {
+                                Task::done(Message::ContactUpdated(contact))
                             }
                         };
                     }
