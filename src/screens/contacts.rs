@@ -25,6 +25,7 @@ pub enum Message {
 }
 
 pub struct Contacts {
+    display_name: String,
     personal_message: String,
     status: Option<ContactListStatus>,
     contacts: Vec<Contact>,
@@ -34,6 +35,7 @@ pub struct Contacts {
 impl Contacts {
     pub fn new(client: Arc<Client>) -> Self {
         Self {
+            display_name: String::new(),
             personal_message: String::new(),
             status: Some(ContactListStatus::Online),
             contacts: Vec::new(),
@@ -57,7 +59,7 @@ impl Contacts {
                         .padding(3),
                     column![
                         row![
-                            text(" testing@example.com").size(14),
+                            text(&self.display_name).size(14),
                             pick_list(
                                 ContactListStatus::ALL,
                                 self.status.as_ref(),
@@ -227,6 +229,11 @@ impl Contacts {
 
             Message::Conversation(contact) => action = Some(Action::Conversation(contact)),
             Message::MsnpEvent(event) => match event {
+                Event::DisplayName(display_name) => {
+                    self.display_name = display_name;
+                    self.display_name.insert(0, ' ');
+                }
+
                 Event::ContactInForwardList {
                     email,
                     display_name,
