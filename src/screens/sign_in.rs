@@ -2,7 +2,9 @@ use crate::models::user::User;
 use crate::sign_in_status::SignInStatus;
 use iced::Color;
 use iced::border::radius;
-use iced::widget::{button, checkbox, column, container, image, pick_list, row, text, text_input};
+use iced::widget::{
+    button, checkbox, column, combo_box, container, image, pick_list, row, text, text_input,
+};
 use iced::{Border, Center, Element, Fill, Theme};
 use keyring::Entry;
 use msnp11_sdk::sdk_error::SdkError;
@@ -16,7 +18,8 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    EmailChanged(String),
+    EmailInput(String),
+    EmailSelected(String),
     PasswordChanged(String),
     StatusSelected(SignInStatus),
     ForgetMe,
@@ -33,7 +36,8 @@ pub enum Action {
 }
 
 pub struct SignIn {
-    email: String,
+    email: Option<String>,
+    emails: combo_box::State<String>,
     password: String,
     status: Option<SignInStatus>,
     remember_me: bool,
@@ -44,7 +48,8 @@ pub struct SignIn {
 
 impl SignIn {
     pub fn new(pool: Pool<SqliteConnectionManager>) -> Self {
-        let mut email = String::new();
+        let mut email = None;
+        let mut emails = Vec::new();
         let mut password = String::new();
         let mut remember_me = false;
         let mut remember_my_password = false;
@@ -59,23 +64,30 @@ impl SignIn {
                 });
 
                 if let Ok(users) = users {
-                    if let Some(Ok(user)) = users.last() {
-                        email = user.email;
-                        remember_me = true;
+                    for user in users {
+                        if let Ok(user) = user {
+                            emails.push(user.email);
+                        }
                     }
                 }
             }
         }
 
-        if let Ok(entry) = Entry::new("icedm", &email) {
-            if let Ok(passwd) = entry.get_password() {
-                password = passwd;
-                remember_my_password = true;
+        if let Some(last_email) = emails.last() {
+            email = Some(last_email.clone());
+            remember_me = true;
+
+            if let Ok(entry) = Entry::new("icedm", last_email) {
+                if let Ok(passwd) = entry.get_password() {
+                    password = passwd;
+                    remember_my_password = true;
+                }
             }
         }
 
         Self {
             email,
+            emails: combo_box::State::new(emails),
             password,
             status: Some(SignInStatus::Online),
             remember_me,
@@ -101,9 +113,14 @@ impl SignIn {
                 column![
                     column![
                         text("E-mail address:").size(14),
-                        text_input("E-mail address", &self.email)
-                            .size(14)
-                            .on_input(Message::EmailChanged),
+                        combo_box(
+                            &self.emails,
+                            "E-mail address",
+                            self.email.as_ref(),
+                            Message::EmailSelected,
+                        )
+                        .size(14.0)
+                        .on_input(Message::EmailInput),
                     ]
                     .spacing(5),
                     column![
@@ -170,7 +187,19 @@ impl SignIn {
     pub fn update(&mut self, message: Message) -> Option<Action> {
         let mut action: Option<Action> = None;
         match message {
-            Message::EmailChanged(email) => self.email = email,
+            Message::EmailInput(email) => self.email = Some(email),
+            Message::EmailSelected(email) => {
+                if let Ok(entry) = Entry::new("icedm", &email) {
+                    if let Ok(passwd) = entry.get_password() {
+                        self.password = passwd;
+                        self.remember_my_password = true;
+                    }
+                }
+
+                self.remember_me = true;
+                self.email = Some(email);
+            }
+
             Message::PasswordChanged(password) => self.password = password,
             Message::StatusSelected(status) => {
                 if let SignInStatus::PersonalSettings = status {
@@ -190,14 +219,15 @@ impl SignIn {
             }
 
             Message::SignIn => {
-                if self.email.is_empty() || self.password.is_empty() {
+                if self.email.as_ref().is_none_or(|email| email.is_empty())
+                    || self.password.is_empty()
+                {
                     action = Some(Action::Dialog(Arc::new(
                         "Please type your e-mail address and password in their corresponding forms."
                             .to_string(),
                     )))
                 } else {
                     self.signing_in = true;
-
                     if self.remember_me {
                         if let Ok(conn) = self.pool.get() {
                             if let Ok(mut stmt) =
@@ -217,8 +247,10 @@ impl SignIn {
                         }
 
                         if self.remember_my_password {
-                            if let Ok(entry) = Entry::new("icedm", &*self.email) {
-                                let _ = entry.set_password(&*self.password);
+                            if let Some(ref email) = self.email {
+                                if let Ok(entry) = Entry::new("icedm", email) {
+                                    let _ = entry.set_password(&*self.password);
+                                }
                             }
                         }
                     }
@@ -232,11 +264,13 @@ impl SignIn {
                     let _ = conn.execute("DELETE FROM users WHERE email = ?1", params![self.email]);
                 }
 
-                if let Ok(entry) = Entry::new("icedm", &*self.email) {
-                    let _ = entry.delete_credential();
+                if let Some(ref email) = self.email {
+                    if let Ok(entry) = Entry::new("icedm", email) {
+                        let _ = entry.delete_credential();
+                    }
                 }
 
-                self.email = String::new();
+                self.email = Some(String::new());
                 self.password = String::new();
                 self.remember_me = false;
                 self.remember_my_password = false;
@@ -253,7 +287,7 @@ impl SignIn {
 
     pub fn get_sign_in_info(&self) -> (Arc<String>, Arc<String>, Option<SignInStatus>) {
         (
-            Arc::new(self.email.clone()),
+            Arc::new(self.email.clone().unwrap_or(String::new())),
             Arc::new(self.password.clone()),
             self.status.clone(),
         )

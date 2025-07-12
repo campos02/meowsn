@@ -66,7 +66,7 @@ impl IcedM {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS users (\
                 id INTEGER PRIMARY KEY,\
-                email TEXT NOT NULL,\
+                email TEXT UNIQUE NOT NULL,\
                 personal_message TEXT,\
                 display_picture BLOB\
             )",
