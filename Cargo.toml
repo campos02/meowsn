@@ -7,3 +7,7 @@ edition = "2024"
 dark-light = "2.0.0"
 iced = { version = "0.13.1", features = ["debug", "tokio", "image"] }
 msnp11-sdk = "0.4.0"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+dirs = "6.0.0"
+r2d2 = "0.8.10"
+r2d2_sqlite = { version = "0.31.0", features = ["bundled"] }

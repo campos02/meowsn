@@ -10,6 +10,8 @@ use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, window};
 use msnp11_sdk::sdk_error::SdkError;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -43,16 +45,42 @@ struct IcedM {
     windows: BTreeMap<window::Id, Window>,
     modal_id: Option<window::Id>,
     msnp_subscription_sender: Option<Sender<Input>>,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl IcedM {
     fn new() -> (Self, Task<Message>) {
+        let mut data_local = dirs::data_local_dir().expect("Could not find local data directory");
+        data_local.push("icedm");
+        std::fs::create_dir_all(&data_local).expect("Could not create icedm directory");
+
+        data_local.push("icedm");
+        data_local.set_extension("db");
+
+        let manager = SqliteConnectionManager::file(data_local);
+        let pool = Pool::new(manager).expect("Could not create sqlite connection pool");
+        let conn = pool
+            .get()
+            .expect("Could not get sqlite connection from pool");
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS users (\
+                id INTEGER PRIMARY KEY,\
+                email TEXT NOT NULL,\
+                personal_message TEXT,\
+                display_picture BLOB\
+            )",
+            (),
+        )
+        .expect("Could not create users table");
+
         let (_id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
         (
             Self {
                 windows: BTreeMap::new(),
                 modal_id: None,
                 msnp_subscription_sender: None,
+                pool,
             },
             open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
         )
@@ -62,7 +90,9 @@ impl IcedM {
         match message {
             Message::WindowOpened(id, window_type) => {
                 let screen = match window_type {
-                    WindowType::MainWindow => Screen::SignIn(sign_in::SignIn::default()),
+                    WindowType::MainWindow => {
+                        Screen::SignIn(sign_in::SignIn::new(self.pool.clone()))
+                    }
                     WindowType::PersonalSettings => {
                         Screen::PersonalSettings(personal_settings::PersonalSettings::default())
                     }
@@ -74,7 +104,7 @@ impl IcedM {
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                 };
 
-                let window = Window::new(screen);
+                let window = Window::new(screen, self.pool.clone());
                 self.windows.insert(id, window);
                 Task::none()
             }

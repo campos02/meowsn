@@ -2,15 +2,18 @@ use crate::Message;
 use crate::screens::screen::Screen;
 use crate::screens::{contacts, sign_in};
 use iced::{Element, Task, window};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use std::sync::Arc;
 
 pub struct Window {
     screen: Screen,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl Window {
-    pub fn new(screen: Screen) -> Self {
-        Self { screen }
+    pub fn new(screen: Screen, pool: Pool<SqliteConnectionManager>) -> Self {
+        Self { screen, pool }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -50,7 +53,8 @@ impl Window {
                             }
 
                             contacts::Action::SignOut(task) => {
-                                self.screen = Screen::SignIn(sign_in::SignIn::default());
+                                self.screen =
+                                    Screen::SignIn(sign_in::SignIn::new(self.pool.clone()));
                                 task
                             }
 

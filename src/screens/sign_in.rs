@@ -1,10 +1,16 @@
+use crate::models::user::User;
 use crate::sign_in_status::SignInStatus;
 use iced::Color;
 use iced::border::radius;
 use iced::widget::{button, checkbox, column, container, image, pick_list, row, text, text_input};
 use iced::{Border, Center, Element, Fill, Theme};
+use keyring::Entry;
 use msnp11_sdk::sdk_error::SdkError;
 use msnp11_sdk::{MsnpStatus, PersonalMessage};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use r2d2_sqlite::rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
+use r2d2_sqlite::rusqlite::params;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -33,17 +39,49 @@ pub struct SignIn {
     remember_me: bool,
     remember_my_password: bool,
     signing_in: bool,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl SignIn {
-    pub fn new() -> Self {
+    pub fn new(pool: Pool<SqliteConnectionManager>) -> Self {
+        let mut email = String::new();
+        let mut password = String::new();
+        let mut remember_me = false;
+        let mut remember_my_password = false;
+
+        if let Ok(conn) = pool.get() {
+            if let Ok(mut stmt) = conn.prepare("SELECT email FROM users") {
+                let users = stmt.query_map([], |row| {
+                    Ok(User {
+                        email: row.get(0)?,
+                        personal_message: None,
+                    })
+                });
+
+                if let Ok(users) = users {
+                    if let Some(Ok(user)) = users.last() {
+                        email = user.email;
+                        remember_me = true;
+                    }
+                }
+            }
+        }
+
+        if let Ok(entry) = Entry::new("icedm", &email) {
+            if let Ok(passwd) = entry.get_password() {
+                password = passwd;
+                remember_my_password = true;
+            }
+        }
+
         Self {
-            email: String::new(),
-            password: String::new(),
+            email,
+            password,
             status: Some(SignInStatus::Online),
-            remember_me: false,
-            remember_my_password: false,
+            remember_me,
+            remember_my_password,
             signing_in: false,
+            pool,
         }
     }
 
@@ -159,11 +197,45 @@ impl SignIn {
                     )))
                 } else {
                     self.signing_in = true;
+
+                    if self.remember_me {
+                        if let Ok(conn) = self.pool.get() {
+                            if let Ok(mut stmt) =
+                                conn.prepare("SELECT email FROM users WHERE email = ?1")
+                            {
+                                if let Ok(rows) = stmt.query(params![self.email]) {
+                                    if let Ok(count) = rows.count() {
+                                        if count == 0 {
+                                            let _ = conn.execute(
+                                                "INSERT INTO users (email) VALUES (?1)",
+                                                params![self.email],
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if self.remember_my_password {
+                            if let Ok(entry) = Entry::new("icedm", &*self.email) {
+                                let _ = entry.set_password(&*self.password);
+                            }
+                        }
+                    }
+
                     action = Some(Action::SignIn);
                 }
             }
 
             Message::ForgetMe => {
+                if let Ok(conn) = self.pool.get() {
+                    let _ = conn.execute("DELETE FROM users WHERE email = ?1", params![self.email]);
+                }
+
+                if let Ok(entry) = Entry::new("icedm", &*self.email) {
+                    let _ = entry.delete_credential();
+                }
+
                 self.email = String::new();
                 self.password = String::new();
                 self.remember_me = false;
@@ -185,12 +257,6 @@ impl SignIn {
             self.password.clone(),
             self.status.clone(),
         )
-    }
-}
-
-impl Default for SignIn {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
