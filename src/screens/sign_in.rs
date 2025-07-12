@@ -251,16 +251,17 @@ impl SignIn {
         action
     }
 
-    pub fn get_sign_in_info(&self) -> (String, String, Option<SignInStatus>) {
+    pub fn get_sign_in_info(&self) -> (Arc<String>, Arc<String>, Option<SignInStatus>) {
         (
-            self.email.clone(),
-            self.password.clone(),
+            Arc::new(self.email.clone()),
+            Arc::new(self.password.clone()),
             self.status.clone(),
         )
     }
 }
 
 pub struct Client {
+    pub personal_message: String,
     pub inner: Arc<msnp11_sdk::Client>,
 }
 
@@ -271,17 +272,18 @@ impl Debug for Client {
 }
 
 pub async fn sign_in(
-    email: String,
-    password: String,
+    email: Arc<String>,
+    password: Arc<String>,
     status: Option<SignInStatus>,
+    pool: Pool<SqliteConnectionManager>,
 ) -> Result<Client, SdkError> {
     let mut client =
         msnp11_sdk::Client::new("r2m.camposs.net".to_string(), "1863".to_string()).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
         .login(
-            email.clone(),
-            password.clone(),
+            (*email).clone(),
+            (*password).clone(),
             "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
         )
         .await?
@@ -289,8 +291,8 @@ pub async fn sign_in(
         client = msnp11_sdk::Client::new(server, port).await?;
         client
             .login(
-                email,
-                password,
+                (*email).clone(),
+                (*password).clone(),
                 "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
             )
             .await?;
@@ -307,14 +309,35 @@ pub async fn sign_in(
     };
 
     client.set_presence(status).await?;
-    client
-        .set_personal_message(&PersonalMessage {
-            psm: "".to_string(),
-            current_media: "".to_string(),
-        })
-        .await?;
 
+    let mut psm = String::new();
+    if let Ok(conn) = pool.get() {
+        if let Ok(mut stmt) = conn.prepare("SELECT personal_message FROM users") {
+            let users = stmt.query_map([], |row| {
+                Ok(User {
+                    email: String::new(),
+                    personal_message: row.get(0)?,
+                })
+            });
+
+            if let Ok(users) = users {
+                if let Some(Ok(user)) = users.last() {
+                    if let Some(personal_message) = user.personal_message {
+                        psm = personal_message;
+                    }
+                }
+            }
+        }
+    }
+
+    let personal_message = PersonalMessage {
+        psm,
+        current_media: "".to_string(),
+    };
+
+    client.set_personal_message(&personal_message).await?;
     Ok(Client {
+        personal_message: personal_message.psm,
         inner: Arc::new(client),
     })
 }

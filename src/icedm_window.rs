@@ -25,8 +25,13 @@ impl Window {
                             sign_in::Action::SignIn => {
                                 let (email, password, status) = sign_in.get_sign_in_info();
                                 Task::perform(
-                                    sign_in::sign_in(email, password, status),
-                                    move |result| Message::SignedIn(id, result),
+                                    sign_in::sign_in(
+                                        email.clone(),
+                                        password,
+                                        status,
+                                        self.pool.clone(),
+                                    ),
+                                    move |result| Message::SignedIn(id, email.clone(), result),
                                 )
                             }
 
@@ -101,10 +106,15 @@ impl Window {
                 Task::none()
             }
 
-            Message::SignedIn(.., result) => {
+            Message::SignedIn(.., email, result) => {
                 match result {
                     Ok(client) => {
-                        self.screen = Screen::Contacts(contacts::Contacts::new(client.inner))
+                        self.screen = Screen::Contacts(contacts::Contacts::new(
+                            email,
+                            client.personal_message,
+                            client.inner,
+                            self.pool.clone(),
+                        ));
                     }
 
                     Err(error) => {

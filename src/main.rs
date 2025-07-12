@@ -28,7 +28,7 @@ pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
     SignIn(window::Id, sign_in::Message),
-    SignedIn(window::Id, Result<sign_in::Client, SdkError>),
+    SignedIn(window::Id, Arc<String>, Result<sign_in::Client, SdkError>),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
@@ -148,7 +148,7 @@ impl IcedM {
                 Task::none()
             }
 
-            Message::SignedIn(id, ref result) => {
+            Message::SignedIn(id, .., ref result) => {
                 if let Some(sender) = self.msnp_subscription_sender.as_mut() {
                     if let Ok(client) = result {
                         if let Err(error) =

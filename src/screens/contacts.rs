@@ -4,6 +4,9 @@ use iced::border::radius;
 use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpStatus, PersonalMessage};
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use r2d2_sqlite::rusqlite::params;
 use std::sync::Arc;
 
 pub enum Action {
@@ -25,21 +28,30 @@ pub enum Message {
 }
 
 pub struct Contacts {
+    email: Arc<String>,
     display_name: String,
     personal_message: String,
     status: Option<ContactListStatus>,
     contacts: Vec<Contact>,
     client: Arc<Client>,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl Contacts {
-    pub fn new(client: Arc<Client>) -> Self {
+    pub fn new(
+        email: Arc<String>,
+        personal_message: String,
+        client: Arc<Client>,
+        pool: Pool<SqliteConnectionManager>,
+    ) -> Self {
         Self {
+            email,
             display_name: String::new(),
-            personal_message: String::new(),
+            personal_message,
             status: Some(ContactListStatus::Online),
             contacts: Vec::new(),
             client,
+            pool,
         }
     }
 
@@ -188,6 +200,13 @@ impl Contacts {
                     psm: self.personal_message.clone(),
                     current_media: "".to_string(),
                 };
+
+                if let Ok(conn) = self.pool.get() {
+                    let _ = conn.execute(
+                        "UPDATE users SET personal_message = ?1 WHERE email = ?2",
+                        params![personal_message.psm, self.email],
+                    );
+                }
 
                 action = Some(Action::PersonalMessageSubmit(Task::batch([
                     Task::perform(
