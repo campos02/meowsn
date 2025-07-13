@@ -3,7 +3,6 @@ use crate::screens::{contacts, sign_in};
 use crate::sqlite::Sqlite;
 use crate::{Message, sign_in_async};
 use iced::{Element, Task, window};
-use std::sync::Arc;
 
 pub struct Window {
     screen: Screen,
@@ -128,7 +127,7 @@ impl Window {
                             sign_in.update(sign_in::Message::SignInFailed);
                         }
 
-                        return Task::done(Message::OpenDialog(Arc::new(error.to_string())));
+                        return Task::done(Message::OpenDialog(error.to_string()));
                     }
                 }
 

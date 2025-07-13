@@ -1,6 +1,5 @@
 use iced::widget::{button, column, container, text};
 use iced::{Center, Element, Fill};
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -12,11 +11,11 @@ pub enum Action {
 }
 
 pub struct Dialog {
-    message: Arc<String>,
+    message: String,
 }
 
 impl Dialog {
-    pub fn new(message: Arc<String>) -> Self {
+    pub fn new(message: String) -> Self {
         Self { message }
     }
 

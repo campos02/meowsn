@@ -41,7 +41,7 @@ pub enum Message {
     },
 
     OpenConversation(Contact),
-    OpenDialog(Arc<String>),
+    OpenDialog(String),
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
     ContactUpdated(Contact),
@@ -142,7 +142,7 @@ impl IcedM {
                         if let Err(error) =
                             sender.start_send(Input::NewClient(client.inner.clone()))
                         {
-                            return Task::done(Message::OpenDialog(Arc::new(error.to_string())));
+                            return Task::done(Message::OpenDialog(error.to_string()));
                         }
                     }
                 }
@@ -193,7 +193,7 @@ impl IcedM {
                 })
             }
 
-            Message::OpenDialog(message) => {
+            Message::OpenDialog(mut message) => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
                 };
@@ -205,7 +205,9 @@ impl IcedM {
                 let (id, open) = window::open(IcedM::window_settings(Size::new(400.0, 150.0)));
                 self.modal_id = Some(id);
 
-                open.map(move |id| Message::WindowOpened(id, WindowType::Dialog(message.clone())))
+                open.map(move |id| {
+                    Message::WindowOpened(id, WindowType::Dialog(std::mem::take(&mut message)))
+                })
             }
 
             Message::MsnpEvent(event) => match event {

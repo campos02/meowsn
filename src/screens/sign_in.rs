@@ -26,7 +26,7 @@ pub enum Message {
 pub enum Action {
     SignIn,
     PersonalSettings,
-    Dialog(Arc<String>),
+    Dialog(String),
 }
 
 pub struct SignIn {
@@ -201,10 +201,8 @@ impl SignIn {
                 if self.email.as_ref().is_none_or(|email| email.is_empty())
                     || self.password.is_empty()
                 {
-                    action = Some(Action::Dialog(Arc::new(
-                        "Please type your e-mail address and password in their corresponding forms."
-                            .to_string(),
-                    )))
+                    action = Some(Action::Dialog("Please type your e-mail address and password in their corresponding forms."
+                        .to_string()))
                 } else {
                     self.signing_in = true;
                     if self.remember_me {
