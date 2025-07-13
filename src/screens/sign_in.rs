@@ -3,7 +3,7 @@ use crate::sqlite::Sqlite;
 use iced::Color;
 use iced::border::radius;
 use iced::widget::{
-    button, checkbox, column, combo_box, container, image, pick_list, row, text, text_input,
+    button, checkbox, column, combo_box, container, pick_list, row, svg, text, text_input,
 };
 use iced::{Border, Center, Element, Fill, Theme};
 use keyring::Entry;
@@ -75,7 +75,7 @@ impl SignIn {
     pub fn view(&self) -> Element<Message> {
         container(
             column![
-                container(image("assets/default_display_picture.png").width(120))
+                container(svg("assets/default_display_picture.svg").width(120))
                     .style(|theme: &Theme| container::Style {
                         border: Border {
                             color: theme.palette().text,

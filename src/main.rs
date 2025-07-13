@@ -275,7 +275,7 @@ impl IcedM {
             size,
             min_size: Some(size),
             position: Position::Centered,
-            icon: if let Ok(icon) = icon::from_file("assets/icedm.png") {
+            icon: if let Ok(icon) = icon::from_file("assets/icedm.ico") {
                 Some(icon)
             } else {
                 None

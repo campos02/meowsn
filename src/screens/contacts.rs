@@ -3,9 +3,9 @@ use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
-use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
-use msnp11_sdk::{Client, Event, MsnpStatus, PersonalMessage};
+use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use std::sync::Arc;
 
 pub enum Action {
@@ -62,7 +62,7 @@ impl Contacts {
         container(
             column![
                 row![
-                    container(image("assets/default_display_picture.png").width(70))
+                    container(svg("assets/default_display_picture.svg").width(70))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -140,45 +140,61 @@ impl Contacts {
                     })
                     .on_press(Message::PersonalMessageSubmit),
                 column(self.contacts.iter().map(|contact| {
-                    button(
+                    row![
                         row![
-                            row![
-                                container(image("assets/default_display_picture.png").width(40))
-                                    .style(|theme: &Theme| container::Style {
-                                        border: Border {
-                                            color: theme.palette().text,
-                                            width: 1.0,
-                                            radius: radius(6.0),
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .padding(3),
-                                text(&*contact.display_name)
-                            ]
-                            .spacing(10)
-                            .width(Fill)
-                            .align_y(Center),
-                            row![
-                                button(text("Block").size(15))
-                                    .on_press(Message::PersonalMessageSubmit),
-                                button(text("Delete").size(15))
-                                    .on_press(Message::PersonalMessageSubmit)
-                            ]
-                            .spacing(5)
-                        ]
-                        .align_y(Center)
-                        .spacing(120),
-                    )
-                    .on_press(Message::Conversation(contact.clone()))
-                    .style(|theme: &Theme, status| match status {
-                        button::Status::Hovered | button::Status::Pressed => {
-                            button::secondary(theme, status)
-                        }
+                            svg(if let Some(status) = &contact.status {
+                                match status.status {
+                                    MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                        "assets/default_display_picture_busy.svg"
+                                    }
 
-                        button::Status::Active | button::Status::Disabled => {
-                            button::secondary(theme, status).with_background(Color::TRANSPARENT)
-                        }
-                    })
+                                    MsnpStatus::Away
+                                    | MsnpStatus::Idle
+                                    | MsnpStatus::BeRightBack
+                                    | MsnpStatus::OutToLunch => {
+                                        "assets/default_display_picture_away.svg"
+                                    }
+
+                                    _ => "assets/default_display_picture.svg",
+                                }
+                            } else {
+                                if contact.lists.contains(&MsnpList::BlockList) {
+                                    "assets/default_display_picture_offline_blocked.svg"
+                                } else {
+                                    "assets/default_display_picture_offline.svg"
+                                }
+                            })
+                            .width(30),
+                            button(text(&*contact.display_name))
+                                .on_press(Message::Conversation(contact.clone()))
+                                .style(|theme: &Theme, status| match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::secondary(theme, status)
+                                    }
+
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                })
+                                .width(Fill)
+                        ]
+                        .align_y(Center),
+                        row![
+                            if !contact.lists.contains(&MsnpList::BlockList) {
+                                button(text("Block").size(15))
+                                    .on_press(Message::PersonalMessageSubmit)
+                            } else {
+                                button(text("Unblock").size(15))
+                                    .on_press(Message::PersonalMessageSubmit)
+                            },
+                            button(text("Delete").size(15))
+                                .on_press(Message::PersonalMessageSubmit)
+                        ]
+                        .spacing(5)
+                    ]
+                    .align_y(Center)
+                    .spacing(10)
                     .width(Fill)
                     .into()
                 }))

@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 dark-light = "2.0.0"
-iced = { version = "0.13.1", features = ["debug", "tokio", "image"] }
+iced = { version = "0.13.1", features = ["debug", "tokio", "image", "svg"] }
 msnp11-sdk = "0.5.0"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 dirs = "6.0.0"

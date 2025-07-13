@@ -1,7 +1,7 @@
 use crate::models::contact::Contact;
 use iced::border::radius;
 use iced::widget::{
-    column, container, image, rich_text, row, span, text, text_editor, vertical_space,
+    column, container, rich_text, row, span, svg, text, text_editor, vertical_space,
 };
 use iced::{Border, Element, Fill, Font, Theme, font};
 
@@ -48,7 +48,7 @@ impl Conversation {
                 ]
                 .spacing(20),
                 column![
-                    container(image("assets/default_display_picture.png").width(100))
+                    container(svg("assets/default_display_picture.svg").width(100))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -59,7 +59,7 @@ impl Conversation {
                         })
                         .padding(3),
                     vertical_space().height(Fill),
-                    container(image("assets/default_display_picture.png").width(100))
+                    container(svg("assets/default_display_picture.svg").width(100))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
