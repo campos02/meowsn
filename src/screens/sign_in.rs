@@ -1,6 +1,5 @@
-use crate::models::user::User;
-use crate::settings;
-use crate::sign_in_status::SignInStatus;
+use crate::enums::sign_in_status::SignInStatus;
+use crate::sqlite::Sqlite;
 use iced::Color;
 use iced::border::radius;
 use iced::widget::{
@@ -8,11 +7,6 @@ use iced::widget::{
 };
 use iced::{Border, Center, Element, Fill, Theme};
 use keyring::Entry;
-use msnp11_sdk::sdk_error::SdkError;
-use msnp11_sdk::{MsnpStatus, PersonalMessage};
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
-use r2d2_sqlite::rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -43,36 +37,17 @@ pub struct SignIn {
     remember_me: bool,
     remember_my_password: bool,
     signing_in: bool,
-    pool: Pool<SqliteConnectionManager>,
+    sqlite: Sqlite,
 }
 
 impl SignIn {
-    pub fn new(pool: Pool<SqliteConnectionManager>) -> Self {
+    pub fn new(sqlite: Sqlite) -> Self {
         let mut email = None;
-        let mut emails = Vec::new();
         let mut password = String::new();
         let mut remember_me = false;
         let mut remember_my_password = false;
 
-        if let Ok(conn) = pool.get() {
-            if let Ok(mut stmt) = conn.prepare("SELECT email FROM users") {
-                let users = stmt.query_map([], |row| {
-                    Ok(User {
-                        email: row.get(0)?,
-                        personal_message: None,
-                    })
-                });
-
-                if let Ok(users) = users {
-                    for user in users {
-                        if let Ok(user) = user {
-                            emails.push(user.email);
-                        }
-                    }
-                }
-            }
-        }
-
+        let emails = sqlite.select_user_emails();
         if let Some(last_email) = emails.last() {
             email = Some(last_email.clone());
             remember_me = true;
@@ -93,7 +68,7 @@ impl SignIn {
             remember_me,
             remember_my_password,
             signing_in: false,
-            pool,
+            sqlite,
         }
     }
 
@@ -233,21 +208,8 @@ impl SignIn {
                 } else {
                     self.signing_in = true;
                     if self.remember_me {
-                        if let Ok(conn) = self.pool.get() {
-                            if let Ok(mut stmt) =
-                                conn.prepare("SELECT email FROM users WHERE email = ?1")
-                            {
-                                if let Ok(rows) = stmt.query([&self.email]) {
-                                    if let Ok(count) = rows.count() {
-                                        if count == 0 {
-                                            let _ = conn.execute(
-                                                "INSERT INTO users (email) VALUES (?1)",
-                                                [&self.email],
-                                            );
-                                        }
-                                    }
-                                }
-                            }
+                        if let Some(ref email) = self.email {
+                            self.sqlite.insert_user_if_not_in_db(email);
                         }
 
                         if self.remember_my_password {
@@ -264,8 +226,8 @@ impl SignIn {
             }
 
             Message::ForgetMe => {
-                if let Ok(conn) = self.pool.get() {
-                    let _ = conn.execute("DELETE FROM users WHERE email = ?1", [&self.email]);
+                if let Some(ref email) = self.email {
+                    self.sqlite.delete_user(email);
                 }
 
                 if let Some(ref email) = self.email {
@@ -296,78 +258,4 @@ impl SignIn {
             self.status.clone(),
         )
     }
-}
-
-pub struct Client {
-    pub personal_message: String,
-    pub inner: Arc<msnp11_sdk::Client>,
-}
-
-impl Debug for Client {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Client").finish()
-    }
-}
-
-pub async fn sign_in(
-    email: Arc<String>,
-    password: Arc<String>,
-    status: Option<SignInStatus>,
-    pool: Pool<SqliteConnectionManager>,
-) -> Result<Client, SdkError> {
-    let settings = settings::get_settings().unwrap_or_default();
-    let mut client = msnp11_sdk::Client::new(&settings.server, &1863).await?;
-
-    if let msnp11_sdk::Event::RedirectedTo { server, port } = client
-        .login((*email).clone(), &*password, &settings.nexus_url)
-        .await?
-    {
-        client = msnp11_sdk::Client::new(&server, &port).await?;
-        client
-            .login((*email).clone(), &*password, &settings.nexus_url)
-            .await?;
-    }
-
-    let status = match status {
-        Some(status) => match status {
-            SignInStatus::Busy => MsnpStatus::Busy,
-            SignInStatus::Away => MsnpStatus::Away,
-            SignInStatus::AppearOffline => MsnpStatus::AppearOffline,
-            _ => MsnpStatus::Online,
-        },
-        None => MsnpStatus::Online,
-    };
-
-    client.set_presence(status).await?;
-
-    let mut psm = String::new();
-    if let Ok(conn) = pool.get() {
-        if let Ok(mut stmt) = conn.prepare("SELECT personal_message FROM users") {
-            let users = stmt.query_map([], |row| {
-                Ok(User {
-                    email: String::new(),
-                    personal_message: row.get(0)?,
-                })
-            });
-
-            if let Ok(users) = users {
-                if let Some(Ok(user)) = users.last() {
-                    if let Some(personal_message) = user.personal_message {
-                        psm = personal_message;
-                    }
-                }
-            }
-        }
-    }
-
-    let personal_message = PersonalMessage {
-        psm,
-        current_media: "".to_string(),
-    };
-
-    client.set_personal_message(&personal_message).await?;
-    Ok(Client {
-        personal_message: personal_message.psm,
-        inner: Arc::new(client),
-    })
 }

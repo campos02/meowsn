@@ -1,6 +1,6 @@
-use crate::screens::sign_in;
+use crate::client_wrapper::ClientWrapper;
 use crate::settings::Settings;
-use crate::{msnp_events, settings};
+use crate::{msnp_listener, settings};
 use iced::widget::{button, column, container, text, text_input};
 use iced::{Center, Element, Fill, Task};
 use msnp11_sdk::Client;
@@ -22,7 +22,7 @@ pub struct PersonalSettings {
 }
 
 impl PersonalSettings {
-    pub fn new(client: Option<sign_in::Client>, display_name: Option<String>) -> Self {
+    pub fn new(client: Option<ClientWrapper>, display_name: Option<String>) -> Self {
         let settings = settings::get_settings().unwrap_or_default();
         Self {
             client: client.map(|client| client.inner),
@@ -96,7 +96,7 @@ impl PersonalSettings {
                             async move { client.set_display_name(&display_name).await },
                             crate::Message::EmptyResultFuture,
                         ),
-                        Task::done(crate::Message::MsnpEvent(msnp_events::Event::NsEvent(
+                        Task::done(crate::Message::MsnpEvent(msnp_listener::Event::NsEvent(
                             msnp11_sdk::Event::DisplayName(new_display_name),
                         ))),
                     ]);

@@ -1,17 +1,16 @@
-use crate::contact_list_status::ContactListStatus;
+use crate::client_wrapper::ClientWrapper;
+use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
-use crate::screens::sign_in;
+use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpStatus, PersonalMessage};
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
 use std::sync::Arc;
 
 pub enum Action {
     PersonalSettings {
-        client: Option<sign_in::Client>,
+        client: Option<ClientWrapper>,
         display_name: Option<String>,
     },
 
@@ -38,7 +37,7 @@ pub struct Contacts {
     status: Option<ContactListStatus>,
     contacts: Vec<Contact>,
     client: Arc<Client>,
-    pool: Pool<SqliteConnectionManager>,
+    sqlite: Sqlite,
 }
 
 impl Contacts {
@@ -46,7 +45,7 @@ impl Contacts {
         email: Arc<String>,
         personal_message: String,
         client: Arc<Client>,
-        pool: Pool<SqliteConnectionManager>,
+        sqlite: Sqlite,
     ) -> Self {
         Self {
             email,
@@ -55,7 +54,7 @@ impl Contacts {
             status: Some(ContactListStatus::Online),
             contacts: Vec::new(),
             client,
-            pool,
+            sqlite,
         }
     }
 
@@ -205,12 +204,8 @@ impl Contacts {
                     current_media: "".to_string(),
                 };
 
-                if let Ok(conn) = self.pool.get() {
-                    let _ = conn.execute(
-                        "UPDATE users SET personal_message = ?1 WHERE email = ?2",
-                        [&personal_message.psm, &self.email],
-                    );
-                }
+                self.sqlite
+                    .update_personal_message(&*self.email, &personal_message.psm);
 
                 action = Some(Action::PersonalMessageSubmit(Task::batch([
                     Task::perform(
@@ -224,7 +219,7 @@ impl Contacts {
             Message::StatusSelected(status) => match status {
                 ContactListStatus::PersonalSettings => {
                     action = Some(Action::PersonalSettings {
-                        client: Some(sign_in::Client {
+                        client: Some(ClientWrapper {
                             personal_message: String::new(),
                             inner: self.client.clone(),
                         }),

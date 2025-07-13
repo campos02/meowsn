@@ -1,12 +1,12 @@
+use crate::client_wrapper::ClientWrapper;
 use crate::models::contact::Contact;
-use crate::screens::sign_in::Client;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum WindowType {
     MainWindow,
     PersonalSettings {
-        client: Option<Client>,
+        client: Option<ClientWrapper>,
         display_name: Option<String>,
     },
 

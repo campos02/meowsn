@@ -1,48 +1,48 @@
+use crate::client_wrapper::ClientWrapper;
 use crate::icedm_window::Window;
 use crate::models::contact::Contact;
-use crate::msnp_events::Input;
+use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
-use crate::screens::sign_in::Client;
 use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
-use crate::window_type::WindowType;
+use crate::sqlite::Sqlite;
 use dark_light::Mode;
+use enums::window_type::WindowType;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, window};
 use msnp11_sdk::sdk_error::SdkError;
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-mod contact_list_status;
+mod client_wrapper;
+mod enums;
 mod icedm_window;
 mod models;
-mod msnp_events;
+mod msnp_listener;
 mod screens;
 mod settings;
-mod sign_in_status;
-mod window_type;
+mod sign_in_async;
+mod sqlite;
 
 #[derive(Debug)]
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
     SignIn(window::Id, sign_in::Message),
-    SignedIn(window::Id, Arc<String>, Result<Client, SdkError>),
+    SignedIn(window::Id, Arc<String>, Result<ClientWrapper, SdkError>),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
     Dialog(window::Id, dialog::Message),
     OpenPersonalSettings {
-        client: Option<Client>,
+        client: Option<ClientWrapper>,
         display_name: Option<String>,
     },
 
     OpenConversation(Contact),
     OpenDialog(Arc<String>),
-    MsnpEvent(msnp_events::Event),
+    MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
     ContactUpdated(Contact),
 }
@@ -51,42 +51,19 @@ struct IcedM {
     windows: BTreeMap<window::Id, Window>,
     modal_id: Option<window::Id>,
     msnp_subscription_sender: Option<Sender<Input>>,
-    pool: Pool<SqliteConnectionManager>,
+    sqlite: Sqlite,
 }
 
 impl IcedM {
     fn new() -> (Self, Task<Message>) {
-        let mut data_local = dirs::data_local_dir().expect("Could not find local data directory");
-        data_local.push("icedm");
-        std::fs::create_dir_all(&data_local).expect("Could not create icedm directory");
-
-        data_local.push("icedm");
-        data_local.set_extension("db");
-
-        let manager = SqliteConnectionManager::file(data_local);
-        let pool = Pool::new(manager).expect("Could not create sqlite connection pool");
-        let conn = pool
-            .get()
-            .expect("Could not get sqlite connection from pool");
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS users (\
-                id INTEGER PRIMARY KEY,\
-                email TEXT UNIQUE NOT NULL,\
-                personal_message TEXT,\
-                display_picture BLOB\
-            )",
-            (),
-        )
-        .expect("Could not create users table");
-
+        let sqlite = Sqlite::new().expect("Could not create database");
         let (_id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
         (
             Self {
                 windows: BTreeMap::new(),
                 modal_id: None,
                 msnp_subscription_sender: None,
-                pool,
+                sqlite,
             },
             open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
         )
@@ -97,7 +74,7 @@ impl IcedM {
             Message::WindowOpened(id, window_type) => {
                 let screen = match window_type {
                     WindowType::MainWindow => {
-                        Screen::SignIn(sign_in::SignIn::new(self.pool.clone()))
+                        Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()))
                     }
 
                     WindowType::PersonalSettings {
@@ -115,7 +92,7 @@ impl IcedM {
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                 };
 
-                let window = Window::new(screen, self.pool.clone());
+                let window = Window::new(screen, self.sqlite.clone());
                 self.windows.insert(id, window);
                 Task::none()
             }
@@ -232,12 +209,12 @@ impl IcedM {
             }
 
             Message::MsnpEvent(event) => match event {
-                msnp_events::Event::Ready(sender) => {
+                msnp_listener::Event::Ready(sender) => {
                     self.msnp_subscription_sender = Some(sender.clone());
                     Task::none()
                 }
 
-                msnp_events::Event::NsEvent(event) => {
+                msnp_listener::Event::NsEvent(event) => {
                     if let Some(window) = self
                         .windows
                         .iter_mut()
@@ -252,7 +229,7 @@ impl IcedM {
                     Task::none()
                 }
 
-                msnp_events::Event::SbEvent { .. } => Task::none(),
+                msnp_listener::Event::SbEvent { .. } => Task::none(),
             },
 
             Message::ContactUpdated(contact) => {
@@ -287,7 +264,7 @@ impl IcedM {
     fn subscription(&self) -> Subscription<Message> {
         Subscription::batch([
             window::events().map(Message::WindowEvent),
-            Subscription::run(msnp_events::listen).map(Message::MsnpEvent),
+            Subscription::run(msnp_listener::listen).map(Message::MsnpEvent),
         ])
     }
 

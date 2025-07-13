@@ -32,7 +32,6 @@ pub fn listen() -> impl Stream<Item = Event> {
 
                     client.add_event_handler_closure(move |event| {
                         let mut output = output.clone();
-
                         async move {
                             let _ = output.send(Event::NsEvent(event)).await;
                         }

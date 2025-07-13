@@ -1,0 +1,52 @@
+use crate::client_wrapper::ClientWrapper;
+use crate::enums::sign_in_status::SignInStatus;
+use crate::settings;
+use crate::sqlite::Sqlite;
+use msnp11_sdk::sdk_error::SdkError;
+use msnp11_sdk::{MsnpStatus, PersonalMessage};
+use std::sync::Arc;
+
+pub async fn sign_in_async(
+    email: Arc<String>,
+    password: Arc<String>,
+    status: Option<SignInStatus>,
+    sqlite: Sqlite,
+) -> Result<ClientWrapper, SdkError> {
+    let settings = settings::get_settings().unwrap_or_default();
+    let mut client = msnp11_sdk::Client::new(&settings.server, &1863).await?;
+
+    if let msnp11_sdk::Event::RedirectedTo { server, port } = client
+        .login((*email).clone(), &*password, &settings.nexus_url)
+        .await?
+    {
+        client = msnp11_sdk::Client::new(&server, &port).await?;
+        client
+            .login((*email).clone(), &*password, &settings.nexus_url)
+            .await?;
+    }
+
+    let status = match status {
+        Some(status) => match status {
+            SignInStatus::Busy => MsnpStatus::Busy,
+            SignInStatus::Away => MsnpStatus::Away,
+            SignInStatus::AppearOffline => MsnpStatus::AppearOffline,
+            _ => MsnpStatus::Online,
+        },
+        None => MsnpStatus::Online,
+    };
+
+    client.set_presence(status).await?;
+
+    let psm = sqlite.select_personal_message(&*email);
+    let personal_message = PersonalMessage {
+        psm,
+        current_media: "".to_string(),
+    };
+
+    client.set_personal_message(&personal_message).await?;
+
+    Ok(ClientWrapper {
+        personal_message: personal_message.psm,
+        inner: Arc::new(client),
+    })
+}

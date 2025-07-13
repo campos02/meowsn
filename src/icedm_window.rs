@@ -1,19 +1,18 @@
-use crate::Message;
 use crate::screens::screen::Screen;
 use crate::screens::{contacts, sign_in};
+use crate::sqlite::Sqlite;
+use crate::{Message, sign_in_async};
 use iced::{Element, Task, window};
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
 use std::sync::Arc;
 
 pub struct Window {
     screen: Screen,
-    pool: Pool<SqliteConnectionManager>,
+    sqlite: Sqlite,
 }
 
 impl Window {
-    pub fn new(screen: Screen, pool: Pool<SqliteConnectionManager>) -> Self {
-        Self { screen, pool }
+    pub fn new(screen: Screen, sqlite: Sqlite) -> Self {
+        Self { screen, sqlite }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -25,11 +24,11 @@ impl Window {
                             sign_in::Action::SignIn => {
                                 let (email, password, status) = sign_in.get_sign_in_info();
                                 Task::perform(
-                                    sign_in::sign_in(
+                                    sign_in_async::sign_in_async(
                                         email.clone(),
                                         password,
                                         status,
-                                        self.pool.clone(),
+                                        self.sqlite.clone(),
                                     ),
                                     move |result| Message::SignedIn(id, email.clone(), result),
                                 )
@@ -66,7 +65,7 @@ impl Window {
 
                             contacts::Action::SignOut(task) => {
                                 self.screen =
-                                    Screen::SignIn(sign_in::SignIn::new(self.pool.clone()));
+                                    Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
                                 task
                             }
 
@@ -120,7 +119,7 @@ impl Window {
                             email,
                             client.personal_message,
                             client.inner,
-                            self.pool.clone(),
+                            self.sqlite.clone(),
                         ));
                     }
 
