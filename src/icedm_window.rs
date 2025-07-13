@@ -36,7 +36,10 @@ impl Window {
                             }
 
                             sign_in::Action::PersonalSettings => {
-                                Task::done(Message::OpenPersonalSettings)
+                                Task::done(Message::OpenPersonalSettings {
+                                    client: None,
+                                    display_name: None,
+                                })
                             }
 
                             sign_in::Action::Dialog(message) => {
@@ -53,9 +56,13 @@ impl Window {
                 if let Screen::Contacts(contacts) = &mut self.screen {
                     if let Some(action) = contacts.update(message) {
                         return match action {
-                            contacts::Action::PersonalSettings => {
-                                Task::done(Message::OpenPersonalSettings)
-                            }
+                            contacts::Action::PersonalSettings {
+                                client,
+                                display_name,
+                            } => Task::done(Message::OpenPersonalSettings {
+                                client,
+                                display_name,
+                            }),
 
                             contacts::Action::SignOut(task) => {
                                 self.screen =
@@ -82,7 +89,7 @@ impl Window {
 
             Message::PersonalSettings(.., message) => {
                 if let Screen::PersonalSettings(personal_settings) = &mut self.screen {
-                    personal_settings.update(message);
+                    return personal_settings.update(message);
                 }
 
                 Task::none()

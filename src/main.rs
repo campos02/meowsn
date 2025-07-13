@@ -2,6 +2,7 @@ use crate::icedm_window::Window;
 use crate::models::contact::Contact;
 use crate::msnp_events::Input;
 use crate::screens::screen::Screen;
+use crate::screens::sign_in::Client;
 use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
 use crate::window_type::WindowType;
 use dark_light::Mode;
@@ -20,6 +21,7 @@ mod icedm_window;
 mod models;
 mod msnp_events;
 mod screens;
+mod settings;
 mod sign_in_status;
 mod window_type;
 
@@ -28,12 +30,16 @@ pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
     SignIn(window::Id, sign_in::Message),
-    SignedIn(window::Id, Arc<String>, Result<sign_in::Client, SdkError>),
+    SignedIn(window::Id, Arc<String>, Result<Client, SdkError>),
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
     Dialog(window::Id, dialog::Message),
-    OpenPersonalSettings,
+    OpenPersonalSettings {
+        client: Option<Client>,
+        display_name: Option<String>,
+    },
+
     OpenConversation(Contact),
     OpenDialog(Arc<String>),
     MsnpEvent(msnp_events::Event),
@@ -93,9 +99,14 @@ impl IcedM {
                     WindowType::MainWindow => {
                         Screen::SignIn(sign_in::SignIn::new(self.pool.clone()))
                     }
-                    WindowType::PersonalSettings => {
-                        Screen::PersonalSettings(personal_settings::PersonalSettings::default())
-                    }
+
+                    WindowType::PersonalSettings {
+                        client,
+                        display_name,
+                    } => Screen::PersonalSettings(personal_settings::PersonalSettings::new(
+                        client,
+                        display_name,
+                    )),
 
                     WindowType::Conversation(contact) => {
                         Screen::Conversation(conversation::Conversation::new(contact))
@@ -166,7 +177,10 @@ impl IcedM {
                 Task::none()
             }
 
-            Message::OpenPersonalSettings => {
+            Message::OpenPersonalSettings {
+                mut client,
+                mut display_name,
+            } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
                 };
@@ -180,7 +194,15 @@ impl IcedM {
                 }
 
                 let (_id, open) = window::open(IcedM::window_settings(Size::new(500.0, 500.0)));
-                open.map(move |id| Message::WindowOpened(id, WindowType::PersonalSettings))
+                open.map(move |id| {
+                    Message::WindowOpened(
+                        id,
+                        WindowType::PersonalSettings {
+                            client: client.take(),
+                            display_name: display_name.take(),
+                        },
+                    )
+                })
             }
 
             Message::OpenConversation(contact) => {

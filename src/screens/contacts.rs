@@ -1,16 +1,20 @@
 use crate::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
+use crate::screens::sign_in;
 use iced::border::radius;
 use iced::widget::{button, column, container, image, pick_list, row, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpStatus, PersonalMessage};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
-use r2d2_sqlite::rusqlite::params;
 use std::sync::Arc;
 
 pub enum Action {
-    PersonalSettings,
+    PersonalSettings {
+        client: Option<sign_in::Client>,
+        display_name: Option<String>,
+    },
+
     Conversation(Contact),
     SignOut(Task<crate::Message>),
     StatusSelected(Task<crate::Message>),
@@ -204,26 +208,35 @@ impl Contacts {
                 if let Ok(conn) = self.pool.get() {
                     let _ = conn.execute(
                         "UPDATE users SET personal_message = ?1 WHERE email = ?2",
-                        params![personal_message.psm, self.email],
+                        [&personal_message.psm, &self.email],
                     );
                 }
 
                 action = Some(Action::PersonalMessageSubmit(Task::batch([
                     Task::perform(
                         async move { client.set_personal_message(&personal_message).await },
-                        |result| crate::Message::EmptyResultFuture(result),
+                        crate::Message::EmptyResultFuture,
                     ),
                     widget::focus_next(),
                 ])));
             }
 
             Message::StatusSelected(status) => match status {
-                ContactListStatus::PersonalSettings => action = Some(Action::PersonalSettings),
+                ContactListStatus::PersonalSettings => {
+                    action = Some(Action::PersonalSettings {
+                        client: Some(sign_in::Client {
+                            personal_message: String::new(),
+                            inner: self.client.clone(),
+                        }),
+                        display_name: Some(self.display_name.trim().to_string()),
+                    })
+                }
+
                 ContactListStatus::SignOut => {
                     let client = self.client.clone();
                     action = Some(Action::SignOut(Task::perform(
                         async move { client.disconnect().await },
-                        |result| crate::Message::EmptyResultFuture(result),
+                        crate::Message::EmptyResultFuture,
                     )))
                 }
 
@@ -239,7 +252,7 @@ impl Contacts {
 
                     action = Some(Action::StatusSelected(Task::perform(
                         async move { client.set_presence(presence).await },
-                        |result| crate::Message::EmptyResultFuture(result),
+                        crate::Message::EmptyResultFuture,
                     )));
 
                     self.status = Some(status);

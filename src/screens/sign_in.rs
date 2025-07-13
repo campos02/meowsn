@@ -1,4 +1,5 @@
 use crate::models::user::User;
+use crate::settings;
 use crate::sign_in_status::SignInStatus;
 use iced::Color;
 use iced::border::radius;
@@ -12,7 +13,6 @@ use msnp11_sdk::{MsnpStatus, PersonalMessage};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use r2d2_sqlite::rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
-use r2d2_sqlite::rusqlite::params;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -219,6 +219,10 @@ impl SignIn {
             }
 
             Message::SignIn => {
+                if let Some(ref mut email) = self.email {
+                    *email = email.trim().to_string();
+                }
+
                 if self.email.as_ref().is_none_or(|email| email.is_empty())
                     || self.password.is_empty()
                 {
@@ -233,12 +237,12 @@ impl SignIn {
                             if let Ok(mut stmt) =
                                 conn.prepare("SELECT email FROM users WHERE email = ?1")
                             {
-                                if let Ok(rows) = stmt.query(params![self.email]) {
+                                if let Ok(rows) = stmt.query([&self.email]) {
                                     if let Ok(count) = rows.count() {
                                         if count == 0 {
                                             let _ = conn.execute(
                                                 "INSERT INTO users (email) VALUES (?1)",
-                                                params![self.email],
+                                                [&self.email],
                                             );
                                         }
                                     }
@@ -261,7 +265,7 @@ impl SignIn {
 
             Message::ForgetMe => {
                 if let Ok(conn) = self.pool.get() {
-                    let _ = conn.execute("DELETE FROM users WHERE email = ?1", params![self.email]);
+                    let _ = conn.execute("DELETE FROM users WHERE email = ?1", [&self.email]);
                 }
 
                 if let Some(ref email) = self.email {
@@ -311,24 +315,20 @@ pub async fn sign_in(
     status: Option<SignInStatus>,
     pool: Pool<SqliteConnectionManager>,
 ) -> Result<Client, SdkError> {
-    let mut client =
-        msnp11_sdk::Client::new("r2m.camposs.net".to_string(), "1863".to_string()).await?;
+    let settings = settings::get_settings().unwrap_or_default();
+    let mut client = msnp11_sdk::Client::new(settings.server, "1863".to_string()).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
         .login(
             (*email).clone(),
             (*password).clone(),
-            "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
+            settings.nexus_url.clone(),
         )
         .await?
     {
         client = msnp11_sdk::Client::new(server, port).await?;
         client
-            .login(
-                (*email).clone(),
-                (*password).clone(),
-                "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
-            )
+            .login((*email).clone(), (*password).clone(), settings.nexus_url)
             .await?;
     }
 
