@@ -316,19 +316,15 @@ pub async fn sign_in(
     pool: Pool<SqliteConnectionManager>,
 ) -> Result<Client, SdkError> {
     let settings = settings::get_settings().unwrap_or_default();
-    let mut client = msnp11_sdk::Client::new(settings.server, "1863".to_string()).await?;
+    let mut client = msnp11_sdk::Client::new(&settings.server, &1863).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
-        .login(
-            (*email).clone(),
-            (*password).clone(),
-            settings.nexus_url.clone(),
-        )
+        .login((*email).clone(), &*password, &settings.nexus_url)
         .await?
     {
-        client = msnp11_sdk::Client::new(server, port).await?;
+        client = msnp11_sdk::Client::new(&server, &port).await?;
         client
-            .login((*email).clone(), (*password).clone(), settings.nexus_url)
+            .login((*email).clone(), &*password, &settings.nexus_url)
             .await?;
     }
 
