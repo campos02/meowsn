@@ -25,6 +25,8 @@ impl Conversation {
     }
 
     pub fn view(&self) -> Element<Message> {
+        let default_picture = include_bytes!("../../assets/default_display_picture.svg");
+
         container(
             row![
                 column![
@@ -48,7 +50,7 @@ impl Conversation {
                 ]
                 .spacing(20),
                 column![
-                    container(svg("assets/default_display_picture.svg").width(100))
+                    container(svg(svg::Handle::from_memory(default_picture)).width(100))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -59,7 +61,7 @@ impl Conversation {
                         })
                         .padding(3),
                     vertical_space().height(Fill),
-                    container(svg("assets/default_display_picture.svg").width(100))
+                    container(svg(svg::Handle::from_memory(default_picture)).width(100))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,

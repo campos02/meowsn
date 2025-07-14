@@ -281,7 +281,9 @@ impl IcedM {
             size,
             min_size: Some(size),
             position: Position::Centered,
-            icon: if let Ok(icon) = icon::from_file("assets/icedm.ico") {
+            icon: if let Ok(icon) =
+                icon::from_file_data(include_bytes!("../assets/icedm.ico"), None)
+            {
                 Some(icon)
             } else {
                 None

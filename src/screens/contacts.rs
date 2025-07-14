@@ -59,10 +59,12 @@ impl Contacts {
     }
 
     pub fn view(&self) -> Element<Message> {
+        let default_picture = include_bytes!("../../assets/default_display_picture.svg");
+
         container(
             column![
                 row![
-                    container(svg("assets/default_display_picture.svg").width(70))
+                    container(svg(svg::Handle::from_memory(default_picture)).width(70))
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -126,42 +128,58 @@ impl Contacts {
                     .spacing(5)
                 ]
                 .spacing(10),
-                button("Add a contact")
-                    .style(|theme: &Theme, status| {
-                        match status {
-                            button::Status::Hovered | button::Status::Pressed => {
-                                button::primary(theme, status)
-                            }
+                row![
+                    svg(svg::Handle::from_memory(include_bytes!(
+                        "../../assets/add_contact.svg"
+                    )))
+                    .width(30),
+                    button("Add a contact")
+                        .style(|theme: &Theme, status| {
+                            match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    button::primary(theme, status)
+                                }
 
-                            button::Status::Active | button::Status::Disabled => {
-                                button::secondary(theme, status).with_background(Color::TRANSPARENT)
+                                button::Status::Active | button::Status::Disabled => {
+                                    button::secondary(theme, status)
+                                        .with_background(Color::TRANSPARENT)
+                                }
                             }
-                        }
-                    })
-                    .on_press(Message::PersonalMessageSubmit),
+                        })
+                        .on_press(Message::PersonalMessageSubmit),
+                ]
+                .align_y(Center),
                 column(self.contacts.iter().map(|contact| {
                     row![
                         row![
                             svg(if let Some(status) = &contact.status {
                                 match status.status {
                                     MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                        "assets/default_display_picture_busy.svg"
+                                        svg::Handle::from_memory(include_bytes!(
+                                            "../../assets/default_display_picture_busy.svg"
+                                        ))
                                     }
 
                                     MsnpStatus::Away
                                     | MsnpStatus::Idle
                                     | MsnpStatus::BeRightBack
                                     | MsnpStatus::OutToLunch => {
-                                        "assets/default_display_picture_away.svg"
+                                        svg::Handle::from_memory(include_bytes!(
+                                            "../../assets/default_display_picture_away.svg"
+                                        ))
                                     }
 
-                                    _ => "assets/default_display_picture.svg",
+                                    _ => svg::Handle::from_memory(default_picture),
                                 }
                             } else {
                                 if contact.lists.contains(&MsnpList::BlockList) {
-                                    "assets/default_display_picture_offline_blocked.svg"
+                                    svg::Handle::from_memory(include_bytes!(
+                                        "../../assets/default_display_picture_offline_blocked.svg"
+                                    ))
                                 } else {
-                                    "assets/default_display_picture_offline.svg"
+                                    svg::Handle::from_memory(include_bytes!(
+                                        "../../assets/default_display_picture_offline.svg"
+                                    ))
                                 }
                             })
                             .width(30),
@@ -199,6 +217,7 @@ impl Contacts {
                     .into()
                 }))
                 .spacing(10)
+                .padding(10)
             ]
             .spacing(10),
         )

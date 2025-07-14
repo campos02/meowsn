@@ -75,16 +75,21 @@ impl SignIn {
     pub fn view(&self) -> Element<Message> {
         container(
             column![
-                container(svg("assets/default_display_picture.svg").width(120))
-                    .style(|theme: &Theme| container::Style {
-                        border: Border {
-                            color: theme.palette().text,
-                            width: 1.0,
-                            radius: radius(10.0)
-                        },
-                        ..Default::default()
-                    })
-                    .padding(3),
+                container(
+                    svg(svg::Handle::from_memory(include_bytes!(
+                        "../../assets/default_display_picture.svg"
+                    )))
+                    .width(120)
+                )
+                .style(|theme: &Theme| container::Style {
+                    border: Border {
+                        color: theme.palette().text,
+                        width: 1.0,
+                        radius: radius(10.0)
+                    },
+                    ..Default::default()
+                })
+                .padding(3),
                 column![
                     column![
                         text("E-mail address:").size(14),
