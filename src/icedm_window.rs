@@ -54,30 +54,13 @@ impl Window {
                 if let Screen::Contacts(contacts) = &mut self.screen {
                     if let Some(action) = contacts.update(message) {
                         return match action {
-                            contacts::Action::PersonalSettings {
-                                client,
-                                display_name,
-                            } => Task::done(Message::OpenPersonalSettings {
-                                client,
-                                display_name,
-                            }),
-
                             contacts::Action::SignOut(task) => {
                                 self.screen =
                                     Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
                                 task
                             }
 
-                            contacts::Action::PersonalMessageSubmit(task)
-                            | contacts::Action::StatusSelected(task) => task,
-
-                            contacts::Action::Conversation(contact) => {
-                                Task::done(Message::OpenConversation(contact))
-                            }
-
-                            contacts::Action::ContactUpdated(contact) => {
-                                Task::done(Message::ContactUpdated(contact))
-                            }
+                            contacts::Action::RunTask(task) => task,
                         };
                     }
                 }

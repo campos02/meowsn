@@ -6,7 +6,7 @@ pub struct Contact {
     pub email: Arc<String>,
     pub display_name: Arc<String>,
     pub guid: Arc<String>,
-    pub lists: Arc<Vec<MsnpList>>,
+    pub lists: Vec<MsnpList>,
     pub status: Option<Arc<Presence>>,
     pub personal_message: Option<Arc<String>>,
 }

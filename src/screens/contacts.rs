@@ -9,16 +9,8 @@ use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use std::sync::Arc;
 
 pub enum Action {
-    PersonalSettings {
-        client: Option<ClientWrapper>,
-        display_name: Option<String>,
-    },
-
-    Conversation(Contact),
     SignOut(Task<crate::Message>),
-    StatusSelected(Task<crate::Message>),
-    PersonalMessageSubmit(Task<crate::Message>),
-    ContactUpdated(Contact),
+    RunTask(Task<crate::Message>),
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +20,9 @@ pub enum Message {
     StatusSelected(ContactListStatus),
     Conversation(Contact),
     MsnpEvent(Event),
+    BlockContact(Arc<String>),
+    UnblockContact(Arc<String>),
+    RemoveContact(Arc<String>),
 }
 
 pub struct Contacts {
@@ -153,23 +148,29 @@ impl Contacts {
                     row![
                         row![
                             svg(if let Some(status) = &contact.status {
-                                match status.status {
-                                    MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                        svg::Handle::from_memory(include_bytes!(
-                                            "../../assets/default_display_picture_busy.svg"
-                                        ))
-                                    }
+                                if contact.lists.contains(&MsnpList::BlockList) {
+                                    svg::Handle::from_memory(include_bytes!(
+                                        "../../assets/default_display_picture_blocked.svg"
+                                    ))
+                                } else {
+                                    match status.status {
+                                        MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                            svg::Handle::from_memory(include_bytes!(
+                                                "../../assets/default_display_picture_busy.svg"
+                                            ))
+                                        }
 
-                                    MsnpStatus::Away
-                                    | MsnpStatus::Idle
-                                    | MsnpStatus::BeRightBack
-                                    | MsnpStatus::OutToLunch => {
-                                        svg::Handle::from_memory(include_bytes!(
-                                            "../../assets/default_display_picture_away.svg"
-                                        ))
-                                    }
+                                        MsnpStatus::Away
+                                        | MsnpStatus::Idle
+                                        | MsnpStatus::BeRightBack
+                                        | MsnpStatus::OutToLunch => {
+                                            svg::Handle::from_memory(include_bytes!(
+                                                "../../assets/default_display_picture_away.svg"
+                                            ))
+                                        }
 
-                                    _ => svg::Handle::from_memory(default_picture),
+                                        _ => svg::Handle::from_memory(default_picture),
+                                    }
                                 }
                             } else {
                                 if contact.lists.contains(&MsnpList::BlockList) {
@@ -201,13 +202,13 @@ impl Contacts {
                         row![
                             if !contact.lists.contains(&MsnpList::BlockList) {
                                 button(text("Block").size(15))
-                                    .on_press(Message::PersonalMessageSubmit)
+                                    .on_press(Message::BlockContact(contact.email.clone()))
                             } else {
                                 button(text("Unblock").size(15))
-                                    .on_press(Message::PersonalMessageSubmit)
+                                    .on_press(Message::UnblockContact(contact.email.clone()))
                             },
                             button(text("Delete").size(15))
-                                .on_press(Message::PersonalMessageSubmit)
+                                .on_press(Message::RemoveContact(contact.email.clone()))
                         ]
                         .spacing(5)
                     ]
@@ -242,7 +243,7 @@ impl Contacts {
                 self.sqlite
                     .update_personal_message(&*self.email, &personal_message.psm);
 
-                action = Some(Action::PersonalMessageSubmit(Task::batch([
+                action = Some(Action::RunTask(Task::batch([
                     Task::perform(
                         async move { client.set_personal_message(&personal_message).await },
                         crate::Message::EmptyResultFuture,
@@ -253,13 +254,15 @@ impl Contacts {
 
             Message::StatusSelected(status) => match status {
                 ContactListStatus::PersonalSettings => {
-                    action = Some(Action::PersonalSettings {
-                        client: Some(ClientWrapper {
-                            personal_message: String::new(),
-                            inner: self.client.clone(),
-                        }),
-                        display_name: Some(self.display_name.trim().to_string()),
-                    })
+                    action = Some(Action::RunTask(Task::done(
+                        crate::Message::OpenPersonalSettings {
+                            client: Some(ClientWrapper {
+                                personal_message: String::new(),
+                                inner: self.client.clone(),
+                            }),
+                            display_name: Some(self.display_name.trim().to_string()),
+                        },
+                    )))
                 }
 
                 ContactListStatus::SignOut => {
@@ -273,14 +276,13 @@ impl Contacts {
                 _ => {
                     let client = self.client.clone();
                     let presence = match status {
-                        ContactListStatus::Online => MsnpStatus::Online,
                         ContactListStatus::Busy => MsnpStatus::Busy,
                         ContactListStatus::Away => MsnpStatus::Away,
                         ContactListStatus::AppearOffline => MsnpStatus::AppearOffline,
                         _ => MsnpStatus::Online,
                     };
 
-                    action = Some(Action::StatusSelected(Task::perform(
+                    action = Some(Action::RunTask(Task::perform(
                         async move { client.set_presence(presence).await },
                         crate::Message::EmptyResultFuture,
                     )));
@@ -289,7 +291,68 @@ impl Contacts {
                 }
             },
 
-            Message::Conversation(contact) => action = Some(Action::Conversation(contact)),
+            Message::BlockContact(email) => {
+                let contact = self
+                    .contacts
+                    .iter_mut()
+                    .find(|contact| *contact.email == *email);
+
+                if let Some(contact) = contact {
+                    contact.lists.push(MsnpList::BlockList);
+                    contact.lists.retain(|list| list != &MsnpList::AllowList);
+
+                    let client = self.client.clone();
+                    let email = contact.email.clone();
+                    action = Some(Action::RunTask(Task::perform(
+                        async move { client.block_contact(&email).await },
+                        crate::Message::EmptyResultFuture,
+                    )));
+                }
+            }
+
+            Message::UnblockContact(email) => {
+                let contact = self
+                    .contacts
+                    .iter_mut()
+                    .find(|contact| *contact.email == *email);
+
+                if let Some(contact) = contact {
+                    contact.lists.retain(|list| list != &MsnpList::BlockList);
+                    contact.lists.push(MsnpList::AllowList);
+
+                    let client = self.client.clone();
+                    let email = contact.email.clone();
+                    action = Some(Action::RunTask(Task::perform(
+                        async move { client.unblock_contact(&email).await },
+                        crate::Message::EmptyResultFuture,
+                    )));
+                }
+            }
+
+            Message::RemoveContact(email) => {
+                let contact = self
+                    .contacts
+                    .iter_mut()
+                    .position(|contact| *contact.email == *email);
+
+                if let Some(contact) = contact {
+                    let email = self.contacts[contact].email.clone();
+                    self.contacts.remove(contact);
+
+                    let client = self.client.clone();
+                    action = Some(Action::RunTask(Task::perform(
+                        async move { client.remove_contact_from_forward_list(&email).await },
+                        crate::Message::EmptyResultFuture,
+                    )));
+                }
+            }
+
+            Message::Conversation(contact) => {
+                action = Some(Action::RunTask(Task::done(
+                    crate::Message::OpenConversation(contact.clone()),
+                )))
+            }
+
             Message::MsnpEvent(event) => match event {
                 Event::DisplayName(display_name) => {
                     self.display_name = display_name;
@@ -307,7 +370,7 @@ impl Contacts {
                         email: Arc::new(email),
                         display_name: Arc::new(display_name),
                         guid: Arc::new(guid),
-                        lists: Arc::new(lists),
+                        lists,
                         status: None,
                         personal_message: None,
                     });
@@ -326,7 +389,9 @@ impl Contacts {
                     if let Some(contact) = contact {
                         contact.display_name = Arc::new(display_name);
                         contact.status = Some(Arc::new(presence));
-                        action = Some(Action::ContactUpdated(contact.clone()));
+                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
+                            contact.clone(),
+                        ))));
                     }
 
                     self.contacts
@@ -344,7 +409,9 @@ impl Contacts {
 
                     if let Some(contact) = contact {
                         contact.personal_message = Some(Arc::new(personal_message.psm));
-                        action = Some(Action::ContactUpdated(contact.clone()));
+                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
+                            contact.clone(),
+                        ))));
                     }
                 }
 
@@ -356,7 +423,9 @@ impl Contacts {
 
                     if let Some(contact) = contact {
                         contact.status = None;
-                        action = Some(Action::ContactUpdated(contact.clone()));
+                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
+                            contact.clone(),
+                        ))));
                     }
 
                     self.contacts
