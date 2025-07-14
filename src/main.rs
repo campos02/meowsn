@@ -10,7 +10,7 @@ use enums::window_type::WindowType;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
-use iced::{Element, Size, Subscription, Task, Theme, window};
+use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use msnp11_sdk::sdk_error::SdkError;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -18,6 +18,7 @@ use std::sync::Arc;
 mod client_wrapper;
 mod enums;
 mod icedm_window;
+mod keyboard_listener;
 mod models;
 mod msnp_listener;
 mod screens;
@@ -45,6 +46,8 @@ pub enum Message {
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
     ContactUpdated(Contact),
+    FocusNext,
+    FocusPrevious,
 }
 
 struct IcedM {
@@ -251,6 +254,8 @@ impl IcedM {
                 Task::none()
             }
 
+            Message::FocusNext => widget::focus_next(),
+            Message::FocusPrevious => widget::focus_previous(),
             _ => Task::none(),
         }
     }
@@ -266,6 +271,7 @@ impl IcedM {
     fn subscription(&self) -> Subscription<Message> {
         Subscription::batch([
             window::events().map(Message::WindowEvent),
+            keyboard::on_key_press(keyboard_listener::listen),
             Subscription::run(msnp_listener::listen).map(Message::MsnpEvent),
         ])
     }
