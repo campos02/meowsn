@@ -16,43 +16,39 @@ impl Default for Settings {
 }
 
 pub enum SettingsError {
-    CouldNotCreateSettingsDirectory,
-    CouldNotGetSettings,
-    CouldNotParseSettings,
-    CouldNotWriteSettings,
+    CreateSettingsDirectory,
+    GetSettings,
+    ParseSettings,
+    WriteSettings,
 }
 
 pub fn get_settings() -> Result<Settings, SettingsError> {
     let mut settings_local =
-        dirs::data_local_dir().ok_or(SettingsError::CouldNotCreateSettingsDirectory)?;
+        dirs::data_local_dir().ok_or(SettingsError::CreateSettingsDirectory)?;
 
     settings_local.push("icedm");
-    std::fs::create_dir_all(&settings_local)
-        .or(Err(SettingsError::CouldNotCreateSettingsDirectory))?;
+    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::CreateSettingsDirectory))?;
 
     settings_local.push("icedm");
     settings_local.set_extension("toml");
 
-    toml::from_str(
-        &std::fs::read_to_string(settings_local).or(Err(SettingsError::CouldNotGetSettings))?,
-    )
-    .or(Err(SettingsError::CouldNotParseSettings))
+    toml::from_str(&std::fs::read_to_string(settings_local).or(Err(SettingsError::GetSettings))?)
+        .or(Err(SettingsError::ParseSettings))
 }
 
 pub fn save_settings(settings: &Settings) -> Result<(), SettingsError> {
     let mut settings_local =
-        dirs::data_local_dir().ok_or(SettingsError::CouldNotCreateSettingsDirectory)?;
+        dirs::data_local_dir().ok_or(SettingsError::CreateSettingsDirectory)?;
 
     settings_local.push("icedm");
-    std::fs::create_dir_all(&settings_local)
-        .or(Err(SettingsError::CouldNotCreateSettingsDirectory))?;
+    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::CreateSettingsDirectory))?;
 
     settings_local.push("icedm");
     settings_local.set_extension("toml");
 
     std::fs::write(
         settings_local,
-        toml::to_string(&settings).or(Err(SettingsError::CouldNotWriteSettings))?,
+        toml::to_string(&settings).or(Err(SettingsError::WriteSettings))?,
     )
-    .or(Err(SettingsError::CouldNotWriteSettings))
+    .or(Err(SettingsError::WriteSettings))
 }

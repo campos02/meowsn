@@ -96,9 +96,11 @@ impl PersonalSettings {
                             async move { client.set_display_name(&display_name).await },
                             crate::Message::EmptyResultFuture,
                         ),
-                        Task::done(crate::Message::MsnpEvent(msnp_listener::Event::NsEvent(
-                            msnp11_sdk::Event::DisplayName(new_display_name),
-                        ))),
+                        Task::done(crate::Message::MsnpEvent(
+                            msnp_listener::Event::NotificationServer(
+                                msnp11_sdk::Event::DisplayName(new_display_name),
+                            ),
+                        )),
                     ]);
                 }
             }

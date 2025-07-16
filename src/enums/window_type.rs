@@ -1,5 +1,6 @@
 use crate::client_wrapper::ClientWrapper;
 use crate::models::contact::Contact;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum WindowType {
@@ -9,6 +10,10 @@ pub enum WindowType {
         display_name: Option<String>,
     },
 
-    Conversation(Contact),
+    Conversation {
+        user_email: Arc<String>,
+        contact: Contact,
+    },
+
     Dialog(String),
 }

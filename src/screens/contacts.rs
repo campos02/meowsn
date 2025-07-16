@@ -5,7 +5,11 @@ use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
+use image::imageops::FilterType;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
+use rfd::FileDialog;
+use std::borrow::Cow;
+use std::io::Cursor;
 use std::sync::Arc;
 
 pub enum Action {
@@ -27,6 +31,7 @@ pub enum Message {
 
 pub struct Contacts {
     email: Arc<String>,
+    display_picture: Option<Cow<'static, [u8]>>,
     display_name: String,
     personal_message: String,
     status: Option<ContactListStatus>,
@@ -42,8 +47,24 @@ impl Contacts {
         client: Arc<Client>,
         sqlite: Sqlite,
     ) -> Self {
+        if let Some(user) = sqlite.select_user(&email) {
+            if let Some(picture) = user.display_picture {
+                return Self {
+                    email,
+                    display_picture: Some(Cow::Owned(picture)),
+                    display_name: String::new(),
+                    personal_message,
+                    status: Some(ContactListStatus::Online),
+                    contacts: Vec::new(),
+                    client,
+                    sqlite,
+                };
+            }
+        }
+
         Self {
             email,
+            display_picture: None,
             display_name: String::new(),
             personal_message,
             status: Some(ContactListStatus::Online),
@@ -59,7 +80,11 @@ impl Contacts {
         container(
             column![
                 row![
-                    container(svg(svg::Handle::from_memory(default_picture)).width(70))
+                    if let Some(picture) = self.display_picture.clone() {
+                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
+                            picture,
+                        ))))
+                        .width(70)
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -68,7 +93,20 @@ impl Contacts {
                             },
                             ..Default::default()
                         })
-                        .padding(3),
+                        .padding(3)
+                    } else {
+                        container(svg(svg::Handle::from_memory(default_picture)))
+                            .width(70)
+                            .style(|theme: &Theme| container::Style {
+                                border: Border {
+                                    color: theme.palette().text,
+                                    width: 1.0,
+                                    radius: radius(10.0),
+                                },
+                                ..Default::default()
+                            })
+                            .padding(3)
+                    },
                     column![
                         row![
                             text(&self.display_name).size(14),
@@ -172,16 +210,14 @@ impl Contacts {
                                         _ => svg::Handle::from_memory(default_picture),
                                     }
                                 }
+                            } else if contact.lists.contains(&MsnpList::BlockList) {
+                                svg::Handle::from_memory(include_bytes!(
+                                    "../../assets/default_display_picture_offline_blocked.svg"
+                                ))
                             } else {
-                                if contact.lists.contains(&MsnpList::BlockList) {
-                                    svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_offline_blocked.svg"
-                                    ))
-                                } else {
-                                    svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_offline.svg"
-                                    ))
-                                }
+                                svg::Handle::from_memory(include_bytes!(
+                                    "../../assets/default_display_picture_offline.svg"
+                                ))
                             })
                             .width(30),
                             button(text(&*contact.display_name))
@@ -241,7 +277,7 @@ impl Contacts {
                 };
 
                 self.sqlite
-                    .update_personal_message(&*self.email, &personal_message.psm);
+                    .update_personal_message(&self.email, &personal_message.psm);
 
                 action = Some(Action::RunTask(Task::batch([
                     Task::perform(
@@ -253,6 +289,47 @@ impl Contacts {
             }
 
             Message::StatusSelected(status) => match status {
+                ContactListStatus::ChangeDisplayPicture => {
+                    let picture = FileDialog::new()
+                        .add_filter("Images", &["png", "jpeg", "jpg"])
+                        .set_directory("/")
+                        .set_title("Select a display picture")
+                        .pick_file();
+
+                    if let Some(picture) = picture {
+                        if let Ok(picture) = image::open(&picture) {
+                            let mut bytes = Vec::new();
+                            if picture
+                                .resize_to_fill(200, 200, FilterType::Triangle)
+                                .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+                                .is_ok()
+                            {
+                                let client = self.client.clone();
+                                if let Ok(hash) = client.set_display_picture(bytes.clone()) {
+                                    if self
+                                        .sqlite
+                                        .update_user_display_picture(&self.email, &hash)
+                                        .is_err()
+                                    {
+                                        self.sqlite.update_user_with_new_display_picture(
+                                            &self.email,
+                                            bytes.as_slice(),
+                                            &hash,
+                                        )
+                                    }
+
+                                    let cow = Cow::from(bytes);
+                                    action = Some(Action::RunTask(Task::done(
+                                        crate::Message::UserDisplayPictureUpdated(cow.clone()),
+                                    )));
+
+                                    self.display_picture = Some(cow);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 ContactListStatus::PersonalSettings => {
                     action = Some(Action::RunTask(Task::done(
                         crate::Message::OpenPersonalSettings {
@@ -349,7 +426,7 @@ impl Contacts {
 
             Message::Conversation(contact) => {
                 action = Some(Action::RunTask(Task::done(
-                    crate::Message::OpenConversation(contact.clone()),
+                    crate::Message::OpenConversation(self.email.clone(), contact.clone()),
                 )))
             }
 

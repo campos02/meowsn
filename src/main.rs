@@ -12,6 +12,7 @@ use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use msnp11_sdk::sdk_error::SdkError;
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -41,11 +42,12 @@ pub enum Message {
         display_name: Option<String>,
     },
 
-    OpenConversation(Contact),
+    OpenConversation(Arc<String>, Contact),
     OpenDialog(String),
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
     ContactUpdated(Contact),
+    UserDisplayPictureUpdated(Cow<'static, [u8]>),
     FocusNext,
     FocusPrevious,
 }
@@ -88,9 +90,14 @@ impl IcedM {
                         display_name,
                     )),
 
-                    WindowType::Conversation(contact) => {
-                        Screen::Conversation(conversation::Conversation::new(contact))
-                    }
+                    WindowType::Conversation {
+                        user_email,
+                        contact,
+                    } => Screen::Conversation(conversation::Conversation::new(
+                        user_email,
+                        contact,
+                        self.sqlite.clone(),
+                    )),
 
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                 };
@@ -185,14 +192,20 @@ impl IcedM {
                 })
             }
 
-            Message::OpenConversation(contact) => {
+            Message::OpenConversation(mut user_email, mut contact) => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
                 };
 
                 let (_id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
                 open.map(move |id| {
-                    Message::WindowOpened(id, WindowType::Conversation(contact.clone()))
+                    Message::WindowOpened(
+                        id,
+                        WindowType::Conversation {
+                            user_email: std::mem::take(&mut user_email),
+                            contact: std::mem::take(&mut contact),
+                        },
+                    )
                 })
             }
 
@@ -219,7 +232,7 @@ impl IcedM {
                     Task::none()
                 }
 
-                msnp_listener::Event::NsEvent(event) => {
+                msnp_listener::Event::NotificationServer(event) => {
                     if let Some(window) = self
                         .windows
                         .iter_mut()
@@ -234,13 +247,13 @@ impl IcedM {
                     Task::none()
                 }
 
-                msnp_listener::Event::SbEvent { .. } => Task::none(),
+                msnp_listener::Event::Switchboard { .. } => Task::none(),
             },
 
             Message::ContactUpdated(contact) => {
                 if let Some(window) = self.windows.iter_mut().find(|window| {
                     if let Screen::Conversation(conversation) = window.1.get_screen() {
-                        return conversation.get_contact().email == contact.email;
+                        conversation.get_contact().email == contact.email
                     } else {
                         false
                     }
@@ -254,6 +267,18 @@ impl IcedM {
                 Task::none()
             }
 
+            Message::UserDisplayPictureUpdated(picture) => {
+                let mut tasks = Vec::new();
+                self.windows.iter_mut().for_each(|window| {
+                    tasks.push(window.1.update(Message::Conversation(
+                        *window.0,
+                        conversation::Message::UserDisplayPictureUpdated(picture.clone()),
+                    )))
+                });
+
+                Task::batch(tasks)
+            }
+
             Message::FocusNext => widget::focus_next(),
             Message::FocusPrevious => widget::focus_previous(),
             _ => Task::none(),
@@ -262,7 +287,7 @@ impl IcedM {
 
     fn view(&self, window_id: window::Id) -> Element<Message> {
         if let Some(window) = self.windows.get(&window_id) {
-            window.view(window_id).into()
+            window.view(window_id)
         } else {
             horizontal_space().into()
         }
@@ -281,13 +306,7 @@ impl IcedM {
             size,
             min_size: Some(size),
             position: Position::Centered,
-            icon: if let Ok(icon) =
-                icon::from_file_data(include_bytes!("../assets/icedm.ico"), None)
-            {
-                Some(icon)
-            } else {
-                None
-            },
+            icon: icon::from_file_data(include_bytes!("../assets/icedm.ico"), None).ok(),
             ..Settings::default()
         }
     }

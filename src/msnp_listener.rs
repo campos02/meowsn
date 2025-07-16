@@ -6,8 +6,8 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub enum Event {
     Ready(mpsc::Sender<Input>),
-    NsEvent(msnp11_sdk::Event),
-    SbEvent {
+    NotificationServer(msnp11_sdk::Event),
+    Switchboard {
         session_id: Arc<String>,
         event: msnp11_sdk::Event,
     },
@@ -33,7 +33,7 @@ pub fn listen() -> impl Stream<Item = Event> {
                     client.add_event_handler_closure(move |event| {
                         let mut output = output.clone();
                         async move {
-                            let _ = output.send(Event::NsEvent(event)).await;
+                            let _ = output.send(Event::NotificationServer(event)).await;
                         }
                     })
                 }
@@ -48,7 +48,7 @@ pub fn listen() -> impl Stream<Item = Event> {
                             let mut output = output.clone();
 
                             async move {
-                                let _ = output.send(Event::SbEvent { session_id, event }).await;
+                                let _ = output.send(Event::Switchboard { session_id, event }).await;
                             }
                         })
                     }

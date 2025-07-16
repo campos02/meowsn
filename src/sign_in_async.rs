@@ -16,13 +16,21 @@ pub async fn sign_in_async(
     let mut client = msnp11_sdk::Client::new(&settings.server, &1863).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
-        .login((*email).clone(), &*password, &settings.nexus_url)
+        .login((*email).clone(), &password, &settings.nexus_url)
         .await?
     {
         client = msnp11_sdk::Client::new(&server, &port).await?;
         client
-            .login((*email).clone(), &*password, &settings.nexus_url)
+            .login((*email).clone(), &password, &settings.nexus_url)
             .await?;
+    }
+
+    let mut psm = None;
+    if let Some(user) = sqlite.select_user(&email) {
+        psm = user.personal_message;
+        if let Some(display_picture) = user.display_picture {
+            client.set_display_picture(display_picture)?;
+        }
     }
 
     let status = match status {
@@ -37,9 +45,8 @@ pub async fn sign_in_async(
 
     client.set_presence(status).await?;
 
-    let psm = sqlite.select_personal_message(&*email);
     let personal_message = PersonalMessage {
-        psm,
+        psm: psm.unwrap_or_default(),
         current_media: "".to_string(),
     };
 

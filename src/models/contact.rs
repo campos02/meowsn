@@ -1,7 +1,7 @@
 use msnp11_sdk::{MsnpList, Presence};
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Contact {
     pub email: Arc<String>,
     pub display_name: Arc<String>,

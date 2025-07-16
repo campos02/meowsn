@@ -1,12 +1,13 @@
 use crate::enums::sign_in_status::SignInStatus;
 use crate::sqlite::Sqlite;
-use iced::Color;
 use iced::border::radius;
 use iced::widget::{
     button, checkbox, column, combo_box, container, pick_list, row, svg, text, text_input,
 };
 use iced::{Border, Center, Element, Fill, Theme};
+use iced::{Color, widget};
 use keyring::Entry;
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -31,6 +32,7 @@ pub enum Action {
 
 pub struct SignIn {
     email: Option<String>,
+    display_picture: Option<Cow<'static, [u8]>>,
     emails: combo_box::State<String>,
     password: String,
     status: Option<SignInStatus>,
@@ -46,6 +48,7 @@ impl SignIn {
         let mut password = String::new();
         let mut remember_me = false;
         let mut remember_my_password = false;
+        let mut display_picture = None;
 
         let emails = sqlite.select_user_emails();
         if let Some(last_email) = emails.last() {
@@ -60,8 +63,17 @@ impl SignIn {
             }
         }
 
+        if let Some(ref email) = email {
+            if let Some(user) = sqlite.select_user(email) {
+                if let Some(picture) = user.display_picture {
+                    display_picture = Some(Cow::Owned(picture))
+                }
+            }
+        }
+
         Self {
             email,
+            display_picture,
             emails: combo_box::State::new(emails),
             password,
             status: Some(SignInStatus::Online),
@@ -75,21 +87,35 @@ impl SignIn {
     pub fn view(&self) -> Element<Message> {
         container(
             column![
-                container(
-                    svg(svg::Handle::from_memory(include_bytes!(
-                        "../../assets/default_display_picture.svg"
-                    )))
+                if let Some(picture) = self.display_picture.clone() {
+                    container(widget::image(widget::image::Handle::from_bytes(Box::from(
+                        picture,
+                    ))))
                     .width(120)
-                )
-                .style(|theme: &Theme| container::Style {
-                    border: Border {
-                        color: theme.palette().text,
-                        width: 1.0,
-                        radius: radius(10.0)
-                    },
-                    ..Default::default()
-                })
-                .padding(3),
+                    .style(|theme: &Theme| container::Style {
+                        border: Border {
+                            color: theme.palette().text,
+                            width: 1.0,
+                            radius: radius(10.0),
+                        },
+                        ..Default::default()
+                    })
+                    .padding(3)
+                } else {
+                    container(svg(svg::Handle::from_memory(include_bytes!(
+                        "../../assets/default_display_picture.svg"
+                    ))))
+                    .width(120)
+                    .style(|theme: &Theme| container::Style {
+                        border: Border {
+                            color: theme.palette().text,
+                            width: 1.0,
+                            radius: radius(10.0),
+                        },
+                        ..Default::default()
+                    })
+                    .padding(3)
+                },
                 column![
                     column![
                         text("E-mail address:").size(14),
@@ -167,12 +193,22 @@ impl SignIn {
     pub fn update(&mut self, message: Message) -> Option<Action> {
         let mut action: Option<Action> = None;
         match message {
-            Message::EmailInput(email) => self.email = Some(email),
+            Message::EmailInput(email) => {
+                self.email = Some(email);
+                self.display_picture = None;
+            }
+
             Message::EmailSelected(email) => {
                 if let Ok(entry) = Entry::new("icedm", &email) {
                     if let Ok(passwd) = entry.get_password() {
                         self.password = passwd;
                         self.remember_my_password = true;
+                    }
+                }
+
+                if let Some(user) = self.sqlite.select_user(&email) {
+                    if let Some(picture) = user.display_picture {
+                        self.display_picture = Some(Cow::Owned(picture))
                     }
                 }
 
@@ -218,7 +254,7 @@ impl SignIn {
                         if self.remember_my_password {
                             if let Some(ref email) = self.email {
                                 if let Ok(entry) = Entry::new("icedm", email) {
-                                    let _ = entry.set_password(&*self.password);
+                                    let _ = entry.set_password(&self.password);
                                 }
                             }
                         }
@@ -243,6 +279,7 @@ impl SignIn {
                 self.password = String::new();
                 self.remember_me = false;
                 self.remember_my_password = false;
+                self.display_picture = None;
                 self.status = Some(SignInStatus::Online);
             }
 
@@ -256,7 +293,7 @@ impl SignIn {
 
     pub fn get_sign_in_info(&self) -> (Arc<String>, Arc<String>, Option<SignInStatus>) {
         (
-            Arc::new(self.email.clone().unwrap_or(String::new())),
+            Arc::new(self.email.clone().unwrap_or_default()),
             Arc::new(self.password.clone()),
             self.status.clone(),
         )
