@@ -26,7 +26,7 @@ pub async fn sign_in_async(
     }
 
     let mut psm = None;
-    if let Some(user) = sqlite.select_user(&email) {
+    if let Ok(user) = sqlite.select_user(&email) {
         psm = user.personal_message;
         if let Some(display_picture) = user.display_picture {
             client.set_display_picture(display_picture)?;

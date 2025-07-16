@@ -46,76 +46,87 @@ impl Sqlite {
         Ok(Self { pool })
     }
 
-    pub fn select_user_emails(&self) -> Vec<String> {
+    pub fn select_user_emails(&self) -> rusqlite::Result<Vec<String>> {
         let mut emails = Vec::new();
         if let Ok(conn) = self.pool.get() {
-            if let Ok(mut stmt) = conn.prepare("SELECT email FROM users") {
-                let users = stmt.query_map([], |row| {
-                    Ok(User {
-                        email: row.get(0)?,
-                        personal_message: None,
-                        display_picture: None,
-                    })
-                });
+            let mut stmt = conn.prepare("SELECT email FROM users")?;
+            let users = stmt.query_map([], |row| {
+                Ok(User {
+                    email: row.get(0)?,
+                    personal_message: None,
+                    display_picture: None,
+                })
+            });
 
-                if let Ok(users) = users {
-                    for user in users.flatten() {
-                        emails.push(user.email);
-                    }
-                }
+            for user in users?.flatten() {
+                emails.push(user.email);
             }
         }
 
-        emails
+        Ok(emails)
     }
 
-    pub fn select_user(&self, email: &str) -> Option<User> {
+    pub fn select_user(&self, email: &str) -> rusqlite::Result<User> {
         if let Ok(conn) = self.pool.get() {
-            if let Ok(mut stmt) = conn.prepare(
+            let mut stmt = conn.prepare(
                 "SELECT personal_message, picture, hash FROM users \
                 INNER JOIN display_pictures ON users.display_picture_id = display_pictures.id \
                 WHERE email = ?1",
-            ) {
-                let users = stmt.query_map([email], |row| {
-                    Ok(User {
-                        email: String::new(),
-                        personal_message: row.get(0)?,
-                        display_picture: row.get(1)?,
-                    })
-                });
+            )?;
 
-                if let Ok(users) = users {
-                    if let Some(Ok(user)) = users.last() {
-                        return Some(user);
-                    }
-                }
+            let users = stmt.query_map([email], |row| {
+                Ok(User {
+                    email: String::new(),
+                    personal_message: row.get(0)?,
+                    display_picture: row.get(1)?,
+                })
+            });
+
+            return users?.last().ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn insert_user_if_not_in_db(&self, email: &str) -> rusqlite::Result<()> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare("SELECT email FROM users WHERE email = ?1")?;
+            if stmt.query([email])?.count()? == 0 {
+                conn.execute("INSERT INTO users (email) VALUES (?1)", [email])?;
             }
         }
 
-        None
+        Ok(())
     }
 
-    pub fn insert_user_if_not_in_db(&self, email: &str) {
+    pub fn insert_display_picture(
+        &self,
+        display_picture: &[u8],
+        display_picture_hash: &str,
+    ) -> rusqlite::Result<()> {
         if let Ok(conn) = self.pool.get() {
-            if let Ok(mut stmt) = conn.prepare("SELECT email FROM users WHERE email = ?1") {
-                if let Ok(rows) = stmt.query([email]) {
-                    if let Ok(count) = rows.count() {
-                        if count == 0 {
-                            let _ = conn.execute("INSERT INTO users (email) VALUES (?1)", [email]);
-                        }
-                    }
-                }
-            }
+            conn.execute(
+                "INSERT INTO display_pictures (picture, hash) VALUES (?1, ?2)",
+                params![display_picture, display_picture_hash],
+            )?;
         }
+
+        Ok(())
     }
 
-    pub fn update_personal_message(&self, email: &str, personal_message: &str) {
+    pub fn update_personal_message(
+        &self,
+        email: &str,
+        personal_message: &str,
+    ) -> rusqlite::Result<()> {
         if let Ok(conn) = self.pool.get() {
-            let _ = conn.execute(
+            conn.execute(
                 "UPDATE users SET personal_message = ?1 WHERE email = ?2",
                 [personal_message, email],
-            );
+            )?;
         }
+
+        Ok(())
     }
 
     pub fn update_user_display_picture(
@@ -124,55 +135,26 @@ impl Sqlite {
         display_picture_hash: &str,
     ) -> rusqlite::Result<usize> {
         if let Ok(conn) = self.pool.get() {
-            if let Ok(mut stmt) = conn.prepare("SELECT id FROM display_pictures WHERE hash = ?1") {
-                let picture_id =
-                    stmt.query_map([display_picture_hash], |row| row.get::<usize, usize>(0));
+            let mut stmt = conn.prepare("SELECT id FROM display_pictures WHERE hash = ?1")?;
+            let picture_id = stmt
+                .query_map([display_picture_hash], |row| row.get::<usize, usize>(0))?
+                .last()
+                .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
 
-                if let Ok(ids) = picture_id {
-                    if let Some(Ok(id)) = ids.last() {
-                        return conn.execute(
-                            "UPDATE users SET display_picture_id = ?1 WHERE email = ?2",
-                            params![id, email],
-                        );
-                    }
-                }
-            }
+            return conn.execute(
+                "UPDATE users SET display_picture_id = ?1 WHERE email = ?2",
+                params![picture_id?, email],
+            );
         }
 
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
-    pub fn update_user_with_new_display_picture(
-        &self,
-        email: &str,
-        display_picture: &[u8],
-        display_picture_hash: &str,
-    ) {
+    pub fn delete_user(&self, email: &str) -> rusqlite::Result<()> {
         if let Ok(conn) = self.pool.get() {
-            let _ = conn.execute(
-                "INSERT INTO display_pictures (picture, hash) VALUES (?1, ?2)",
-                params![display_picture, display_picture_hash],
-            );
-
-            if let Ok(mut stmt) = conn.prepare("SELECT id FROM display_pictures WHERE hash = ?1") {
-                let picture_id =
-                    stmt.query_map([display_picture_hash], |row| row.get::<usize, usize>(0));
-
-                if let Ok(ids) = picture_id {
-                    if let Some(Ok(id)) = ids.last() {
-                        let _ = conn.execute(
-                            "UPDATE users SET display_picture_id = ?1 WHERE email = ?2",
-                            params![id, email],
-                        );
-                    }
-                }
-            }
+            conn.execute("DELETE FROM users WHERE email = ?1", [email])?;
         }
-    }
 
-    pub fn delete_user(&self, email: &str) {
-        if let Ok(conn) = self.pool.get() {
-            let _ = conn.execute("DELETE FROM users WHERE email = ?1", [email]);
-        }
+        Ok(())
     }
 }

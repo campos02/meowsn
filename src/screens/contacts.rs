@@ -47,7 +47,7 @@ impl Contacts {
         client: Arc<Client>,
         sqlite: Sqlite,
     ) -> Self {
-        if let Some(user) = sqlite.select_user(&email) {
+        if let Ok(user) = sqlite.select_user(&email) {
             if let Some(picture) = user.display_picture {
                 return Self {
                     email,
@@ -276,7 +276,8 @@ impl Contacts {
                     current_media: "".to_string(),
                 };
 
-                self.sqlite
+                let _ = self
+                    .sqlite
                     .update_personal_message(&self.email, &personal_message.psm);
 
                 action = Some(Action::RunTask(Task::batch([
@@ -311,11 +312,13 @@ impl Contacts {
                                         .update_user_display_picture(&self.email, &hash)
                                         .is_err()
                                     {
-                                        self.sqlite.update_user_with_new_display_picture(
-                                            &self.email,
-                                            bytes.as_slice(),
-                                            &hash,
-                                        )
+                                        let _ = self
+                                            .sqlite
+                                            .insert_display_picture(bytes.as_slice(), &hash);
+
+                                        let _ = self
+                                            .sqlite
+                                            .update_user_display_picture(&self.email, &hash);
                                     }
 
                                     let cow = Cow::from(bytes);

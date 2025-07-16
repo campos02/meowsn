@@ -25,7 +25,7 @@ impl Conversation {
     pub fn new(user_email: Arc<String>, contact: Contact, sqlite: Sqlite) -> Self {
         let mut user_display_picture = None;
 
-        if let Some(user) = sqlite.select_user(&user_email) {
+        if let Ok(user) = sqlite.select_user(&user_email) {
             if let Some(picture) = user.display_picture {
                 user_display_picture = Some(Cow::Owned(picture))
             }

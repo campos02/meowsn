@@ -50,7 +50,7 @@ impl SignIn {
         let mut remember_my_password = false;
         let mut display_picture = None;
 
-        let emails = sqlite.select_user_emails();
+        let emails = sqlite.select_user_emails().unwrap_or_default();
         if let Some(last_email) = emails.last() {
             email = Some(last_email.clone());
             remember_me = true;
@@ -64,7 +64,7 @@ impl SignIn {
         }
 
         if let Some(ref email) = email {
-            if let Some(user) = sqlite.select_user(email) {
+            if let Ok(user) = sqlite.select_user(email) {
                 if let Some(picture) = user.display_picture {
                     display_picture = Some(Cow::Owned(picture))
                 }
@@ -206,7 +206,7 @@ impl SignIn {
                     }
                 }
 
-                if let Some(user) = self.sqlite.select_user(&email) {
+                if let Ok(user) = self.sqlite.select_user(&email) {
                     if let Some(picture) = user.display_picture {
                         self.display_picture = Some(Cow::Owned(picture))
                     }
@@ -248,7 +248,7 @@ impl SignIn {
                     self.signing_in = true;
                     if self.remember_me {
                         if let Some(ref email) = self.email {
-                            self.sqlite.insert_user_if_not_in_db(email);
+                            let _ = self.sqlite.insert_user_if_not_in_db(email);
                         }
 
                         if self.remember_my_password {
@@ -266,7 +266,7 @@ impl SignIn {
 
             Message::ForgetMe => {
                 if let Some(ref email) = self.email {
-                    self.sqlite.delete_user(email);
+                    let _ = self.sqlite.delete_user(email);
                 }
 
                 if let Some(ref email) = self.email {
