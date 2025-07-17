@@ -307,19 +307,11 @@ impl Contacts {
                             {
                                 let client = self.client.clone();
                                 if let Ok(hash) = client.set_display_picture(bytes.clone()) {
-                                    if self
-                                        .sqlite
-                                        .update_user_display_picture(&self.email, &hash)
-                                        .is_err()
-                                    {
-                                        let _ = self
-                                            .sqlite
-                                            .insert_display_picture(bytes.as_slice(), &hash);
+                                    let _ =
+                                        self.sqlite.insert_display_picture(bytes.as_slice(), &hash);
 
-                                        let _ = self
-                                            .sqlite
-                                            .update_user_display_picture(&self.email, &hash);
-                                    }
+                                    let _ =
+                                        self.sqlite.update_user_display_picture(&self.email, &hash);
 
                                     let cow = Cow::from(bytes);
                                     action = Some(Action::RunTask(Task::done(

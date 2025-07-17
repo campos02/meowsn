@@ -26,8 +26,8 @@ impl Sqlite {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS display_pictures (\
                 id INTEGER PRIMARY KEY,\
-                picture BLOB,\
-                hash TEXT\
+                picture BLOB NOT NULL,\
+                hash TEXT UNIQUE NOT NULL\
             )",
             (),
         )?;
