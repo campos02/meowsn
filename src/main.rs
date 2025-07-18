@@ -258,19 +258,47 @@ impl IcedM {
                     Task::none()
                 }
 
-                msnp_listener::Event::NotificationServer(event) => {
-                    if let Some(window) = self
-                        .windows
-                        .iter_mut()
-                        .find(|window| matches!(window.1.get_screen(), Screen::Contacts(..)))
-                    {
-                        return window.1.update(Message::Contacts(
-                            *window.0,
-                            contacts::Message::MsnpEvent(event),
-                        ));
-                    }
+                msnp_listener::Event::NotificationServer(mut event) => {
+                    match event {
+                        msnp11_sdk::Event::Disconnected
+                        | msnp11_sdk::Event::LoggedInAnotherDevice => {
+                            let mut tasks = Vec::new();
+                            self.windows.iter_mut().for_each(|window| {
+                                // Close windows that aren't the main one and open dialog with disconnection message
+                                tasks.push(
+                                    if !matches!(
+                                        window.1.get_screen(),
+                                        Screen::Contacts(..) | Screen::SignIn(..)
+                                    ) {
+                                        window::close::<Message>(*window.0)
+                                    } else {
+                                        window.1.update(Message::Contacts(
+                                            *window.0,
+                                            contacts::Message::MsnpEvent(std::mem::replace(
+                                                &mut event,
+                                                msnp11_sdk::Event::Disconnected,
+                                            )),
+                                        ))
+                                    },
+                                );
+                            });
 
-                    Task::none()
+                            Task::batch(tasks)
+                        }
+
+                        _ => {
+                            if let Some(window) = self.windows.iter_mut().find(|window| {
+                                matches!(window.1.get_screen(), Screen::Contacts(..))
+                            }) {
+                                return window.1.update(Message::Contacts(
+                                    *window.0,
+                                    contacts::Message::MsnpEvent(event),
+                                ));
+                            }
+
+                            Task::none()
+                        }
+                    }
                 }
 
                 msnp_listener::Event::Switchboard { .. } => Task::none(),

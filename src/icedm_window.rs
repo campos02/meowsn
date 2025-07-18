@@ -51,6 +51,27 @@ impl Window {
             }
 
             Message::Contacts(.., message) => {
+                if let contacts::Message::MsnpEvent(ref event) = message {
+                    match event {
+                        msnp11_sdk::Event::Disconnected => {
+                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                            return Task::done(Message::OpenDialog(
+                                "Lost connection to the server".to_string(),
+                            ));
+                        }
+
+                        msnp11_sdk::Event::LoggedInAnotherDevice => {
+                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                            return Task::done(Message::OpenDialog(
+                                "Disconnected as you have signed in on another computer"
+                                    .to_string(),
+                            ));
+                        }
+
+                        _ => (),
+                    }
+                }
+
                 if let Screen::Contacts(contacts) = &mut self.screen {
                     if let Some(action) = contacts.update(message) {
                         return match action {
