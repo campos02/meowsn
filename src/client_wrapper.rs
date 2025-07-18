@@ -2,6 +2,7 @@ use msnp11_sdk::Client;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct ClientWrapper {
     pub personal_message: String,
     pub inner: Arc<Client>,

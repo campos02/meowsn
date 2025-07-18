@@ -3,7 +3,7 @@ use crate::icedm_window::Window;
 use crate::models::contact::Contact;
 use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
-use crate::screens::{contacts, conversation, dialog, personal_settings, sign_in};
+use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use dark_light::Mode;
 use enums::window_type::WindowType;
@@ -37,6 +37,7 @@ pub enum Message {
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
     Dialog(window::Id, dialog::Message),
+    AddContact(window::Id, add_contact::Message),
     OpenPersonalSettings {
         client: Option<ClientWrapper>,
         display_name: Option<String>,
@@ -44,8 +45,10 @@ pub enum Message {
 
     OpenConversation(Arc<String>, Contact),
     OpenDialog(String),
+    OpenAddContact(ClientWrapper),
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
+    EventFuture(Result<msnp11_sdk::Event, SdkError>),
     ContactUpdated(Contact),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     FocusNext,
@@ -100,6 +103,9 @@ impl IcedM {
                     )),
 
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
+                    WindowType::AddContact(client) => {
+                        Screen::AddContact(add_contact::AddContact::new(client))
+                    }
                 };
 
                 let window = Window::new(screen, self.sqlite.clone());
@@ -138,7 +144,8 @@ impl IcedM {
             | Message::PersonalSettings(id, ..)
             | Message::SignIn(id, ..)
             | Message::Conversation(id, ..)
-            | Message::Dialog(id, ..) => {
+            | Message::Dialog(id, ..)
+            | Message::AddContact(id, ..) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     return window.update(message);
                 }
@@ -226,6 +233,25 @@ impl IcedM {
                 })
             }
 
+            Message::OpenAddContact(client) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                if let Some(window) = self
+                    .windows
+                    .iter()
+                    .find(|window| matches!(window.1.get_screen(), Screen::AddContact(..)))
+                {
+                    return window::gain_focus(*window.0);
+                }
+
+                let (_id, open) = window::open(IcedM::window_settings(Size::new(400.0, 220.0)));
+                open.map(move |id| {
+                    Message::WindowOpened(id, WindowType::AddContact(client.clone()))
+                })
+            }
+
             Message::MsnpEvent(event) => match event {
                 msnp_listener::Event::Ready(sender) => {
                     self.msnp_subscription_sender = Some(sender.clone());
@@ -281,6 +307,29 @@ impl IcedM {
 
             Message::FocusNext => widget::focus_next(),
             Message::FocusPrevious => widget::focus_previous(),
+            Message::EventFuture(result) => {
+                match result {
+                    Ok(event) => {
+                        if let Some(window) = self
+                            .windows
+                            .iter_mut()
+                            .find(|window| matches!(window.1.get_screen(), Screen::Contacts(..)))
+                        {
+                            return window.1.update(Message::Contacts(
+                                *window.0,
+                                contacts::Message::MsnpEvent(event),
+                            ));
+                        }
+                    }
+
+                    Err(error) => {
+                        return Task::done(Message::OpenDialog(error.to_string()));
+                    }
+                }
+
+                Task::none()
+            }
+
             _ => Task::none(),
         }
     }

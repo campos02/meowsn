@@ -1,3 +1,4 @@
+use crate::screens::add_contact::AddContact;
 use crate::screens::contacts::Contacts;
 use crate::screens::conversation::Conversation;
 use crate::screens::dialog::Dialog;
@@ -10,4 +11,5 @@ pub enum Screen {
     PersonalSettings(PersonalSettings),
     Conversation(Conversation),
     Dialog(Dialog),
+    AddContact(AddContact),
 }

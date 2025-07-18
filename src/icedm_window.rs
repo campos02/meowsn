@@ -1,5 +1,5 @@
 use crate::screens::screen::Screen;
-use crate::screens::{contacts, sign_in};
+use crate::screens::{add_contact, contacts, sign_in};
 use crate::sqlite::Sqlite;
 use crate::{Message, sign_in_async};
 use iced::{Element, Task, window};
@@ -94,6 +94,22 @@ impl Window {
                 Task::none()
             }
 
+            Message::AddContact(id, message) => {
+                if let Screen::AddContact(add_contact) = &mut self.screen {
+                    if let Some(action) = add_contact.update(message) {
+                        return match action {
+                            add_contact::Action::OkPressed(task) => {
+                                Task::batch([task, window::close::<Message>(id)])
+                            }
+
+                            add_contact::Action::CancelPressed => window::close::<Message>(id),
+                        };
+                    }
+                }
+
+                Task::none()
+            }
+
             Message::SignedIn(.., email, result) => {
                 match result {
                     Ok(client) => {
@@ -142,6 +158,10 @@ impl Window {
             Screen::Dialog(dialog) => dialog
                 .view()
                 .map(move |message| Message::Dialog(id, message)),
+
+            Screen::AddContact(client) => client
+                .view()
+                .map(move |message| Message::AddContact(id, message)),
         }
     }
 

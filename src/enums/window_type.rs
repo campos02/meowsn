@@ -16,4 +16,5 @@ pub enum WindowType {
     },
 
     Dialog(String),
+    AddContact(ClientWrapper),
 }

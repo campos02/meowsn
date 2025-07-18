@@ -27,6 +27,7 @@ pub enum Message {
     BlockContact(Arc<String>),
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
+    AddContact,
 }
 
 pub struct Contacts {
@@ -179,7 +180,7 @@ impl Contacts {
                                 }
                             }
                         })
-                        .on_press(Message::PersonalMessageSubmit),
+                        .on_press(Message::AddContact),
                 ]
                 .align_y(Center),
                 column(self.contacts.iter().map(|contact| {
@@ -291,14 +292,14 @@ impl Contacts {
 
             Message::StatusSelected(status) => match status {
                 ContactListStatus::ChangeDisplayPicture => {
-                    let picture = FileDialog::new()
+                    let picture_path = FileDialog::new()
                         .add_filter("Images", &["png", "jpeg", "jpg"])
                         .set_directory("/")
                         .set_title("Select a display picture")
                         .pick_file();
 
-                    if let Some(picture) = picture {
-                        if let Ok(picture) = image::open(&picture) {
+                    if let Some(picture_path) = picture_path {
+                        if let Ok(picture) = image::open(&picture_path) {
                             let mut bytes = Vec::new();
                             if picture
                                 .resize_to_fill(200, 200, FilterType::Triangle)
@@ -408,15 +409,24 @@ impl Contacts {
                     .position(|contact| *contact.email == *email);
 
                 if let Some(contact) = contact {
-                    let email = self.contacts[contact].email.clone();
+                    let guid = self.contacts[contact].guid.clone();
                     self.contacts.remove(contact);
 
                     let client = self.client.clone();
                     action = Some(Action::RunTask(Task::perform(
-                        async move { client.remove_contact_from_forward_list(&email).await },
+                        async move { client.remove_contact_from_forward_list(&guid).await },
                         crate::Message::EmptyResultFuture,
                     )));
                 }
+            }
+
+            Message::AddContact => {
+                action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
+                    ClientWrapper {
+                        personal_message: String::new(),
+                        inner: self.client.clone(),
+                    },
+                ))));
             }
 
             Message::Conversation(contact) => {

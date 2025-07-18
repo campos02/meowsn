@@ -1,3 +1,4 @@
+pub mod add_contact;
 pub mod contacts;
 pub mod conversation;
 pub mod dialog;
