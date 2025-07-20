@@ -1,10 +1,9 @@
-use crate::client_wrapper;
 use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Center, Element, Fill, Task};
 use msnp11_sdk::{Client, MsnpList};
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
     EmailChanged(String),
     DisplayNameChanged(String),
@@ -24,11 +23,11 @@ pub struct AddContact {
 }
 
 impl AddContact {
-    pub fn new(client: client_wrapper::ClientWrapper) -> Self {
+    pub fn new(client: Arc<Client>) -> Self {
         Self {
             email: String::new(),
             display_name: String::new(),
-            client: client.inner,
+            client,
         }
     }
 

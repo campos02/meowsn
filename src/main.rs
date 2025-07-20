@@ -1,4 +1,3 @@
-use crate::client_wrapper::ClientWrapper;
 use crate::icedm_window::Window;
 use crate::models::contact::Contact;
 use crate::msnp_listener::Input;
@@ -12,11 +11,12 @@ use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use msnp11_sdk::sdk_error::SdkError;
+use msnp11_sdk::{Client, Switchboard};
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Debug;
 use std::sync::Arc;
 
-mod client_wrapper;
 mod enums;
 mod icedm_window;
 mod keyboard_listener;
@@ -26,26 +26,49 @@ mod screens;
 mod settings;
 mod sign_in_async;
 mod sqlite;
+mod switchboard_and_participants;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
     SignIn(window::Id, sign_in::Message),
-    SignedIn(window::Id, Arc<String>, Result<ClientWrapper, SdkError>),
+    SignedIn {
+        id: window::Id,
+        email: Arc<String>,
+        result: Result<(String, Arc<Client>), SdkError>,
+    },
+
     Contacts(window::Id, contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
     Conversation(window::Id, conversation::Message),
     Dialog(window::Id, dialog::Message),
     AddContact(window::Id, add_contact::Message),
     OpenPersonalSettings {
-        client: Option<ClientWrapper>,
+        client: Option<Arc<Client>>,
         display_name: Option<String>,
     },
 
-    OpenConversation(Arc<String>, Contact),
+    CreateConversation {
+        result: Result<Arc<Switchboard>, SdkError>,
+        email: Arc<String>,
+        contact: Contact,
+    },
+
+    CreateConversationWithSwitchboard {
+        email: Arc<String>,
+        switchboard: Arc<Switchboard>,
+        contacts: HashMap<Arc<String>, Contact>,
+    },
+
+    OpenConversation {
+        email: Arc<String>,
+        contact: Contact,
+        client: Arc<Client>,
+    },
+
     OpenDialog(String),
-    OpenAddContact(ClientWrapper),
+    OpenAddContact(Arc<Client>),
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
     EventFuture(Result<msnp11_sdk::Event, SdkError>),
@@ -53,6 +76,12 @@ pub enum Message {
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     FocusNext,
     FocusPrevious,
+}
+
+impl Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.debug_struct("Message").finish()
+    }
 }
 
 struct IcedM {
@@ -77,7 +106,7 @@ impl IcedM {
         )
     }
 
-    fn update(&mut self, message: Message) -> Task<Message> {
+    fn update(&mut self, mut message: Message) -> Task<Message> {
         match message {
             Message::WindowOpened(id, window_type) => {
                 let screen = match window_type {
@@ -94,11 +123,13 @@ impl IcedM {
                     )),
 
                     WindowType::Conversation {
-                        user_email,
-                        contact,
+                        switchboard,
+                        email,
+                        contacts,
                     } => Screen::Conversation(conversation::Conversation::new(
-                        user_email,
-                        contact,
+                        switchboard,
+                        email,
+                        contacts,
                         self.sqlite.clone(),
                     )),
 
@@ -108,7 +139,12 @@ impl IcedM {
                     }
                 };
 
-                let window = Window::new(screen, self.sqlite.clone());
+                let window = Window::new(
+                    screen,
+                    self.sqlite.clone(),
+                    self.msnp_subscription_sender.clone(),
+                );
+
                 self.windows.insert(id, window);
                 Task::none()
             }
@@ -153,12 +189,14 @@ impl IcedM {
                 Task::none()
             }
 
-            Message::SignedIn(id, .., ref result) => {
+            Message::SignedIn {
+                id,
+                email: _,
+                ref result,
+            } => {
                 if let Some(sender) = self.msnp_subscription_sender.as_mut() {
                     if let Ok(client) = result {
-                        if let Err(error) =
-                            sender.start_send(Input::NewClient(client.inner.clone()))
-                        {
+                        if let Err(error) = sender.start_send(Input::NewClient(client.1.clone())) {
                             return Task::done(Message::OpenDialog(error.to_string()));
                         }
                     }
@@ -199,7 +237,78 @@ impl IcedM {
                 })
             }
 
-            Message::OpenConversation(mut user_email, mut contact) => {
+            Message::OpenConversation {
+                email,
+                contact,
+                client,
+            } => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                if let Some(window) = self.windows.iter_mut().find(|window| {
+                    let Screen::Conversation(conversation) = window.1.get_screen() else {
+                        return false;
+                    };
+
+                    conversation.get_contacts().contains_key(&contact.email)
+                }) {
+                    window::gain_focus(*window.0)
+                } else {
+                    let contact_email = contact.email.clone();
+                    Task::perform(
+                        async move { client.create_session(&contact_email).await },
+                        move |result| Message::CreateConversation {
+                            result: result.map(Arc::new),
+                            email: email.clone(),
+                            contact: contact.clone(),
+                        },
+                    )
+                }
+            }
+
+            Message::CreateConversation {
+                result,
+                mut email,
+                contact,
+            } => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                match result {
+                    Ok(switchboard) => {
+                        let mut contacts = HashMap::new();
+                        contacts.insert(contact.email.clone(), contact);
+
+                        if let Some(ref mut sender) = self.msnp_subscription_sender {
+                            let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
+                        }
+
+                        let (_id, open) =
+                            window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
+
+                        open.map(move |id| {
+                            Message::WindowOpened(
+                                id,
+                                WindowType::Conversation {
+                                    switchboard: switchboard.clone(),
+                                    email: std::mem::take(&mut email),
+                                    contacts: std::mem::take(&mut contacts),
+                                },
+                            )
+                        })
+                    }
+
+                    Err(error) => Task::done(Message::OpenDialog(error.to_string())),
+                }
+            }
+
+            Message::CreateConversationWithSwitchboard {
+                mut email,
+                switchboard,
+                mut contacts,
+            } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
                 };
@@ -209,8 +318,9 @@ impl IcedM {
                     Message::WindowOpened(
                         id,
                         WindowType::Conversation {
-                            user_email: std::mem::take(&mut user_email),
-                            contact: std::mem::take(&mut contact),
+                            switchboard: switchboard.clone(),
+                            email: std::mem::take(&mut email),
+                            contacts: std::mem::take(&mut contacts),
                         },
                     )
                 })
@@ -252,36 +362,44 @@ impl IcedM {
                 })
             }
 
-            Message::MsnpEvent(event) => match event {
+            Message::MsnpEvent(ref mut event) => match event {
                 msnp_listener::Event::Ready(sender) => {
                     self.msnp_subscription_sender = Some(sender.clone());
                     Task::none()
                 }
 
-                msnp_listener::Event::NotificationServer(mut event) => {
+                msnp_listener::Event::NotificationServer(event) => {
+                    if self.windows.keys().last().is_none() {
+                        return Task::none();
+                    };
+
                     match event {
                         msnp11_sdk::Event::Disconnected
                         | msnp11_sdk::Event::LoggedInAnotherDevice => {
                             let mut tasks = Vec::new();
-                            self.windows.iter_mut().for_each(|window| {
+                            for (id, window) in self.windows.iter_mut() {
                                 // Close windows that aren't the main one and open dialog with disconnection message
                                 tasks.push(
                                     if !matches!(
-                                        window.1.get_screen(),
+                                        window.get_screen(),
                                         Screen::Contacts(..) | Screen::SignIn(..)
                                     ) {
-                                        window::close::<Message>(*window.0)
+                                        window::close::<Message>(*id)
                                     } else {
-                                        window.1.update(Message::Contacts(
-                                            *window.0,
-                                            contacts::Message::MsnpEvent(std::mem::replace(
-                                                &mut event,
-                                                msnp11_sdk::Event::Disconnected,
-                                            )),
+                                        // Using Disconnected as a default to replace the event, since there's only supposed to be one
+                                        // window with this screen type
+                                        window.update(Message::Contacts(
+                                            *id,
+                                            contacts::Message::NotificationServerEvent(
+                                                std::mem::replace(
+                                                    event,
+                                                    msnp11_sdk::Event::Disconnected,
+                                                ),
+                                            ),
                                         ))
                                     },
                                 );
-                            });
+                            }
 
                             Task::batch(tasks)
                         }
@@ -292,7 +410,11 @@ impl IcedM {
                             }) {
                                 return window.1.update(Message::Contacts(
                                     *window.0,
-                                    contacts::Message::MsnpEvent(event),
+                                    // Using Authenticated as a default event
+                                    contacts::Message::NotificationServerEvent(std::mem::replace(
+                                        event,
+                                        msnp11_sdk::Event::Authenticated,
+                                    )),
                                 ));
                             }
 
@@ -301,34 +423,59 @@ impl IcedM {
                     }
                 }
 
-                msnp_listener::Event::Switchboard { .. } => Task::none(),
+                msnp_listener::Event::Switchboard { .. } => {
+                    if self.windows.keys().last().is_none() {
+                        return Task::none();
+                    };
+
+                    let mut tasks = Vec::new();
+                    for (_, window) in self.windows.iter_mut() {
+                        if matches!(
+                            window.get_screen(),
+                            Screen::Conversation(..) | Screen::Contacts(..)
+                        ) {
+                            tasks.push(window.update(message.clone()));
+                        }
+                    }
+
+                    Task::batch(tasks)
+                }
             },
 
-            Message::ContactUpdated(contact) => {
-                if let Some(window) = self.windows.iter_mut().find(|window| {
-                    if let Screen::Conversation(conversation) = window.1.get_screen() {
-                        conversation.get_contact().email == contact.email
-                    } else {
-                        false
+            Message::ContactUpdated(mut contact) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                let mut tasks = Vec::new();
+                for (id, window) in self.windows.iter_mut() {
+                    if let Screen::Conversation(conversation) = window.get_screen()
+                        && conversation.get_contacts().contains_key(&contact.email)
+                    {
+                        tasks.push(window.update(Message::Conversation(
+                            *id,
+                            conversation::Message::ContactUpdated(std::mem::take(&mut contact)),
+                        )));
                     }
-                }) {
-                    return window.1.update(Message::Conversation(
-                        *window.0,
-                        conversation::Message::ContactUpdated(contact),
-                    ));
                 }
 
-                Task::none()
+                Task::batch(tasks)
             }
 
             Message::UserDisplayPictureUpdated(picture) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
                 let mut tasks = Vec::new();
-                self.windows.iter_mut().for_each(|window| {
-                    tasks.push(window.1.update(Message::Conversation(
-                        *window.0,
-                        conversation::Message::UserDisplayPictureUpdated(picture.clone()),
-                    )))
-                });
+                for (id, window) in self.windows.iter_mut() {
+                    if matches!(window.get_screen(), Screen::Conversation(..)) {
+                        tasks.push(window.update(Message::Conversation(
+                            *id,
+                            conversation::Message::UserDisplayPictureUpdated(picture.clone()),
+                        )));
+                    }
+                }
 
                 Task::batch(tasks)
             }
@@ -338,6 +485,10 @@ impl IcedM {
             Message::EventFuture(result) => {
                 match result {
                     Ok(event) => {
+                        if self.windows.keys().last().is_none() {
+                            return Task::none();
+                        };
+
                         if let Some(window) = self
                             .windows
                             .iter_mut()
@@ -345,7 +496,7 @@ impl IcedM {
                         {
                             return window.1.update(Message::Contacts(
                                 *window.0,
-                                contacts::Message::MsnpEvent(event),
+                                contacts::Message::NotificationServerEvent(event),
                             ));
                         }
                     }

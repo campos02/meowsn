@@ -1,14 +1,18 @@
-use crate::client_wrapper::ClientWrapper;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
+use crate::msnp_listener::Input;
 use crate::sqlite::Sqlite;
+use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use iced::border::radius;
+use iced::font::Weight;
+use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
-use iced::{Background, Border, Center, Color, Element, Fill, Task, Theme, widget};
+use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
 use image::imageops::FilterType;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use rfd::FileDialog;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -17,13 +21,14 @@ pub enum Action {
     RunTask(Task<crate::Message>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
     PersonalMessageChanged(String),
     PersonalMessageSubmit,
     StatusSelected(ContactListStatus),
     Conversation(Contact),
-    MsnpEvent(Event),
+    NotificationServerEvent(Event),
+    SwitchboardEvent(Arc<String>, Event),
     BlockContact(Arc<String>),
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
@@ -38,7 +43,9 @@ pub struct Contacts {
     status: Option<ContactListStatus>,
     contacts: Vec<Contact>,
     client: Arc<Client>,
+    orphan_switchboards: HashMap<String, SwitchboardAndParticipants>,
     sqlite: Sqlite,
+    msnp_subscription_sender: Option<Sender<Input>>,
 }
 
 impl Contacts {
@@ -47,6 +54,7 @@ impl Contacts {
         personal_message: String,
         client: Arc<Client>,
         sqlite: Sqlite,
+        msnp_subscription_sender: Option<Sender<Input>>,
     ) -> Self {
         if let Ok(user) = sqlite.select_user(&email) {
             if let Some(picture) = user.display_picture {
@@ -58,7 +66,9 @@ impl Contacts {
                     status: Some(ContactListStatus::Online),
                     contacts: Vec::new(),
                     client,
+                    orphan_switchboards: HashMap::new(),
                     sqlite,
+                    msnp_subscription_sender,
                 };
             }
         }
@@ -71,7 +81,9 @@ impl Contacts {
             status: Some(ContactListStatus::Online),
             contacts: Vec::new(),
             client,
+            orphan_switchboards: HashMap::new(),
             sqlite,
+            msnp_subscription_sender,
         }
     }
 
@@ -221,19 +233,26 @@ impl Contacts {
                                 ))
                             })
                             .width(30),
-                            button(text(&*contact.display_name))
-                                .on_press(Message::Conversation(contact.clone()))
-                                .style(|theme: &Theme, status| match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::secondary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
+                            button(if contact.new_messages {
+                                text(&*contact.display_name).font(Font {
+                                    weight: Weight::Bold,
+                                    ..Font::default()
                                 })
-                                .width(Fill)
+                            } else {
+                                text(&*contact.display_name)
+                            })
+                            .on_press(Message::Conversation(contact.clone()))
+                            .style(|theme: &Theme, status| match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    button::secondary(theme, status)
+                                }
+
+                                button::Status::Active | button::Status::Disabled => {
+                                    button::secondary(theme, status)
+                                        .with_background(Color::TRANSPARENT)
+                                }
+                            })
+                            .width(Fill)
                         ]
                         .align_y(Center),
                         row![
@@ -329,10 +348,7 @@ impl Contacts {
                 ContactListStatus::PersonalSettings => {
                     action = Some(Action::RunTask(Task::done(
                         crate::Message::OpenPersonalSettings {
-                            client: Some(ClientWrapper {
-                                personal_message: String::new(),
-                                inner: self.client.clone(),
-                            }),
+                            client: Some(self.client.clone()),
                             display_name: Some(self.display_name.trim().to_string()),
                         },
                     )))
@@ -422,20 +438,51 @@ impl Contacts {
 
             Message::AddContact => {
                 action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
-                    ClientWrapper {
-                        personal_message: String::new(),
-                        inner: self.client.clone(),
-                    },
+                    self.client.clone(),
                 ))));
             }
 
             Message::Conversation(contact) => {
-                action = Some(Action::RunTask(Task::done(
-                    crate::Message::OpenConversation(self.email.clone(), contact.clone()),
-                )))
+                let mut session_id = String::new();
+                if let Some(switchboard) = self
+                    .orphan_switchboards
+                    .iter()
+                    .find(|switchboard| switchboard.1.participants.contains(&contact.email))
+                {
+                    session_id = switchboard.0.clone();
+                }
+
+                if session_id.is_empty() {
+                    action = Some(Action::RunTask(Task::done(
+                        crate::Message::OpenConversation {
+                            email: self.email.clone(),
+                            contact,
+                            client: self.client.clone(),
+                        },
+                    )));
+                } else if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
+                    let mut contacts = HashMap::new();
+                    for participant in switchboard.participants {
+                        if let Some(contact) = self
+                            .contacts
+                            .iter()
+                            .find(|contact| contact.email == participant)
+                        {
+                            contacts.insert(contact.email.clone(), contact.clone());
+                        }
+                    }
+
+                    action = Some(Action::RunTask(Task::done(
+                        crate::Message::CreateConversationWithSwitchboard {
+                            email: self.email.clone(),
+                            switchboard: switchboard.switchboard.clone(),
+                            contacts,
+                        },
+                    )));
+                }
             }
 
-            Message::MsnpEvent(event) => match event {
+            Message::NotificationServerEvent(event) => match event {
                 Event::DisplayName(display_name) => {
                     self.display_name = display_name;
                     self.display_name.insert(0, ' ');
@@ -455,6 +502,8 @@ impl Contacts {
                         lists,
                         status: None,
                         personal_message: None,
+                        display_picture: None,
+                        new_messages: false,
                     });
                 }
 
@@ -512,6 +561,51 @@ impl Contacts {
 
                     self.contacts
                         .sort_unstable_by_key(|contact| contact.status.is_none());
+                }
+
+                Event::SessionAnswered(switchboard) => {
+                    if let Ok(Some(session_id)) = switchboard.get_session_id() {
+                        self.orphan_switchboards.insert(
+                            session_id,
+                            SwitchboardAndParticipants {
+                                switchboard: switchboard.clone(),
+                                participants: Vec::new(),
+                            },
+                        );
+
+                        if let Some(ref mut sender) = self.msnp_subscription_sender {
+                            let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
+                        }
+                    }
+                }
+
+                _ => (),
+            },
+
+            Message::SwitchboardEvent(session_id, event) => match event {
+                Event::ParticipantInSwitchboard { email } => {
+                    if let Some(switchboard) = self.orphan_switchboards.get_mut(&*session_id) {
+                        switchboard.participants.push(Arc::new(email));
+                    }
+                }
+
+                Event::ParticipantLeftSwitchboard { email } => {
+                    if let Some(switchboard) = self.orphan_switchboards.get_mut(&*session_id) {
+                        switchboard
+                            .participants
+                            .retain(|participant| **participant != email);
+                    }
+                }
+
+                Event::Nudge { email } | Event::TextMessage { email, .. } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        contact.new_messages = true;
+                    }
                 }
 
                 _ => (),

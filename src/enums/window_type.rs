@@ -1,20 +1,22 @@
-use crate::client_wrapper::ClientWrapper;
 use crate::models::contact::Contact;
+use msnp11_sdk::{Client, Switchboard};
+use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub enum WindowType {
     MainWindow,
     PersonalSettings {
-        client: Option<ClientWrapper>,
+        client: Option<Arc<Client>>,
         display_name: Option<String>,
     },
 
     Conversation {
-        user_email: Arc<String>,
-        contact: Contact,
+        switchboard: Arc<Switchboard>,
+        email: Arc<String>,
+        contacts: HashMap<Arc<String>, Contact>,
     },
 
     Dialog(String),
-    AddContact(ClientWrapper),
+    AddContact(Arc<Client>),
 }

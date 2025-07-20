@@ -1,17 +1,28 @@
+use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
-use crate::screens::{add_contact, contacts, sign_in};
+use crate::screens::{add_contact, contacts, conversation, sign_in};
 use crate::sqlite::Sqlite;
-use crate::{Message, sign_in_async};
+use crate::{Message, msnp_listener, sign_in_async};
+use iced::futures::channel::mpsc::Sender;
 use iced::{Element, Task, window};
 
 pub struct Window {
     screen: Screen,
     sqlite: Sqlite,
+    msnp_subscription_sender: Option<Sender<Input>>,
 }
 
 impl Window {
-    pub fn new(screen: Screen, sqlite: Sqlite) -> Self {
-        Self { screen, sqlite }
+    pub fn new(
+        screen: Screen,
+        sqlite: Sqlite,
+        msnp_subscription_sender: Option<Sender<Input>>,
+    ) -> Self {
+        Self {
+            screen,
+            sqlite,
+            msnp_subscription_sender,
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -29,7 +40,11 @@ impl Window {
                                         status,
                                         self.sqlite.clone(),
                                     ),
-                                    move |result| Message::SignedIn(id, email.clone(), result),
+                                    move |result| Message::SignedIn {
+                                        id,
+                                        email: email.clone(),
+                                        result,
+                                    },
                                 )
                             }
 
@@ -51,7 +66,7 @@ impl Window {
             }
 
             Message::Contacts(.., message) => {
-                if let contacts::Message::MsnpEvent(ref event) = message {
+                if let contacts::Message::NotificationServerEvent(ref event) = message {
                     match event {
                         msnp11_sdk::Event::Disconnected => {
                             self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
@@ -99,7 +114,7 @@ impl Window {
 
             Message::Conversation(.., message) => {
                 if let Screen::Conversation(conversation) = &mut self.screen {
-                    conversation.update(message);
+                    return conversation.update(message);
                 }
 
                 Task::none()
@@ -131,14 +146,19 @@ impl Window {
                 Task::none()
             }
 
-            Message::SignedIn(.., email, result) => {
+            Message::SignedIn {
+                id: _,
+                email,
+                result,
+            } => {
                 match result {
-                    Ok(client) => {
+                    Ok(result) => {
                         self.screen = Screen::Contacts(contacts::Contacts::new(
                             email,
-                            client.personal_message,
-                            client.inner,
+                            result.0,
+                            result.1,
                             self.sqlite.clone(),
+                            self.msnp_subscription_sender.clone(),
                         ));
                     }
 
@@ -148,6 +168,27 @@ impl Window {
                         }
 
                         return Task::done(Message::OpenDialog(error.to_string()));
+                    }
+                }
+
+                Task::none()
+            }
+
+            Message::MsnpEvent(event) => {
+                if let msnp_listener::Event::Switchboard { session_id, event } = event {
+                    match &mut self.screen {
+                        Screen::Conversation(conversation) => {
+                            if *conversation.get_session_id() == *session_id {
+                                return conversation
+                                    .update(conversation::Message::MsnpEvent(event));
+                            }
+                        }
+
+                        Screen::Contacts(contacts) => {
+                            contacts.update(contacts::Message::SwitchboardEvent(session_id, event));
+                        }
+
+                        _ => (),
                     }
                 }
 

@@ -1,4 +1,3 @@
-use crate::client_wrapper::ClientWrapper;
 use crate::settings::Settings;
 use crate::{msnp_listener, settings};
 use iced::widget::{button, column, container, text, text_input};
@@ -22,10 +21,10 @@ pub struct PersonalSettings {
 }
 
 impl PersonalSettings {
-    pub fn new(client: Option<ClientWrapper>, display_name: Option<String>) -> Self {
+    pub fn new(client: Option<Arc<Client>>, display_name: Option<String>) -> Self {
         let settings = settings::get_settings().unwrap_or_default();
         Self {
-            client: client.map(|client| client.inner),
+            client,
             display_name: display_name.unwrap_or_default(),
             server: settings.server,
             nexus_url: settings.nexus_url,

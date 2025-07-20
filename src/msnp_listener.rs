@@ -3,7 +3,7 @@ use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::stream;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub enum Event {
     Ready(mpsc::Sender<Input>),
     NotificationServer(msnp11_sdk::Event),
@@ -25,7 +25,6 @@ pub fn listen() -> impl Stream<Item = Event> {
 
         loop {
             let input = receiver.select_next_some().await;
-
             match input {
                 Input::NewClient(client) => {
                     let output = output.clone();

@@ -8,10 +8,9 @@ use iced::{Border, Center, Element, Fill, Theme};
 use iced::{Color, widget};
 use keyring::Entry;
 use std::borrow::Cow;
-use std::fmt::Debug;
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
     EmailInput(String),
     EmailSelected(String),
