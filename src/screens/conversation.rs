@@ -2,10 +2,12 @@ use crate::models::contact::Contact;
 use crate::models::message;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
+use iced::font::{Style, Weight};
 use iced::widget::{
-    column, container, rich_text, row, span, svg, text, text_editor, vertical_space,
+    column, container, horizontal_space, rich_text, row, span, svg, text, text_editor,
+    vertical_space,
 };
-use iced::{Border, Element, Fill, Font, Task, Theme, font, widget};
+use iced::{Border, Element, Fill, Font, Task, Theme, widget};
 use msnp11_sdk::{Event, PlainText, Switchboard};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -77,7 +79,7 @@ impl Conversation {
                                 .display_name;
 
                             text(&**display_name).font(Font {
-                                weight: font::Weight::Bold,
+                                weight: Weight::Bold,
                                 ..Font::default()
                             })
                         } else {
@@ -101,15 +103,42 @@ impl Conversation {
                     .width(Fill),
                     column(self.messages.iter().map(|message| {
                         column![
-                            row![
-                                text(&*message.sender).font(Font {
-                                    weight: font::Weight::Bold,
-                                    ..Font::default()
-                                }),
-                                " said:"
-                            ],
-                            container(rich_text([span(message.text.replace("\r\n", "\n"))]))
+                            if !message.is_nudge {
+                                row![
+                                    text(&*message.sender).font(Font {
+                                        weight: Weight::Bold,
+                                        ..Font::default()
+                                    }),
+                                    " said:"
+                                ]
+                            } else {
+                                row![column![
+                                    text("⸺"),
+                                    text(format!("{} sent you a nudge!", &*message.sender)),
+                                    text("⸺")
+                                ]]
+                            },
+                            if !message.is_nudge {
+                                container(rich_text([span(message.text.replace("\r\n", "\n"))
+                                    .underline(message.underline)
+                                    .strikethrough(message.strikethrough)
+                                    .font(Font {
+                                        weight: if message.bold {
+                                            Weight::Bold
+                                        } else {
+                                            Weight::Normal
+                                        },
+                                        style: if message.italic {
+                                            Style::Italic
+                                        } else {
+                                            Style::Normal
+                                        },
+                                        ..Font::default()
+                                    })]))
                                 .padding(10)
+                            } else {
+                                container(horizontal_space().height(7))
+                            }
                         ]
                         .into()
                     }))
