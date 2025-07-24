@@ -1,6 +1,5 @@
-use crate::models::contact::Contact;
-use msnp11_sdk::{Client, Switchboard};
-use std::collections::HashMap;
+use crate::switchboard_and_participants::SwitchboardAndParticipants;
+use msnp11_sdk::Client;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -12,9 +11,8 @@ pub enum WindowType {
     },
 
     Conversation {
-        switchboard: Arc<Switchboard>,
+        switchboard: SwitchboardAndParticipants,
         email: Arc<String>,
-        contacts: HashMap<Arc<String>, Contact>,
     },
 
     Dialog(String),

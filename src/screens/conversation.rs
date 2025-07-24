@@ -1,6 +1,7 @@
 use crate::models::contact::Contact;
 use crate::models::message;
 use crate::sqlite::Sqlite;
+use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use iced::border::radius;
 use iced::font::{Style, Weight};
 use iced::widget::{
@@ -25,17 +26,18 @@ pub struct Conversation {
     user_email: Arc<String>,
     switchboard: Arc<Switchboard>,
     session_id: String,
-    contacts: HashMap<Arc<String>, Contact>,
+    participants: HashMap<Arc<String>, Contact>,
+    last_participant: Option<Contact>,
     messages: Vec<message::Message>,
     new_message: text_editor::Content,
     user_display_picture: Option<Cow<'static, [u8]>>,
+    message_buffer: Vec<message::Message>,
 }
 
 impl Conversation {
     pub fn new(
-        switchboard: Arc<Switchboard>,
+        switchboard: SwitchboardAndParticipants,
         user_email: Arc<String>,
-        contacts: HashMap<Arc<String>, Contact>,
         sqlite: Sqlite,
     ) -> Self {
         let mut user_display_picture = None;
@@ -46,18 +48,33 @@ impl Conversation {
         }
 
         let session_id = switchboard
+            .switchboard
             .get_session_id()
             .unwrap_or_default()
             .unwrap_or_default();
 
+        let mut participants = HashMap::new();
+        for participant in switchboard.participants {
+            participants.insert(
+                participant.clone(),
+                Contact {
+                    email: participant.clone(),
+                    display_name: participant.clone(),
+                    ..Contact::default()
+                },
+            );
+        }
+
         Self {
             user_email,
-            switchboard,
+            switchboard: switchboard.switchboard,
             session_id,
-            contacts,
+            participants,
+            last_participant: None,
             messages: Vec::new(),
             new_message: text_editor::Content::new(),
             user_display_picture,
+            message_buffer: Vec::new(),
         }
     }
 
@@ -69,9 +86,9 @@ impl Conversation {
                 column![
                     row![
                         "To: ",
-                        if self.contacts.len() == 1 {
+                        if self.participants.len() == 1 {
                             let display_name = &self
-                                .contacts
+                                .participants
                                 .iter()
                                 .next()
                                 .expect("Could not get next contact")
@@ -82,13 +99,18 @@ impl Conversation {
                                 weight: Weight::Bold,
                                 ..Font::default()
                             })
+                        } else if let Some(last_participant) = &self.last_participant {
+                            text(&*last_participant.display_name).font(Font {
+                                weight: Weight::Bold,
+                                ..Font::default()
+                            })
                         } else {
                             text("")
                         },
                         " ",
-                        if self.contacts.len() == 1 {
+                        if self.participants.len() == 1 {
                             let email = &self
-                                .contacts
+                                .participants
                                 .iter()
                                 .next()
                                 .expect("Could not get next contact")
@@ -96,6 +118,8 @@ impl Conversation {
                                 .email;
 
                             text(format!("<{email}>"))
+                        } else if let Some(last_participant) = &self.last_participant {
+                            text(format!("<{}>", last_participant.email))
                         } else {
                             text("")
                         },
@@ -199,41 +223,54 @@ impl Conversation {
         match message {
             Message::Edit(edit_action) => {
                 if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action {
-                    self.messages.push(message::Message {
+                    let message = message::Message {
                         sender: self.user_email.clone(),
                         receiver: None,
                         is_nudge: false,
-                        text: Arc::new(self.new_message.text().replace("\n", "\r\n")),
-                        bold: false,
-                        italic: false,
-                        underline: false,
-                        strikethrough: false,
-                        color: Arc::new("0".to_string()),
-                    });
-
-                    let message = PlainText {
+                        text: self.new_message.text().replace("\n", "\r\n"),
                         bold: false,
                         italic: false,
                         underline: false,
                         strikethrough: false,
                         color: "0".to_string(),
-                        text: self.new_message.text().replace("\n", "\r\n"),
                     };
 
                     let switchboard = self.switchboard.clone();
                     self.new_message = text_editor::Content::new();
 
-                    return Task::perform(
-                        async move { switchboard.send_text_message(&message).await },
-                        crate::Message::EmptyResultFuture,
-                    );
+                    return if !self.participants.is_empty() {
+                        let plain_text = PlainText {
+                            bold: message.bold,
+                            italic: message.italic,
+                            underline: message.underline,
+                            strikethrough: message.strikethrough,
+                            color: message.color.clone(),
+                            text: message.text.clone(),
+                        };
+
+                        self.messages.push(message);
+                        Task::perform(
+                            async move { switchboard.send_text_message(&plain_text).await },
+                            crate::Message::EmptyResultFuture,
+                        )
+                    } else {
+                        self.message_buffer.push(message);
+                        if let Some(last_participant) = self.last_participant.clone() {
+                            Task::perform(
+                                async move { switchboard.invite(&last_participant.email).await },
+                                crate::Message::EmptyResultFuture,
+                            )
+                        } else {
+                            Task::none()
+                        }
+                    };
                 } else {
                     self.new_message.perform(edit_action);
                 }
             }
 
             Message::ContactUpdated(contact) => {
-                let old_contact = self.contacts.get_mut(&contact.email);
+                let old_contact = self.participants.get_mut(&contact.email);
                 if let Some(old_contact) = old_contact {
                     *old_contact = contact;
                 }
@@ -249,12 +286,12 @@ impl Conversation {
                         sender: Arc::new(email),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: false,
-                        text: Arc::new(message.text),
+                        text: message.text,
                         bold: message.bold,
                         italic: message.italic,
                         underline: message.underline,
                         strikethrough: message.strikethrough,
-                        color: Arc::new(message.color),
+                        color: message.color,
                     });
                 }
 
@@ -264,13 +301,65 @@ impl Conversation {
                         sender: sender.clone(),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: true,
-                        text: Arc::new(format!("{sender} sent you a nudge!")),
+                        text: format!("{sender} sent you a nudge!"),
                         bold: false,
                         italic: false,
                         underline: false,
                         strikethrough: false,
-                        color: Arc::new(String::from("0")),
+                        color: "0".to_string(),
                     });
+                }
+
+                Event::ParticipantInSwitchboard { email } => {
+                    let email = Arc::new(email);
+                    self.participants.insert(
+                        email.clone(),
+                        Contact {
+                            email: email.clone(),
+                            display_name: email,
+                            ..Contact::default()
+                        },
+                    );
+
+                    // If the switchboard had no prior participants
+                    if self.participants.len() == 1 {
+                        let switchboard = self.switchboard.clone();
+                        let messages = self.message_buffer.clone();
+
+                        self.messages.reserve(messages.len());
+                        for message in self.message_buffer.drain(..) {
+                            self.messages.push(message);
+                        }
+
+                        return Task::perform(
+                            async move {
+                                for message in messages {
+                                    let message = PlainText {
+                                        bold: message.bold,
+                                        italic: message.italic,
+                                        underline: message.underline,
+                                        strikethrough: message.strikethrough,
+                                        color: message.color,
+                                        text: message.text,
+                                    };
+
+                                    let _ = switchboard.send_text_message(&message).await;
+                                }
+                            },
+                            crate::Message::Empty,
+                        );
+                    }
+                }
+
+                Event::ParticipantLeftSwitchboard { email } => {
+                    let email = Arc::new(email);
+                    let removed = self.participants.remove(&email);
+
+                    if self.participants.is_empty()
+                        && let Some(contact) = removed
+                    {
+                        self.last_participant = Some(contact);
+                    }
                 }
 
                 _ => (),
@@ -281,10 +370,18 @@ impl Conversation {
     }
 
     pub fn get_contacts(&self) -> &HashMap<Arc<String>, Contact> {
-        &self.contacts
+        &self.participants
     }
 
     pub fn get_session_id(&self) -> &str {
         &self.session_id
+    }
+
+    pub fn leave_switchboard_task(&self) -> Task<crate::Message> {
+        let switchboard = self.switchboard.clone();
+        Task::perform(
+            async move { switchboard.disconnect().await },
+            crate::Message::EmptyResultFuture,
+        )
     }
 }

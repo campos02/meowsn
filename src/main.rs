@@ -4,6 +4,7 @@ use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
+use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use dark_light::Mode;
 use enums::window_type::WindowType;
 use iced::futures::channel::mpsc::Sender;
@@ -13,7 +14,7 @@ use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use msnp11_sdk::sdk_error::SdkError;
 use msnp11_sdk::{Client, Switchboard};
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -51,14 +52,13 @@ pub enum Message {
 
     CreateConversation {
         result: Result<Arc<Switchboard>, SdkError>,
+        contact: Arc<String>,
         email: Arc<String>,
-        contact: Contact,
     },
 
     CreateConversationWithSwitchboard {
         email: Arc<String>,
-        switchboard: Arc<Switchboard>,
-        contacts: HashMap<Arc<String>, Contact>,
+        switchboard: SwitchboardAndParticipants,
     },
 
     OpenConversation {
@@ -71,6 +71,7 @@ pub enum Message {
     OpenAddContact(Arc<Client>),
     MsnpEvent(msnp_listener::Event),
     EmptyResultFuture(Result<(), SdkError>),
+    Empty(()),
     EventFuture(Result<msnp11_sdk::Event, SdkError>),
     ContactUpdated(Contact),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
@@ -122,16 +123,9 @@ impl IcedM {
                         display_name,
                     )),
 
-                    WindowType::Conversation {
-                        switchboard,
-                        email,
-                        contacts,
-                    } => Screen::Conversation(conversation::Conversation::new(
-                        switchboard,
-                        email,
-                        contacts,
-                        self.sqlite.clone(),
-                    )),
+                    WindowType::Conversation { switchboard, email } => Screen::Conversation(
+                        conversation::Conversation::new(switchboard, email, self.sqlite.clone()),
+                    ),
 
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                     WindowType::AddContact(client) => {
@@ -154,10 +148,15 @@ impl IcedM {
                     if let Some(window) = self.windows.remove(&id) {
                         match window.get_screen() {
                             Screen::SignIn(..) | Screen::Contacts(..) => iced::exit(),
+                            Screen::Conversation(conversation) => {
+                                conversation.leave_switchboard_task()
+                            }
+
                             Screen::Dialog(..) => {
                                 self.modal_id = None;
                                 Task::none()
                             }
+
                             _ => Task::none(),
                         }
                     } else {
@@ -260,8 +259,8 @@ impl IcedM {
                         async move { client.create_session(&contact_email).await },
                         move |result| Message::CreateConversation {
                             result: result.map(Arc::new),
+                            contact: contact.email.clone(),
                             email: email.clone(),
-                            contact: contact.clone(),
                         },
                     )
                 }
@@ -269,8 +268,8 @@ impl IcedM {
 
             Message::CreateConversation {
                 result,
+                mut contact,
                 mut email,
-                contact,
             } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
@@ -278,9 +277,6 @@ impl IcedM {
 
                 match result {
                     Ok(switchboard) => {
-                        let mut contacts = HashMap::new();
-                        contacts.insert(contact.email.clone(), contact);
-
                         if let Some(ref mut sender) = self.msnp_subscription_sender {
                             let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
                         }
@@ -292,9 +288,11 @@ impl IcedM {
                             Message::WindowOpened(
                                 id,
                                 WindowType::Conversation {
-                                    switchboard: switchboard.clone(),
+                                    switchboard: SwitchboardAndParticipants {
+                                        switchboard: switchboard.clone(),
+                                        participants: vec![std::mem::take(&mut contact)],
+                                    },
                                     email: std::mem::take(&mut email),
-                                    contacts: std::mem::take(&mut contacts),
                                 },
                             )
                         })
@@ -307,7 +305,6 @@ impl IcedM {
             Message::CreateConversationWithSwitchboard {
                 mut email,
                 switchboard,
-                mut contacts,
             } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
@@ -320,7 +317,6 @@ impl IcedM {
                         WindowType::Conversation {
                             switchboard: switchboard.clone(),
                             email: std::mem::take(&mut email),
-                            contacts: std::mem::take(&mut contacts),
                         },
                     )
                 })

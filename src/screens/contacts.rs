@@ -392,6 +392,7 @@ impl Contacts {
 
                     let client = self.client.clone();
                     let email = contact.email.clone();
+
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.block_contact(&email).await },
                         crate::Message::EmptyResultFuture,
@@ -411,6 +412,7 @@ impl Contacts {
 
                     let client = self.client.clone();
                     let email = contact.email.clone();
+
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.unblock_contact(&email).await },
                         crate::Message::EmptyResultFuture,
@@ -461,22 +463,10 @@ impl Contacts {
                         },
                     )));
                 } else if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
-                    let mut contacts = HashMap::new();
-                    for participant in switchboard.participants {
-                        if let Some(contact) = self
-                            .contacts
-                            .iter()
-                            .find(|contact| contact.email == participant)
-                        {
-                            contacts.insert(contact.email.clone(), contact.clone());
-                        }
-                    }
-
                     action = Some(Action::RunTask(Task::done(
                         crate::Message::CreateConversationWithSwitchboard {
                             email: self.email.clone(),
-                            switchboard: switchboard.switchboard.clone(),
-                            contacts,
+                            switchboard,
                         },
                     )));
                 }
@@ -520,8 +510,9 @@ impl Contacts {
                     if let Some(contact) = contact {
                         contact.display_name = Arc::new(display_name);
                         contact.status = Some(Arc::new(presence));
+
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.clone(),
+                            contact.to_owned(),
                         ))));
                     }
 
