@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp11_sdk::Client;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ pub enum WindowType {
     },
 
     Conversation {
+        contact_repository: ContactRepository,
         switchboard: SwitchboardAndParticipants,
         email: Arc<String>,
     },

@@ -1,5 +1,5 @@
+use crate::contact_repository::ContactRepository;
 use crate::icedm_window::Window;
-use crate::models::contact::Contact;
 use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+mod contact_repository;
 mod enums;
 mod icedm_window;
 mod keyboard_listener;
@@ -51,19 +52,22 @@ pub enum Message {
     },
 
     CreateConversation {
+        contact_repository: ContactRepository,
         result: Result<Arc<Switchboard>, SdkError>,
-        contact: Arc<String>,
+        contact_email: Arc<String>,
         email: Arc<String>,
     },
 
     CreateConversationWithSwitchboard {
+        contact_repository: ContactRepository,
         email: Arc<String>,
         switchboard: SwitchboardAndParticipants,
     },
 
     OpenConversation {
+        contact_repository: ContactRepository,
         email: Arc<String>,
-        contact: Contact,
+        contact_email: Arc<String>,
         client: Arc<Client>,
     },
 
@@ -73,7 +77,7 @@ pub enum Message {
     EmptyResultFuture(Result<(), SdkError>),
     Empty(()),
     EventFuture(Result<msnp11_sdk::Event, SdkError>),
-    ContactUpdated(Contact),
+    ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     FocusNext,
     FocusPrevious,
@@ -123,9 +127,16 @@ impl IcedM {
                         display_name,
                     )),
 
-                    WindowType::Conversation { switchboard, email } => Screen::Conversation(
-                        conversation::Conversation::new(switchboard, email, self.sqlite.clone()),
-                    ),
+                    WindowType::Conversation {
+                        contact_repository,
+                        switchboard,
+                        email,
+                    } => Screen::Conversation(conversation::Conversation::new(
+                        contact_repository,
+                        switchboard,
+                        email,
+                        self.sqlite.clone(),
+                    )),
 
                     WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
                     WindowType::AddContact(client) => {
@@ -237,8 +248,9 @@ impl IcedM {
             }
 
             Message::OpenConversation {
+                contact_repository,
                 email,
-                contact,
+                contact_email,
                 client,
             } => {
                 if self.windows.keys().last().is_none() {
@@ -250,16 +262,19 @@ impl IcedM {
                         return false;
                     };
 
-                    conversation.get_contacts().contains_key(&contact.email)
+                    conversation.get_participants().contains_key(&contact_email)
                 }) {
                     window::gain_focus(*window.0)
                 } else {
-                    let contact_email = contact.email.clone();
+                    let contact_email = contact_email.clone();
+                    let contact = contact_email.clone();
+
                     Task::perform(
                         async move { client.create_session(&contact_email).await },
                         move |result| Message::CreateConversation {
+                            contact_repository: contact_repository.clone(),
                             result: result.map(Arc::new),
-                            contact: contact.email.clone(),
+                            contact_email: contact.clone(),
                             email: email.clone(),
                         },
                     )
@@ -267,8 +282,9 @@ impl IcedM {
             }
 
             Message::CreateConversation {
+                mut contact_repository,
                 result,
-                mut contact,
+                contact_email: mut contact,
                 mut email,
             } => {
                 if self.windows.keys().last().is_none() {
@@ -288,6 +304,7 @@ impl IcedM {
                             Message::WindowOpened(
                                 id,
                                 WindowType::Conversation {
+                                    contact_repository: std::mem::take(&mut contact_repository),
                                     switchboard: SwitchboardAndParticipants {
                                         switchboard: switchboard.clone(),
                                         participants: vec![std::mem::take(&mut contact)],
@@ -303,6 +320,7 @@ impl IcedM {
             }
 
             Message::CreateConversationWithSwitchboard {
+                mut contact_repository,
                 mut email,
                 switchboard,
             } => {
@@ -315,6 +333,7 @@ impl IcedM {
                     Message::WindowOpened(
                         id,
                         WindowType::Conversation {
+                            contact_repository: std::mem::take(&mut contact_repository),
                             switchboard: switchboard.clone(),
                             email: std::mem::take(&mut email),
                         },
@@ -446,7 +465,7 @@ impl IcedM {
                 let mut tasks = Vec::new();
                 for (id, window) in self.windows.iter_mut() {
                     if let Screen::Conversation(conversation) = window.get_screen()
-                        && conversation.get_contacts().contains_key(&contact.email)
+                        && conversation.get_participants().contains_key(&contact)
                     {
                         tasks.push(window.update(Message::Conversation(
                             *id,

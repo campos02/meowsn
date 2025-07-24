@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::models::contact::Contact;
 use crate::models::message;
 use crate::sqlite::Sqlite;
@@ -17,7 +18,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub enum Message {
     Edit(text_editor::Action),
-    ContactUpdated(Contact),
+    ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Event),
 }
@@ -26,6 +27,7 @@ pub struct Conversation {
     user_email: Arc<String>,
     switchboard: Arc<Switchboard>,
     session_id: String,
+    contact_repository: ContactRepository,
     participants: HashMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
     messages: Vec<message::Message>,
@@ -36,6 +38,7 @@ pub struct Conversation {
 
 impl Conversation {
     pub fn new(
+        contact_repository: ContactRepository,
         switchboard: SwitchboardAndParticipants,
         user_email: Arc<String>,
         sqlite: Sqlite,
@@ -57,11 +60,13 @@ impl Conversation {
         for participant in switchboard.participants {
             participants.insert(
                 participant.clone(),
-                Contact {
-                    email: participant.clone(),
-                    display_name: participant.clone(),
-                    ..Contact::default()
-                },
+                contact_repository
+                    .get_contact(&participant)
+                    .unwrap_or(Contact {
+                        email: participant.clone(),
+                        display_name: participant.clone(),
+                        ..Contact::default()
+                    }),
             );
         }
 
@@ -69,6 +74,7 @@ impl Conversation {
             user_email,
             switchboard: switchboard.switchboard,
             session_id,
+            contact_repository,
             participants,
             last_participant: None,
             messages: Vec::new(),
@@ -80,7 +86,6 @@ impl Conversation {
 
     pub fn view(&self) -> Element<Message> {
         let default_picture = include_bytes!("../../assets/default_display_picture.svg");
-
         container(
             row![
                 column![
@@ -137,9 +142,9 @@ impl Conversation {
                                 ]
                             } else {
                                 row![column![
-                                    text("⸺"),
+                                    text("⸺⸺"),
                                     text(format!("{} sent you a nudge!", &*message.sender)),
-                                    text("⸺")
+                                    text("⸺⸺")
                                 ]]
                             },
                             if !message.is_nudge {
@@ -270,9 +275,8 @@ impl Conversation {
             }
 
             Message::ContactUpdated(contact) => {
-                let old_contact = self.participants.get_mut(&contact.email);
-                if let Some(old_contact) = old_contact {
-                    *old_contact = contact;
+                if let Some(contact) = self.contact_repository.get_contact(&contact) {
+                    self.participants.insert(contact.email.clone(), contact);
                 }
             }
 
@@ -314,40 +318,45 @@ impl Conversation {
                     let email = Arc::new(email);
                     self.participants.insert(
                         email.clone(),
-                        Contact {
-                            email: email.clone(),
-                            display_name: email,
-                            ..Contact::default()
-                        },
+                        self.contact_repository
+                            .get_contact(&email)
+                            .unwrap_or(Contact {
+                                email: email.clone(),
+                                display_name: email.clone(),
+                                ..Contact::default()
+                            }),
                     );
 
                     // If the switchboard had no prior participants
                     if self.participants.len() == 1 {
                         let switchboard = self.switchboard.clone();
-                        let messages = self.message_buffer.clone();
 
-                        self.messages.reserve(messages.len());
-                        for message in self.message_buffer.drain(..) {
-                            self.messages.push(message);
+                        if !self.message_buffer.is_empty() {
+                            let messages = self.message_buffer.clone();
+                            self.messages.reserve(messages.len());
+
+                            for message in self.message_buffer.drain(..) {
+                                self.messages.push(message);
+                            }
+
+                            return Task::perform(
+                                async move {
+                                    for message in messages {
+                                        let message = PlainText {
+                                            bold: message.bold,
+                                            italic: message.italic,
+                                            underline: message.underline,
+                                            strikethrough: message.strikethrough,
+                                            color: message.color,
+                                            text: message.text,
+                                        };
+
+                                        let _ = switchboard.send_text_message(&message).await;
+                                    }
+                                },
+                                crate::Message::Empty,
+                            );
                         }
-
-                        return Task::perform(
-                            async move {
-                                for message in messages {
-                                    let message = PlainText {
-                                        bold: message.bold,
-                                        italic: message.italic,
-                                        underline: message.underline,
-                                        strikethrough: message.strikethrough,
-                                        color: message.color,
-                                        text: message.text,
-                                    };
-
-                                    let _ = switchboard.send_text_message(&message).await;
-                                }
-                            },
-                            crate::Message::Empty,
-                        );
                     }
                 }
 
@@ -369,7 +378,7 @@ impl Conversation {
         Task::none()
     }
 
-    pub fn get_contacts(&self) -> &HashMap<Arc<String>, Contact> {
+    pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {
         &self.participants
     }
 

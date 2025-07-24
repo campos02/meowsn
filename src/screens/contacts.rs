@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
 use crate::msnp_listener::Input;
@@ -41,6 +42,7 @@ pub struct Contacts {
     display_name: String,
     personal_message: String,
     status: Option<ContactListStatus>,
+    contact_repository: ContactRepository,
     contacts: Vec<Contact>,
     client: Arc<Client>,
     orphan_switchboards: HashMap<String, SwitchboardAndParticipants>,
@@ -64,6 +66,7 @@ impl Contacts {
                     display_name: String::new(),
                     personal_message,
                     status: Some(ContactListStatus::Online),
+                    contact_repository: ContactRepository::new(),
                     contacts: Vec::new(),
                     client,
                     orphan_switchboards: HashMap::new(),
@@ -79,6 +82,7 @@ impl Contacts {
             display_name: String::new(),
             personal_message,
             status: Some(ContactListStatus::Online),
+            contact_repository: ContactRepository::new(),
             contacts: Vec::new(),
             client,
             orphan_switchboards: HashMap::new(),
@@ -89,7 +93,6 @@ impl Contacts {
 
     pub fn view(&self) -> Element<Message> {
         let default_picture = include_bytes!("../../assets/default_display_picture.svg");
-
         container(
             column![
                 row![
@@ -457,14 +460,16 @@ impl Contacts {
                 if session_id.is_empty() {
                     action = Some(Action::RunTask(Task::done(
                         crate::Message::OpenConversation {
+                            contact_repository: self.contact_repository.clone(),
                             email: self.email.clone(),
-                            contact,
+                            contact_email: contact.email,
                             client: self.client.clone(),
                         },
                     )));
                 } else if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
                     action = Some(Action::RunTask(Task::done(
                         crate::Message::CreateConversationWithSwitchboard {
+                            contact_repository: self.contact_repository.clone(),
                             email: self.email.clone(),
                             switchboard,
                         },
@@ -485,7 +490,7 @@ impl Contacts {
                     lists,
                     ..
                 } => {
-                    self.contacts.push(Contact {
+                    let contact = Contact {
                         email: Arc::new(email),
                         display_name: Arc::new(display_name),
                         guid: Arc::new(guid),
@@ -494,7 +499,10 @@ impl Contacts {
                         personal_message: None,
                         display_picture: None,
                         new_messages: false,
-                    });
+                    };
+
+                    self.contacts.push(contact.clone());
+                    self.contact_repository.add_contacts(&[contact]);
                 }
 
                 Event::PresenceUpdate {
@@ -512,8 +520,10 @@ impl Contacts {
                         contact.status = Some(Arc::new(presence));
 
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.to_owned(),
+                            contact.email.clone(),
                         ))));
+
+                        self.contact_repository.update_contacts(&[contact.clone()]);
                     }
 
                     self.contacts
@@ -532,7 +542,7 @@ impl Contacts {
                     if let Some(contact) = contact {
                         contact.personal_message = Some(Arc::new(personal_message.psm));
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.clone(),
+                            contact.email.clone(),
                         ))));
                     }
                 }
@@ -546,8 +556,10 @@ impl Contacts {
                     if let Some(contact) = contact {
                         contact.status = None;
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.clone(),
+                            contact.email.clone(),
                         ))));
+
+                        self.contact_repository.update_contacts(&[contact.clone()]);
                     }
 
                     self.contacts
