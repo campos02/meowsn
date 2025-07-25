@@ -30,7 +30,7 @@ impl ContactRepository {
         }
     }
 
-    pub fn add_contacts(&mut self, contacts: &[Contact]) {
+    pub fn add_contacts(&self, contacts: &[Contact]) {
         if let Ok(mut contacts_lock) = self.contacts.lock() {
             contacts_lock.reserve(contacts.len());
             for contact in contacts {
@@ -39,7 +39,7 @@ impl ContactRepository {
         }
     }
 
-    pub fn update_contacts(&mut self, contacts: &[Contact]) {
+    pub fn update_contacts(&self, contacts: &[Contact]) {
         if let Ok(mut contacts_lock) = self.contacts.lock() {
             for contact in contacts {
                 contacts_lock.insert(contact.email.clone(), contact.clone());
