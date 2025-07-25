@@ -179,7 +179,17 @@ impl IcedM {
                     if let Some(modal) = self.modal_id {
                         window::gain_focus(modal)
                     } else {
-                        Task::none()
+                        let mut tasks = Vec::new();
+                        for (id, window) in self.windows.iter_mut() {
+                            if matches!(window.get_screen(), Screen::Conversation(..)) {
+                                tasks.push(window.update(Message::Conversation(
+                                    *id,
+                                    conversation::Message::Focused,
+                                )))
+                            }
+                        }
+
+                        Task::batch(tasks)
                     }
                 }
 

@@ -88,6 +88,16 @@ impl Sqlite {
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
+    pub fn select_display_picture(&self, hash: &str) -> rusqlite::Result<Vec<u8>> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare("SELECT picture FROM display_pictures WHERE hash = ?1")?;
+            let picture = stmt.query_map([hash], |row| row.get::<usize, Vec<u8>>(0))?;
+            return picture.last().ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
     pub fn insert_user_if_not_in_db(&self, email: &str) -> rusqlite::Result<()> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare("SELECT email FROM users WHERE email = ?1")?;

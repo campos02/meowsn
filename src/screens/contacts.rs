@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
+use crate::models::msn_object::MsnObject;
 use crate::msnp_listener::Input;
 use crate::sqlite::Sqlite;
 use crate::switchboard_and_participants::SwitchboardAndParticipants;
@@ -107,7 +108,7 @@ impl Contacts {
                                 width: 1.0,
                                 radius: radius(10.0),
                             },
-                            ..Default::default()
+                            ..container::Style::default()
                         })
                         .padding(3)
                     } else {
@@ -119,7 +120,7 @@ impl Contacts {
                                     width: 1.0,
                                     radius: radius(10.0),
                                 },
-                                ..Default::default()
+                                ..container::Style::default()
                             })
                             .padding(3)
                     },
@@ -448,32 +449,34 @@ impl Contacts {
             }
 
             Message::Conversation(contact) => {
-                let mut session_id = String::new();
-                if let Some(switchboard) = self
-                    .orphan_switchboards
-                    .iter()
-                    .find(|switchboard| switchboard.1.participants.contains(&contact.email))
-                {
-                    session_id = switchboard.0.clone();
-                }
+                if contact.status.is_some() {
+                    let mut session_id = String::new();
+                    if let Some(switchboard) = self
+                        .orphan_switchboards
+                        .iter()
+                        .find(|switchboard| switchboard.1.participants.contains(&contact.email))
+                    {
+                        session_id = switchboard.0.clone();
+                    }
 
-                if session_id.is_empty() {
-                    action = Some(Action::RunTask(Task::done(
-                        crate::Message::OpenConversation {
-                            contact_repository: self.contact_repository.clone(),
-                            email: self.email.clone(),
-                            contact_email: contact.email,
-                            client: self.client.clone(),
-                        },
-                    )));
-                } else if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
-                    action = Some(Action::RunTask(Task::done(
-                        crate::Message::CreateConversationWithSwitchboard {
-                            contact_repository: self.contact_repository.clone(),
-                            email: self.email.clone(),
-                            switchboard,
-                        },
-                    )));
+                    if session_id.is_empty() {
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::OpenConversation {
+                                contact_repository: self.contact_repository.clone(),
+                                email: self.email.clone(),
+                                contact_email: contact.email,
+                                client: self.client.clone(),
+                            },
+                        )));
+                    } else if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::CreateConversationWithSwitchboard {
+                                contact_repository: self.contact_repository.clone(),
+                                email: self.email.clone(),
+                                switchboard,
+                            },
+                        )));
+                    }
                 }
             }
 
@@ -516,6 +519,19 @@ impl Contacts {
                         .find(|contact| *contact.email == email);
 
                     if let Some(contact) = contact {
+                        if let Some(msn_object) = &presence.msn_object {
+                            if let Ok(msn_object) = quick_xml::de::from_str::<MsnObject>(msn_object)
+                            {
+                                if msn_object.creator == email && msn_object.object_type == 3 {
+                                    contact.display_picture = self
+                                        .sqlite
+                                        .select_display_picture(&msn_object.sha1d)
+                                        .ok()
+                                        .map(Cow::Owned);
+                                }
+                            }
+                        }
+
                         contact.display_name = Arc::new(display_name);
                         contact.status = Some(Arc::new(presence));
 
@@ -608,6 +624,28 @@ impl Contacts {
 
                     if let Some(contact) = contact {
                         contact.new_messages = true;
+                    }
+                }
+
+                Event::DisplayPicture { email, data } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        if let Ok(msn_object) = quick_xml::de::from_str::<MsnObject>(
+                            contact.status.as_ref()?.msn_object.as_ref()?,
+                        ) {
+                            let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
+                        }
+
+                        contact.display_picture = Some(Cow::Owned(data));
+                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
+                            contact.email.clone(),
+                        ))));
+
+                        self.contact_repository.update_contacts(&[contact.clone()]);
                     }
                 }
 

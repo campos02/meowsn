@@ -21,6 +21,7 @@ pub enum Message {
     ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Event),
+    Focused,
 }
 
 pub struct Conversation {
@@ -173,12 +174,24 @@ impl Conversation {
                     }))
                     .height(Fill),
                     text_editor(&self.new_message)
-                        .height(105)
+                        .height(100)
                         .on_action(Message::Edit),
                 ]
                 .spacing(20),
                 column![
-                    container(svg(svg::Handle::from_memory(default_picture)).width(100))
+                    if self.participants.len() == 1
+                        && let Some(picture) = &self
+                            .participants
+                            .iter()
+                            .next()
+                            .expect("Could not get next contact")
+                            .1
+                            .display_picture
+                    {
+                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
+                            picture.clone(),
+                        ))))
+                        .width(100)
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -187,13 +200,41 @@ impl Conversation {
                             },
                             ..Default::default()
                         })
-                        .padding(3),
+                        .padding(3)
+                    } else if let Some(last_participant) = &self.last_participant
+                        && let Some(display_picture) = &last_participant.display_picture
+                    {
+                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
+                            display_picture.clone(),
+                        ))))
+                        .width(100)
+                        .style(|theme: &Theme| container::Style {
+                            border: Border {
+                                color: theme.palette().text,
+                                width: 1.0,
+                                radius: radius(10.0),
+                            },
+                            ..Default::default()
+                        })
+                        .padding(3)
+                    } else {
+                        container(svg(svg::Handle::from_memory(default_picture)).width(100))
+                            .style(|theme: &Theme| container::Style {
+                                border: Border {
+                                    color: theme.palette().text,
+                                    width: 1.0,
+                                    radius: radius(10.0),
+                                },
+                                ..Default::default()
+                            })
+                            .padding(3)
+                    },
                     vertical_space().height(Fill),
                     if let Some(picture) = self.user_display_picture.clone() {
                         container(widget::image(widget::image::Handle::from_bytes(Box::from(
                             picture,
                         ))))
-                        .width(105)
+                        .width(100)
                         .style(|theme: &Theme| container::Style {
                             border: Border {
                                 color: theme.palette().text,
@@ -373,6 +414,30 @@ impl Conversation {
 
                 _ => (),
             },
+
+            Message::Focused => {
+                let mut tasks = Vec::new();
+                for participant in self.participants.values() {
+                    if participant.display_picture.is_none()
+                        && let Some(status) = &participant.status
+                        && let Some(msn_object) = status.msn_object.clone()
+                    {
+                        let switchboard = self.switchboard.clone();
+                        let email = participant.email.clone();
+
+                        tasks.push(Task::perform(
+                            async move {
+                                switchboard
+                                    .request_contact_display_picture(&email, &msn_object)
+                                    .await
+                            },
+                            crate::Message::EmptyResultFuture,
+                        ));
+                    }
+                }
+
+                return Task::batch(tasks);
+            }
         }
 
         Task::none()

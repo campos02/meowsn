@@ -97,7 +97,7 @@ impl SignIn {
                             width: 1.0,
                             radius: radius(10.0),
                         },
-                        ..Default::default()
+                        ..container::Style::default()
                     })
                     .padding(3)
                 } else {
@@ -111,7 +111,7 @@ impl SignIn {
                             width: 1.0,
                             radius: radius(10.0),
                         },
-                        ..Default::default()
+                        ..container::Style::default()
                     })
                     .padding(3)
                 },
