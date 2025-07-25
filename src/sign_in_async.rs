@@ -12,15 +12,27 @@ pub async fn sign_in_async(
     sqlite: Sqlite,
 ) -> Result<(String, Arc<Client>), SdkError> {
     let settings = settings::get_settings().unwrap_or_default();
-    let mut client = Client::new(&settings.server, &1863).await?;
+    let mut client = Client::new(&settings.server, 1863).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
-        .login((*email).clone(), &password, &settings.nexus_url)
+        .login(
+            (*email).clone(),
+            &password,
+            &settings.nexus_url,
+            "icedm",
+            "0.1",
+        )
         .await?
     {
-        client = Client::new(&server, &port).await?;
+        client = Client::new(&server, port).await?;
         client
-            .login((*email).clone(), &password, &settings.nexus_url)
+            .login(
+                (*email).clone(),
+                &password,
+                &settings.nexus_url,
+                "icedm",
+                "0.1",
+            )
             .await?;
     }
 

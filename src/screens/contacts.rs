@@ -1,7 +1,6 @@
 use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
-use crate::models::msn_object::MsnObject;
 use crate::msnp_listener::Input;
 use crate::sqlite::Sqlite;
 use crate::switchboard_and_participants::SwitchboardAndParticipants;
@@ -519,17 +518,14 @@ impl Contacts {
                         .find(|contact| *contact.email == email);
 
                     if let Some(contact) = contact {
-                        if let Some(msn_object) = &presence.msn_object {
-                            if let Ok(msn_object) = quick_xml::de::from_str::<MsnObject>(msn_object)
-                            {
-                                if msn_object.creator == email && msn_object.object_type == 3 {
-                                    contact.display_picture = self
-                                        .sqlite
-                                        .select_display_picture(&msn_object.sha1d)
-                                        .ok()
-                                        .map(Cow::Owned);
-                                }
-                            }
+                        if presence.msn_object.as_ref()?.creator == email
+                            && presence.msn_object.as_ref()?.object_type == 3
+                        {
+                            contact.display_picture = self
+                                .sqlite
+                                .select_display_picture(&presence.msn_object.as_ref()?.sha1d)
+                                .ok()
+                                .map(Cow::Owned);
                         }
 
                         contact.display_name = Arc::new(display_name);
@@ -634,11 +630,10 @@ impl Contacts {
                         .find(|contact| *contact.email == email);
 
                     if let Some(contact) = contact {
-                        if let Ok(msn_object) = quick_xml::de::from_str::<MsnObject>(
-                            contact.status.as_ref()?.msn_object.as_ref()?,
-                        ) {
-                            let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
-                        }
+                        let _ = self.sqlite.insert_display_picture(
+                            &data,
+                            &contact.status.as_ref()?.msn_object.as_ref()?.sha1d,
+                        );
 
                         contact.display_picture = Some(Cow::Owned(data));
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(

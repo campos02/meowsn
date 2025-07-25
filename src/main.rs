@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use crate::contact_repository::ContactRepository;
 use crate::icedm_window::Window;
 use crate::msnp_listener::Input;
