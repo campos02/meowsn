@@ -518,12 +518,12 @@ impl Contacts {
                         .find(|contact| *contact.email == email);
 
                     if let Some(contact) = contact {
-                        if presence.msn_object.as_ref()?.creator == email
-                            && presence.msn_object.as_ref()?.object_type == 3
+                        if let Some(msn_object) = &presence.msn_object
+                            && msn_object.object_type == 3
                         {
                             contact.display_picture = self
                                 .sqlite
-                                .select_display_picture(&presence.msn_object.as_ref()?.sha1d)
+                                .select_display_picture(&msn_object.sha1d)
                                 .ok()
                                 .map(Cow::Owned);
                         }
@@ -630,10 +630,11 @@ impl Contacts {
                         .find(|contact| *contact.email == email);
 
                     if let Some(contact) = contact {
-                        let _ = self.sqlite.insert_display_picture(
-                            &data,
-                            &contact.status.as_ref()?.msn_object.as_ref()?.sha1d,
-                        );
+                        if let Some(status) = &contact.status
+                            && let Some(msn_object) = &status.msn_object
+                        {
+                            let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
+                        }
 
                         contact.display_picture = Some(Cow::Owned(data));
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
