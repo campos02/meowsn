@@ -1,8 +1,8 @@
 use crate::contact_repository::ContactRepository;
 use crate::models::contact::Contact;
 use crate::models::message;
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
-use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use iced::border::radius;
 use iced::font::{Style, Weight};
 use iced::widget::{

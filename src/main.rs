@@ -6,13 +6,13 @@ use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
-use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use dark_light::Mode;
 use enums::window_type::WindowType;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
+use models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp11_sdk::sdk_error::SdkError;
 use msnp11_sdk::{Client, Switchboard};
 use std::borrow::Cow;
@@ -26,11 +26,11 @@ mod icedm_window;
 mod keyboard_listener;
 mod models;
 mod msnp_listener;
+mod pick_display_picture;
 mod screens;
 mod settings;
 mod sign_in_async;
 mod sqlite;
-mod switchboard_and_participants;
 
 #[derive(Clone)]
 pub enum Message {
@@ -80,7 +80,7 @@ pub enum Message {
     Empty(()),
     EventFuture(Result<msnp11_sdk::Event, SdkError>),
     ContactUpdated(Arc<String>),
-    UserDisplayPictureUpdated(Cow<'static, [u8]>),
+    UserDisplayPictureUpdated(Option<Cow<'static, [u8]>>),
     FocusNext,
     FocusPrevious,
 }
@@ -495,12 +495,27 @@ impl IcedM {
                 };
 
                 let mut tasks = Vec::new();
-                for (id, window) in self.windows.iter_mut() {
-                    if matches!(window.get_screen(), Screen::Conversation(..)) {
-                        tasks.push(window.update(Message::Conversation(
-                            *id,
-                            conversation::Message::UserDisplayPictureUpdated(picture.clone()),
-                        )));
+                if let Some(picture) = picture {
+                    for (id, window) in self.windows.iter_mut() {
+                        match window.get_screen() {
+                            Screen::Conversation(..) => {
+                                tasks.push(window.update(Message::Conversation(
+                                    *id,
+                                    conversation::Message::UserDisplayPictureUpdated(
+                                        picture.clone(),
+                                    ),
+                                )));
+                            }
+
+                            Screen::Contacts(..) => {
+                                tasks.push(window.update(Message::Contacts(
+                                    *id,
+                                    contacts::Message::UserDisplayPictureUpdated(picture.clone()),
+                                )));
+                            }
+
+                            _ => (),
+                        }
                     }
                 }
 

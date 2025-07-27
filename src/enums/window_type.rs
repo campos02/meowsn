@@ -1,5 +1,5 @@
 use crate::contact_repository::ContactRepository;
-use crate::switchboard_and_participants::SwitchboardAndParticipants;
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp11_sdk::Client;
 use std::sync::Arc;
 

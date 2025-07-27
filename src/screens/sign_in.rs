@@ -275,6 +275,9 @@ impl SignIn {
                 }
 
                 self.email = Some(String::new());
+                self.emails =
+                    combo_box::State::new(self.sqlite.select_user_emails().unwrap_or_default());
+
                 self.password = String::new();
                 self.remember_me = false;
                 self.remember_my_password = false;

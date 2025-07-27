@@ -1,20 +1,19 @@
 use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
+use crate::pick_display_picture::pick_display_picture;
 use crate::sqlite::Sqlite;
-use crate::switchboard_and_participants::SwitchboardAndParticipants;
 use iced::border::radius;
 use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
-use image::imageops::FilterType;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
-use rfd::FileDialog;
+use rfd::AsyncFileDialog;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::sync::Arc;
 
 pub enum Action {
@@ -34,6 +33,7 @@ pub enum Message {
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
     AddContact,
+    UserDisplayPictureUpdated(Cow<'static, [u8]>),
 }
 
 pub struct Contacts {
@@ -288,6 +288,10 @@ impl Contacts {
     pub fn update(&mut self, message: Message) -> Option<Action> {
         let mut action: Option<Action> = None;
         match message {
+            Message::UserDisplayPictureUpdated(picture) => {
+                self.display_picture = Some(picture);
+            }
+
             Message::PersonalMessageChanged(personal_message) => {
                 self.personal_message = personal_message;
             }
@@ -314,38 +318,21 @@ impl Contacts {
 
             Message::StatusSelected(status) => match status {
                 ContactListStatus::ChangeDisplayPicture => {
-                    let picture_path = FileDialog::new()
+                    let picture = AsyncFileDialog::new()
                         .add_filter("Images", &["png", "jpeg", "jpg"])
                         .set_directory("/")
                         .set_title("Select a display picture")
                         .pick_file();
 
-                    if let Some(picture_path) = picture_path {
-                        if let Ok(picture) = image::open(&picture_path) {
-                            let mut bytes = Vec::new();
-                            if picture
-                                .resize_to_fill(200, 200, FilterType::Triangle)
-                                .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
-                                .is_ok()
-                            {
-                                let client = self.client.clone();
-                                if let Ok(hash) = client.set_display_picture(bytes.clone()) {
-                                    let _ =
-                                        self.sqlite.insert_display_picture(bytes.as_slice(), &hash);
-
-                                    let _ =
-                                        self.sqlite.update_user_display_picture(&self.email, &hash);
-
-                                    let cow = Cow::from(bytes);
-                                    action = Some(Action::RunTask(Task::done(
-                                        crate::Message::UserDisplayPictureUpdated(cow.clone()),
-                                    )));
-
-                                    self.display_picture = Some(cow);
-                                }
-                            }
-                        }
-                    }
+                    action = Some(Action::RunTask(Task::perform(
+                        pick_display_picture(
+                            picture,
+                            self.email.clone(),
+                            self.client.clone(),
+                            self.sqlite.clone(),
+                        ),
+                        |result| crate::Message::UserDisplayPictureUpdated(result.ok()),
+                    )));
                 }
 
                 ContactListStatus::PersonalSettings => {
