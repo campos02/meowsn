@@ -559,6 +559,19 @@ impl IcedM {
         }
     }
 
+    fn title(&self, window_id: window::Id) -> String {
+        if let Some(window) = self.windows.get(&window_id) {
+            match window.get_screen() {
+                Screen::Conversation(..) => "Conversation".to_string(),
+                Screen::AddContact(..) => "Add new contact".to_string(),
+                Screen::PersonalSettings(..) => "Personal settings".to_string(),
+                _ => "icedm".to_string(),
+            }
+        } else {
+            "icedm".to_string()
+        }
+    }
+
     fn view(&self, window_id: window::Id) -> Element<Message> {
         if let Some(window) = self.windows.get(&window_id) {
             window.view(window_id)
@@ -587,7 +600,7 @@ impl IcedM {
 }
 
 pub fn main() -> iced::Result {
-    iced::daemon("icedm", IcedM::update, IcedM::view)
+    iced::daemon(IcedM::title, IcedM::update, IcedM::view)
         .subscription(IcedM::subscription)
         .theme(
             |_, _| match dark_light::detect().unwrap_or(Mode::Unspecified) {
