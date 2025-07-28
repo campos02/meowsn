@@ -16,6 +16,12 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub enum Action {
+    ParticipantTypingTimeout,
+    UserTypingTimeout(Task<crate::Message>),
+    RunTask(Task<crate::Message>),
+}
+
 #[derive(Clone)]
 pub enum Message {
     Edit(text_editor::Action),
@@ -24,6 +30,8 @@ pub enum Message {
     MsnpEvent(Event),
     Focused,
     Unfocused,
+    ParticipantTypingTimeout,
+    UserTypingTimeout,
 }
 
 pub struct Conversation {
@@ -39,6 +47,8 @@ pub struct Conversation {
     message_buffer: Vec<message::Message>,
     sqlite: Sqlite,
     focused: bool,
+    participant_typing: Option<String>,
+    user_typing: bool,
 }
 
 impl Conversation {
@@ -101,6 +111,8 @@ impl Conversation {
             message_buffer: Vec::new(),
             sqlite,
             focused: true,
+            participant_typing: None,
+            user_typing: false,
         }
     }
 
@@ -223,6 +235,11 @@ impl Conversation {
                     })))
                     .anchor_bottom()
                     .height(Fill),
+                    if let Some(participant) = &self.participant_typing {
+                        text(format!("{participant} is writing a message..."))
+                    } else {
+                        text("")
+                    },
                     text_editor(&self.new_message)
                         .height(100)
                         .on_action(Message::Edit),
@@ -315,7 +332,8 @@ impl Conversation {
         .into()
     }
 
-    pub fn update(&mut self, message: Message) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message) -> Option<Action> {
+        let mut action = None;
         match message {
             Message::Edit(edit_action) => {
                 if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action {
@@ -352,7 +370,7 @@ impl Conversation {
                     let switchboard = self.switchboard.clone();
                     self.new_message = text_editor::Content::new();
 
-                    return if !self.participants.is_empty() {
+                    if !self.participants.is_empty() {
                         let plain_text = PlainText {
                             bold: message.bold,
                             italic: message.italic,
@@ -365,24 +383,34 @@ impl Conversation {
                         let _ = self.sqlite.insert_message(&message);
                         self.messages.push(message);
 
-                        Task::perform(
+                        action = Some(Action::RunTask(Task::perform(
                             async move { switchboard.send_text_message(&plain_text).await },
                             crate::Message::EmptyResultFuture,
-                        )
+                        )));
                     } else {
                         self.message_buffer.push(message);
+
                         if let Some(last_participant) = self.last_participant.clone() {
-                            Task::perform(
+                            action = Some(Action::RunTask(Task::perform(
                                 async move { switchboard.invite(&last_participant.email).await },
                                 crate::Message::EmptyResultFuture,
-                            )
-                        } else {
-                            Task::none()
+                            )));
                         }
-                    };
+                    }
                 } else {
                     self.new_message.perform(edit_action);
-                }
+
+                    let switchboard = self.switchboard.clone();
+                    let email = self.user_email.clone();
+
+                    if !self.user_typing {
+                        self.user_typing = true;
+                        action = Some(Action::UserTypingTimeout(Task::perform(
+                            async move { switchboard.send_typing_user(&email).await },
+                            crate::Message::EmptyResultFuture,
+                        )));
+                    }
+                };
             }
 
             Message::ContactUpdated(contact) => {
@@ -396,6 +424,13 @@ impl Conversation {
             }
 
             Message::MsnpEvent(event) => match event {
+                Event::TypingNotification { email } => {
+                    if self.participant_typing.is_none() {
+                        self.participant_typing = Some(email);
+                        action = Some(Action::ParticipantTypingTimeout);
+                    }
+                }
+
                 Event::TextMessage { email, message } => {
                     let message = message::Message {
                         sender: Arc::new(email),
@@ -420,6 +455,7 @@ impl Conversation {
                     }
 
                     self.messages.push(message);
+                    self.participant_typing = None;
                 }
 
                 Event::Nudge { email } => {
@@ -447,6 +483,7 @@ impl Conversation {
                     }
 
                     self.messages.push(message);
+                    self.participant_typing = None;
                 }
 
                 Event::ParticipantInSwitchboard { email } => {
@@ -475,7 +512,7 @@ impl Conversation {
                                 self.messages.push(message);
                             }
 
-                            return Task::perform(
+                            action = Some(Action::RunTask(Task::perform(
                                 async move {
                                     for message in messages {
                                         let message = PlainText {
@@ -491,7 +528,7 @@ impl Conversation {
                                     }
                                 },
                                 crate::Message::Empty,
-                            );
+                            )));
                         }
                     }
                 }
@@ -533,15 +570,18 @@ impl Conversation {
                     }
                 }
 
-                return Task::batch(tasks);
+                action = Some(Action::RunTask(Task::batch(tasks)));
             }
 
             Message::Unfocused => {
                 self.focused = false;
             }
+
+            Message::ParticipantTypingTimeout => self.participant_typing = None,
+            Message::UserTypingTimeout => self.user_typing = false,
         }
 
-        Task::none()
+        action
     }
 
     pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {

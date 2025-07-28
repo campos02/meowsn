@@ -338,7 +338,7 @@ impl Contacts {
     }
 
     pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut action: Option<Action> = None;
+        let mut action = None;
         match message {
             Message::UserDisplayPictureUpdated(picture) => {
                 self.display_picture = Some(picture);

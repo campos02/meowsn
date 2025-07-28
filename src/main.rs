@@ -150,6 +150,7 @@ impl IcedM {
                 };
 
                 let window = Window::new(
+                    id,
                     screen,
                     self.sqlite.clone(),
                     self.msnp_subscription_sender.clone(),

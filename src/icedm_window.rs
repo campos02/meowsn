@@ -5,8 +5,10 @@ use crate::sqlite::Sqlite;
 use crate::{Message, msnp_listener, sign_in_async};
 use iced::futures::channel::mpsc::Sender;
 use iced::{Element, Task, window};
+use std::time::Duration;
 
 pub struct Window {
+    id: window::Id,
     screen: Screen,
     sqlite: Sqlite,
     msnp_subscription_sender: Option<Sender<Input>>,
@@ -14,11 +16,13 @@ pub struct Window {
 
 impl Window {
     pub fn new(
+        id: window::Id,
         screen: Screen,
         sqlite: Sqlite,
         msnp_subscription_sender: Option<Sender<Input>>,
     ) -> Self {
         Self {
+            id,
             screen,
             sqlite,
             msnp_subscription_sender,
@@ -112,9 +116,39 @@ impl Window {
                 Task::none()
             }
 
-            Message::Conversation(.., message) => {
+            Message::Conversation(id, message) => {
                 if let Screen::Conversation(conversation) = &mut self.screen {
-                    return conversation.update(message);
+                    if let Some(action) = conversation.update(message) {
+                        return match action {
+                            conversation::Action::ParticipantTypingTimeout => Task::perform(
+                                tokio::time::sleep(Duration::from_secs(5)),
+                                move |_| {
+                                    Message::Conversation(
+                                        id,
+                                        conversation::Message::ParticipantTypingTimeout,
+                                    )
+                                },
+                            ),
+
+                            conversation::Action::UserTypingTimeout(task) => {
+                                let id = self.id;
+                                Task::batch([
+                                    task,
+                                    Task::perform(
+                                        tokio::time::sleep(Duration::from_secs(5)),
+                                        move |_| {
+                                            Message::Conversation(
+                                                id,
+                                                conversation::Message::UserTypingTimeout,
+                                            )
+                                        },
+                                    ),
+                                ])
+                            }
+
+                            conversation::Action::RunTask(task) => task,
+                        };
+                    };
                 }
 
                 Task::none()
@@ -179,13 +213,60 @@ impl Window {
                     match &mut self.screen {
                         Screen::Conversation(conversation) => {
                             if *conversation.get_session_id() == *session_id {
-                                return conversation
-                                    .update(conversation::Message::MsnpEvent(event));
+                                if let Some(action) =
+                                    conversation.update(conversation::Message::MsnpEvent(event))
+                                {
+                                    return match action {
+                                        conversation::Action::ParticipantTypingTimeout => {
+                                            let id = self.id;
+                                            Task::perform(
+                                                tokio::time::sleep(Duration::from_secs(5)),
+                                                move |_| {
+                                                    Message::Conversation(
+                                                        id,
+                                                        conversation::Message::ParticipantTypingTimeout,
+                                                    )
+                                                },
+                                            )
+                                        }
+
+                                        conversation::Action::UserTypingTimeout(task) => {
+                                            let id = self.id;
+                                            Task::batch([
+                                                task,
+                                                Task::perform(
+                                                    tokio::time::sleep(Duration::from_secs(5)),
+                                                    move |_| {
+                                                        Message::Conversation(
+                                                        id,
+                                                        conversation::Message::UserTypingTimeout,
+                                                    )
+                                                    },
+                                                ),
+                                            ])
+                                        }
+
+                                        conversation::Action::RunTask(task) => task,
+                                    };
+                                };
                             }
                         }
 
                         Screen::Contacts(contacts) => {
-                            contacts.update(contacts::Message::SwitchboardEvent(session_id, event));
+                            if let Some(action) = contacts
+                                .update(contacts::Message::SwitchboardEvent(session_id, event))
+                            {
+                                return match action {
+                                    contacts::Action::SignOut(task) => {
+                                        self.screen = Screen::SignIn(sign_in::SignIn::new(
+                                            self.sqlite.clone(),
+                                        ));
+                                        task
+                                    }
+
+                                    contacts::Action::RunTask(task) => task,
+                                };
+                            }
                         }
 
                         _ => (),
