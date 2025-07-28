@@ -183,18 +183,18 @@ impl IcedM {
                 window::Event::Focused => {
                     if let Some(modal) = self.modal_id {
                         window::gain_focus(modal)
+                    } else if let Some(window) = self.windows.get_mut(&id) {
+                        window.update(Message::Conversation(id, conversation::Message::Focused))
                     } else {
-                        let mut tasks = Vec::new();
-                        for (id, window) in self.windows.iter_mut() {
-                            if matches!(window.get_screen(), Screen::Conversation(..)) {
-                                tasks.push(window.update(Message::Conversation(
-                                    *id,
-                                    conversation::Message::Focused,
-                                )))
-                            }
-                        }
+                        Task::none()
+                    }
+                }
 
-                        Task::batch(tasks)
+                window::Event::Unfocused => {
+                    if let Some(window) = self.windows.get_mut(&id) {
+                        window.update(Message::Conversation(id, conversation::Message::Unfocused))
+                    } else {
+                        Task::none()
                     }
                 }
 

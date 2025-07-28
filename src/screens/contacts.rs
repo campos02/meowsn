@@ -12,6 +12,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
+use notify_rust::Notification;
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -451,7 +452,7 @@ impl Contacts {
                             crate::Message::OpenConversation {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
-                                contact_email: contact.email,
+                                contact_email: contact.email.clone(),
                                 client: self.client.clone(),
                             },
                         )));
@@ -465,10 +466,11 @@ impl Contacts {
                         )));
                     }
 
+                    let contact_email = contact.email.as_ref();
                     let contact = self
                         .contacts
                         .iter_mut()
-                        .find(|contact| *contact.email == *contact.email);
+                        .find(|contact| *contact.email == *contact_email);
 
                     if let Some(contact) = contact {
                         contact.new_messages = false;
@@ -620,7 +622,7 @@ impl Contacts {
                         let sender = Arc::new(email);
 
                         if self.orphan_switchboards.contains_key(session_id.as_str()) {
-                            let _ = self.sqlite.insert_message(&message::Message {
+                            let message = message::Message {
                                 sender: sender.clone(),
                                 receiver: Some(self.email.clone()),
                                 is_nudge: true,
@@ -632,7 +634,13 @@ impl Contacts {
                                 session_id: Some(session_id),
                                 color: "0".to_string(),
                                 is_history: true,
-                            });
+                            };
+
+                            let _ = self.sqlite.insert_message(&message);
+                            let _ = Notification::new()
+                                .summary("New message")
+                                .body(&message.text)
+                                .show();
                         }
                     }
                 }
@@ -647,7 +655,7 @@ impl Contacts {
                         contact.new_messages = true;
 
                         if self.orphan_switchboards.contains_key(session_id.as_str()) {
-                            let _ = self.sqlite.insert_message(&message::Message {
+                            let message = message::Message {
                                 sender: Arc::new(email),
                                 receiver: Some(self.email.clone()),
                                 is_nudge: false,
@@ -659,7 +667,13 @@ impl Contacts {
                                 session_id: Some(session_id),
                                 color: message.color,
                                 is_history: true,
-                            });
+                            };
+
+                            let _ = self.sqlite.insert_message(&message);
+                            let _ = Notification::new()
+                                .summary(format!("{} said:", message.sender).as_str())
+                                .body(&message.text)
+                                .show();
                         }
                     }
                 }

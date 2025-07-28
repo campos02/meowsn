@@ -11,6 +11,7 @@ use iced::widget::{
 };
 use iced::{Border, Element, Fill, Font, Task, Theme, widget};
 use msnp11_sdk::{Event, PlainText, Switchboard};
+use notify_rust::Notification;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,6 +23,7 @@ pub enum Message {
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Event),
     Focused,
+    Unfocused,
 }
 
 pub struct Conversation {
@@ -36,6 +38,7 @@ pub struct Conversation {
     user_display_picture: Option<Cow<'static, [u8]>>,
     message_buffer: Vec<message::Message>,
     sqlite: Sqlite,
+    focused: bool,
 }
 
 impl Conversation {
@@ -97,6 +100,7 @@ impl Conversation {
             user_display_picture,
             message_buffer: Vec::new(),
             sqlite,
+            focused: true,
         }
     }
 
@@ -408,6 +412,13 @@ impl Conversation {
                     };
 
                     let _ = self.sqlite.insert_message(&message);
+                    if !self.focused {
+                        let _ = Notification::new()
+                            .summary(format!("{} said:", message.sender).as_str())
+                            .body(&message.text)
+                            .show();
+                    }
+
                     self.messages.push(message);
                 }
 
@@ -428,6 +439,13 @@ impl Conversation {
                     };
 
                     let _ = self.sqlite.insert_message(&message);
+                    if !self.focused {
+                        let _ = Notification::new()
+                            .summary("New message")
+                            .body(&message.text)
+                            .show();
+                    }
+
                     self.messages.push(message);
                 }
 
@@ -493,7 +511,9 @@ impl Conversation {
             },
 
             Message::Focused => {
+                self.focused = true;
                 let mut tasks = Vec::new();
+
                 for participant in self.participants.values() {
                     if participant.display_picture.is_none()
                         && let Some(status) = &participant.status
@@ -514,6 +534,10 @@ impl Conversation {
                 }
 
                 return Task::batch(tasks);
+            }
+
+            Message::Unfocused => {
+                self.focused = false;
             }
         }
 
