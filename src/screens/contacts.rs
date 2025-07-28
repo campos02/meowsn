@@ -11,6 +11,7 @@ use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
+use iced_aw::ContextMenu;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use notify_rust::Notification;
 use rfd::AsyncFileDialog;
@@ -201,81 +202,130 @@ impl Contacts {
                 ]
                 .align_y(Center),
                 column(self.contacts.iter().map(|contact| {
-                    row![
+                    ContextMenu::new(
                         row![
-                            svg(if let Some(status) = &contact.status {
-                                if contact.lists.contains(&MsnpList::BlockList) {
+                            row![
+                                svg(if let Some(status) = &contact.status {
+                                    if contact.lists.contains(&MsnpList::BlockList) {
+                                        svg::Handle::from_memory(include_bytes!(
+                                            "../../assets/default_display_picture_blocked.svg"
+                                        ))
+                                    } else {
+                                        match status.status {
+                                            MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                                svg::Handle::from_memory(include_bytes!(
+                                                    "../../assets/default_display_picture_busy.svg"
+                                                ))
+                                            }
+
+                                            MsnpStatus::Away
+                                            | MsnpStatus::Idle
+                                            | MsnpStatus::BeRightBack
+                                            | MsnpStatus::OutToLunch => {
+                                                svg::Handle::from_memory(include_bytes!(
+                                                    "../../assets/default_display_picture_away.svg"
+                                                ))
+                                            }
+
+                                            _ => svg::Handle::from_memory(default_picture),
+                                        }
+                                    }
+                                } else if contact.lists.contains(&MsnpList::BlockList) {
                                     svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_blocked.svg"
+                                        "../../assets/default_display_picture_offline_blocked.svg"
                                     ))
                                 } else {
-                                    match status.status {
-                                        MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                            svg::Handle::from_memory(include_bytes!(
-                                                "../../assets/default_display_picture_busy.svg"
-                                            ))
-                                        }
-
-                                        MsnpStatus::Away
-                                        | MsnpStatus::Idle
-                                        | MsnpStatus::BeRightBack
-                                        | MsnpStatus::OutToLunch => {
-                                            svg::Handle::from_memory(include_bytes!(
-                                                "../../assets/default_display_picture_away.svg"
-                                            ))
-                                        }
-
-                                        _ => svg::Handle::from_memory(default_picture),
-                                    }
-                                }
-                            } else if contact.lists.contains(&MsnpList::BlockList) {
-                                svg::Handle::from_memory(include_bytes!(
-                                    "../../assets/default_display_picture_offline_blocked.svg"
-                                ))
-                            } else {
-                                svg::Handle::from_memory(include_bytes!(
-                                    "../../assets/default_display_picture_offline.svg"
-                                ))
-                            })
-                            .width(30),
-                            button(if contact.new_messages {
-                                text(&*contact.display_name).font(Font {
-                                    weight: Weight::Bold,
-                                    ..Font::default()
+                                    svg::Handle::from_memory(include_bytes!(
+                                        "../../assets/default_display_picture_offline.svg"
+                                    ))
                                 })
-                            } else {
-                                text(&*contact.display_name)
-                            })
-                            .on_press(Message::Conversation(contact.clone()))
-                            .style(|theme: &Theme, status| match status {
-                                button::Status::Hovered | button::Status::Pressed => {
-                                    button::secondary(theme, status)
-                                }
+                                .width(30),
+                                button(if contact.new_messages {
+                                    text(&*contact.display_name).font(Font {
+                                        weight: Weight::Bold,
+                                        ..Font::default()
+                                    })
+                                } else {
+                                    text(&*contact.display_name)
+                                })
+                                .on_press(Message::Conversation(contact.clone()))
+                                .style(|theme: &Theme, status| match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::secondary(theme, status)
+                                    }
 
-                                button::Status::Active | button::Status::Disabled => {
-                                    button::secondary(theme, status)
-                                        .with_background(Color::TRANSPARENT)
-                                }
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                })
+                                .width(Fill)
+                            ]
+                            .align_y(Center)
+                        ]
+                        .align_y(Center)
+                        .spacing(10)
+                        .width(Fill),
+                        || {
+                            container(column![
+                                if !contact.lists.contains(&MsnpList::BlockList) {
+                                    button(text("Block").size(15))
+                                        .on_press(Message::BlockContact(contact.email.clone()))
+                                        .style(|theme: &Theme, status| match status {
+                                            button::Status::Hovered | button::Status::Pressed => {
+                                                button::primary(theme, status)
+                                            }
+
+                                            button::Status::Active | button::Status::Disabled => {
+                                                button::secondary(theme, status)
+                                                    .with_background(Color::TRANSPARENT)
+                                            }
+                                        })
+                                        .width(Fill)
+                                } else {
+                                    button(text("Unblock").size(15))
+                                        .on_press(Message::UnblockContact(contact.email.clone()))
+                                        .style(|theme: &Theme, status| match status {
+                                            button::Status::Hovered | button::Status::Pressed => {
+                                                button::primary(theme, status)
+                                            }
+
+                                            button::Status::Active | button::Status::Disabled => {
+                                                button::secondary(theme, status)
+                                                    .with_background(Color::TRANSPARENT)
+                                            }
+                                        })
+                                        .width(Fill)
+                                },
+                                button(text("Delete").size(15))
+                                    .on_press(Message::RemoveContact(contact.email.clone()))
+                                    .style(|theme: &Theme, status| match status {
+                                        button::Status::Hovered | button::Status::Pressed => {
+                                            button::primary(theme, status)
+                                        }
+
+                                        button::Status::Active | button::Status::Disabled => {
+                                            button::secondary(theme, status)
+                                                .with_background(Color::TRANSPARENT)
+                                        }
+                                    })
+                                    .width(Fill)
+                            ])
+                            .style(|theme: &Theme| container::Style {
+                                border: Border {
+                                    color: Color::TRANSPARENT,
+                                    width: 0.0,
+                                    radius: radius(2.0),
+                                },
+                                background: Some(Background::Color(
+                                    theme.extended_palette().secondary.base.color,
+                                )),
+                                ..container::Style::default()
                             })
-                            .width(Fill)
-                        ]
-                        .align_y(Center),
-                        row![
-                            if !contact.lists.contains(&MsnpList::BlockList) {
-                                button(text("Block").size(15))
-                                    .on_press(Message::BlockContact(contact.email.clone()))
-                            } else {
-                                button(text("Unblock").size(15))
-                                    .on_press(Message::UnblockContact(contact.email.clone()))
-                            },
-                            button(text("Delete").size(15))
-                                .on_press(Message::RemoveContact(contact.email.clone()))
-                        ]
-                        .spacing(5)
-                    ]
-                    .align_y(Center)
-                    .spacing(10)
-                    .width(Fill)
+                            .width(150)
+                            .into()
+                        },
+                    )
                     .into()
                 }))
                 .spacing(10)

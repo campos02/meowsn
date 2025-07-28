@@ -2251,6 +2251,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_aw"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "582c517a94ce3205da98e9c10b26bb71aa36b7d7d084441d826dc912711d1bac"
+dependencies = [
+ "cfg-if",
+ "getrandom 0.3.3",
+ "iced",
+ "iced_fonts",
+ "web-time",
+]
+
+[[package]]
 name = "iced_core"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2268,6 +2281,15 @@ dependencies = [
  "smol_str",
  "thiserror 1.0.69",
  "web-time",
+]
+
+[[package]]
+name = "iced_fonts"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df7deb0800a850ee25c8a42559f72c0f249e577feb3aad37b9b65dc1e517e52a"
+dependencies = [
+ "iced_core",
 ]
 
 [[package]]
@@ -2426,6 +2448,7 @@ dependencies = [
  "dark-light 2.0.0",
  "dirs 6.0.0",
  "iced",
+ "iced_aw",
  "image 0.25.6",
  "keyring",
  "msnp11-sdk",
