@@ -4,12 +4,12 @@ use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
-use iced::font::{Style, Weight};
+use iced::font::{Family, Style, Weight};
 use iced::widget::{
-    column, container, horizontal_space, rich_text, row, scrollable, span, svg, text, text_editor,
-    vertical_space,
+    button, column, container, horizontal_space, rich_text, row, scrollable, span, svg, text,
+    text_editor, vertical_space,
 };
-use iced::{Border, Element, Fill, Font, Task, Theme, widget};
+use iced::{Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
 use msnp11_sdk::{Event, PlainText, Switchboard};
 use notify_rust::Notification;
 use std::borrow::Cow;
@@ -32,6 +32,11 @@ pub enum Message {
     Unfocused,
     ParticipantTypingTimeout,
     UserTypingTimeout,
+    BoldPressed,
+    ItalicPressed,
+    UnderlinePressed,
+    StrikethroughPressed,
+    SendNudge,
 }
 
 pub struct Conversation {
@@ -49,6 +54,10 @@ pub struct Conversation {
     focused: bool,
     participant_typing: Option<String>,
     user_typing: bool,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
 }
 
 impl Conversation {
@@ -113,11 +122,24 @@ impl Conversation {
             focused: true,
             participant_typing: None,
             user_typing: false,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
         }
     }
 
     pub fn view(&self) -> Element<Message> {
         let default_picture = include_bytes!("../../assets/default_display_picture.svg");
+        let picture_border = |theme: &Theme| container::Style {
+            border: Border {
+                color: theme.palette().text,
+                width: 1.0,
+                radius: radius(10.0),
+            },
+            ..Default::default()
+        };
+
         container(
             row![
                 column![
@@ -163,6 +185,14 @@ impl Conversation {
                     ]
                     .width(Fill),
                     scrollable(column(self.messages.iter().map(|message| {
+                        let history = |theme: &Theme| text::Style {
+                            color: if !message.is_history {
+                                Some(theme.palette().text)
+                            } else {
+                                Some(theme.extended_palette().secondary.weak.color)
+                            },
+                        };
+
                         column![
                             if !message.is_nudge {
                                 row![
@@ -171,32 +201,11 @@ impl Conversation {
                                             weight: Weight::Bold,
                                             ..Font::default()
                                         })
-                                        .style(|theme: &Theme| text::Style {
-                                            color: if !message.is_history {
-                                                Some(theme.palette().text)
-                                            } else {
-                                                Some(theme.extended_palette().secondary.weak.color)
-                                            }
-                                        }),
-                                    text(" said:").style(|theme: &Theme| text::Style {
-                                        color: if !message.is_history {
-                                            Some(theme.palette().text)
-                                        } else {
-                                            Some(theme.extended_palette().secondary.weak.color)
-                                        }
-                                    })
+                                        .style(history),
+                                    text(" said:").style(history)
                                 ]
                             } else {
-                                row![
-                                    text(format!("⸺⸺\n{} sent you a nudge!\n⸺⸺", &*message.sender))
-                                        .style(|theme: &Theme| text::Style {
-                                            color: if !message.is_history {
-                                                Some(theme.palette().text)
-                                            } else {
-                                                Some(theme.extended_palette().secondary.weak.color)
-                                            }
-                                        })
-                                ]
+                                row![text(format!("⸺⸺\n{}\n⸺⸺", message.text)).style(history)]
                             },
                             if !message.is_nudge {
                                 container(
@@ -216,15 +225,7 @@ impl Conversation {
                                             },
                                             ..Font::default()
                                         })])
-                                    .style(
-                                        |theme: &Theme| text::Style {
-                                            color: if !message.is_history {
-                                                Some(theme.palette().text)
-                                            } else {
-                                                Some(theme.extended_palette().secondary.weak.color)
-                                            },
-                                        },
-                                    ),
+                                    .style(history),
                                 )
                                 .padding(10)
                             } else {
@@ -236,15 +237,107 @@ impl Conversation {
                     .anchor_bottom()
                     .height(Fill),
                     if let Some(participant) = &self.participant_typing {
-                        text(format!("{participant} is writing a message..."))
+                        text(format!("{participant} is writing a message...")).size(14)
                     } else {
-                        text("")
+                        text("").size(14)
                     },
+                    row![
+                        button(text("B").align_x(Center).font(Font {
+                            family: Family::Serif,
+                            ..Font::default()
+                        }))
+                        .width(30)
+                        .style(|theme: &Theme, status| {
+                            if self.bold {
+                                button::primary(theme, status)
+                            } else {
+                                match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::primary(theme, status)
+                                    }
+
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                }
+                            }
+                        })
+                        .on_press(Message::BoldPressed),
+                        button(text("I").align_x(Center).font(Font {
+                            family: Family::Serif,
+                            ..Font::default()
+                        }))
+                        .width(30)
+                        .style(|theme: &Theme, status| {
+                            if self.italic {
+                                button::primary(theme, status)
+                            } else {
+                                match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::primary(theme, status)
+                                    }
+
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                }
+                            }
+                        })
+                        .on_press(Message::ItalicPressed),
+                        button(text("U").align_x(Center).font(Font {
+                            family: Family::Serif,
+                            ..Font::default()
+                        }))
+                        .width(30)
+                        .style(|theme: &Theme, status| {
+                            if self.underline {
+                                button::primary(theme, status)
+                            } else {
+                                match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::primary(theme, status)
+                                    }
+
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                }
+                            }
+                        })
+                        .on_press(Message::UnderlinePressed),
+                        button(text("S").align_x(Center).font(Font {
+                            family: Family::Serif,
+                            ..Font::default()
+                        }))
+                        .width(30)
+                        .style(|theme: &Theme, status| {
+                            if self.strikethrough {
+                                button::primary(theme, status)
+                            } else {
+                                match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::primary(theme, status)
+                                    }
+
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                }
+                            }
+                        })
+                        .on_press(Message::StrikethroughPressed),
+                        button("Nudge").on_press(Message::SendNudge)
+                    ]
+                    .spacing(5),
                     text_editor(&self.new_message)
                         .height(100)
                         .on_action(Message::Edit),
                 ]
-                .spacing(20),
+                .spacing(10),
                 column![
                     if self.participants.len() == 1
                         && let Some(picture) = &self
@@ -259,14 +352,7 @@ impl Conversation {
                             picture.clone(),
                         ))))
                         .width(100)
-                        .style(|theme: &Theme| container::Style {
-                            border: Border {
-                                color: theme.palette().text,
-                                width: 1.0,
-                                radius: radius(10.0),
-                            },
-                            ..Default::default()
-                        })
+                        .style(picture_border)
                         .padding(3)
                     } else if let Some(last_participant) = &self.last_participant
                         && let Some(display_picture) = &last_participant.display_picture
@@ -275,25 +361,11 @@ impl Conversation {
                             display_picture.clone(),
                         ))))
                         .width(100)
-                        .style(|theme: &Theme| container::Style {
-                            border: Border {
-                                color: theme.palette().text,
-                                width: 1.0,
-                                radius: radius(10.0),
-                            },
-                            ..Default::default()
-                        })
+                        .style(picture_border)
                         .padding(3)
                     } else {
                         container(svg(svg::Handle::from_memory(default_picture)).width(100))
-                            .style(|theme: &Theme| container::Style {
-                                border: Border {
-                                    color: theme.palette().text,
-                                    width: 1.0,
-                                    radius: radius(10.0),
-                                },
-                                ..Default::default()
-                            })
+                            .style(picture_border)
                             .padding(3)
                     },
                     vertical_space().height(Fill),
@@ -302,26 +374,12 @@ impl Conversation {
                             picture,
                         ))))
                         .width(100)
-                        .style(|theme: &Theme| container::Style {
-                            border: Border {
-                                color: theme.palette().text,
-                                width: 1.0,
-                                radius: radius(10.0),
-                            },
-                            ..Default::default()
-                        })
+                        .style(picture_border)
                         .padding(3)
                     } else {
                         container(svg(svg::Handle::from_memory(default_picture)))
                             .width(100)
-                            .style(|theme: &Theme| container::Style {
-                                border: Border {
-                                    color: theme.palette().text,
-                                    width: 1.0,
-                                    radius: radius(10.0),
-                                },
-                                ..Default::default()
-                            })
+                            .style(picture_border)
                             .padding(3)
                     }
                 ]
@@ -358,10 +416,10 @@ impl Conversation {
                         },
                         is_nudge: false,
                         text: self.new_message.text().replace("\n", "\r\n"),
-                        bold: false,
-                        italic: false,
-                        underline: false,
-                        strikethrough: false,
+                        bold: self.bold,
+                        italic: self.italic,
+                        underline: self.underline,
+                        strikethrough: self.strikethrough,
                         session_id: None,
                         color: "0".to_string(),
                         is_history: false,
@@ -411,6 +469,60 @@ impl Conversation {
                         )));
                     }
                 };
+            }
+
+            Message::SendNudge => {
+                let message = message::Message {
+                    sender: self.user_email.clone(),
+                    receiver: if self.participants.len() == 1 {
+                        Some(
+                            self.participants
+                                .iter()
+                                .next()
+                                .expect("Could not get next contact")
+                                .1
+                                .email
+                                .clone(),
+                        )
+                    } else if self.participants.is_empty()
+                        && let Some(last_participant) = &self.last_participant
+                    {
+                        Some(last_participant.email.clone())
+                    } else {
+                        None
+                    },
+                    is_nudge: true,
+                    text: "You just sent a nudge!".to_string(),
+                    bold: false,
+                    italic: false,
+                    underline: false,
+                    strikethrough: false,
+                    session_id: None,
+                    color: "0".to_string(),
+                    is_history: false,
+                };
+
+                let switchboard = self.switchboard.clone();
+                self.new_message = text_editor::Content::new();
+
+                if !self.participants.is_empty() {
+                    let _ = self.sqlite.insert_message(&message);
+                    self.messages.push(message);
+
+                    action = Some(Action::RunTask(Task::perform(
+                        async move { switchboard.send_nudge().await },
+                        crate::Message::EmptyResultFuture,
+                    )));
+                } else {
+                    self.message_buffer.push(message);
+
+                    if let Some(last_participant) = self.last_participant.clone() {
+                        action = Some(Action::RunTask(Task::perform(
+                            async move { switchboard.invite(&last_participant.email).await },
+                            crate::Message::EmptyResultFuture,
+                        )));
+                    }
+                }
             }
 
             Message::ContactUpdated(contact) => {
@@ -464,7 +576,7 @@ impl Conversation {
                         sender: sender.clone(),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: true,
-                        text: format!("{sender} sent you a nudge!"),
+                        text: format!("{sender} just sent you a nudge!"),
                         bold: false,
                         italic: false,
                         underline: false,
@@ -579,6 +691,10 @@ impl Conversation {
 
             Message::ParticipantTypingTimeout => self.participant_typing = None,
             Message::UserTypingTimeout => self.user_typing = false,
+            Message::BoldPressed => self.bold = !self.bold,
+            Message::ItalicPressed => self.italic = !self.italic,
+            Message::UnderlinePressed => self.underline = !self.underline,
+            Message::StrikethroughPressed => self.strikethrough = !self.strikethrough,
         }
 
         action

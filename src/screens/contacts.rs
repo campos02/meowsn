@@ -267,48 +267,32 @@ impl Contacts {
                         .spacing(10)
                         .width(Fill),
                         || {
+                            let menu_button = |theme: &Theme, status| match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    button::primary(theme, status)
+                                }
+
+                                button::Status::Active | button::Status::Disabled => {
+                                    button::secondary(theme, status)
+                                        .with_background(Color::TRANSPARENT)
+                                }
+                            };
+
                             container(column![
                                 if !contact.lists.contains(&MsnpList::BlockList) {
                                     button(text("Block").size(15))
                                         .on_press(Message::BlockContact(contact.email.clone()))
-                                        .style(|theme: &Theme, status| match status {
-                                            button::Status::Hovered | button::Status::Pressed => {
-                                                button::primary(theme, status)
-                                            }
-
-                                            button::Status::Active | button::Status::Disabled => {
-                                                button::secondary(theme, status)
-                                                    .with_background(Color::TRANSPARENT)
-                                            }
-                                        })
+                                        .style(menu_button)
                                         .width(Fill)
                                 } else {
                                     button(text("Unblock").size(15))
                                         .on_press(Message::UnblockContact(contact.email.clone()))
-                                        .style(|theme: &Theme, status| match status {
-                                            button::Status::Hovered | button::Status::Pressed => {
-                                                button::primary(theme, status)
-                                            }
-
-                                            button::Status::Active | button::Status::Disabled => {
-                                                button::secondary(theme, status)
-                                                    .with_background(Color::TRANSPARENT)
-                                            }
-                                        })
+                                        .style(menu_button)
                                         .width(Fill)
                                 },
                                 button(text("Delete").size(15))
                                     .on_press(Message::RemoveContact(contact.email.clone()))
-                                    .style(|theme: &Theme, status| match status {
-                                        button::Status::Hovered | button::Status::Pressed => {
-                                            button::primary(theme, status)
-                                        }
-
-                                        button::Status::Active | button::Status::Disabled => {
-                                            button::secondary(theme, status)
-                                                .with_background(Color::TRANSPARENT)
-                                        }
-                                    })
+                                    .style(menu_button)
                                     .width(Fill)
                             ])
                             .style(|theme: &Theme| container::Style {
