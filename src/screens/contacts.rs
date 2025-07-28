@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::models::contact::Contact;
+use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
 use crate::pick_display_picture::pick_display_picture;
@@ -463,6 +464,15 @@ impl Contacts {
                             },
                         )));
                     }
+
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == *contact.email);
+
+                    if let Some(contact) = contact {
+                        contact.new_messages = false;
+                    }
                 }
             }
 
@@ -599,7 +609,7 @@ impl Contacts {
                     }
                 }
 
-                Event::Nudge { email } | Event::TextMessage { email, .. } => {
+                Event::Nudge { email } => {
                     let contact = self
                         .contacts
                         .iter_mut()
@@ -607,6 +617,50 @@ impl Contacts {
 
                     if let Some(contact) = contact {
                         contact.new_messages = true;
+                        let sender = Arc::new(email);
+
+                        if self.orphan_switchboards.contains_key(session_id.as_str()) {
+                            let _ = self.sqlite.insert_message(&message::Message {
+                                sender: sender.clone(),
+                                receiver: Some(self.email.clone()),
+                                is_nudge: true,
+                                text: format!("{sender} sent you a nudge!"),
+                                bold: false,
+                                italic: false,
+                                underline: false,
+                                strikethrough: false,
+                                session_id: Some(session_id),
+                                color: "0".to_string(),
+                                is_history: true,
+                            });
+                        }
+                    }
+                }
+
+                Event::TextMessage { email, message } => {
+                    let contact = self
+                        .contacts
+                        .iter_mut()
+                        .find(|contact| *contact.email == email);
+
+                    if let Some(contact) = contact {
+                        contact.new_messages = true;
+
+                        if self.orphan_switchboards.contains_key(session_id.as_str()) {
+                            let _ = self.sqlite.insert_message(&message::Message {
+                                sender: Arc::new(email),
+                                receiver: Some(self.email.clone()),
+                                is_nudge: false,
+                                text: message.text,
+                                bold: message.bold,
+                                italic: message.italic,
+                                underline: message.underline,
+                                strikethrough: message.strikethrough,
+                                session_id: Some(session_id),
+                                color: message.color,
+                                is_history: true,
+                            });
+                        }
                     }
                 }
 

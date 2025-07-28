@@ -1,9 +1,11 @@
+use crate::models::message;
 use crate::models::user::User;
 use r2d2::Pool;
 use r2d2_sqlite::rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
 use r2d2_sqlite::rusqlite::params;
 use r2d2_sqlite::{SqliteConnectionManager, rusqlite};
 use std::error::Error;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Sqlite {
@@ -43,27 +45,33 @@ impl Sqlite {
             (),
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS messages (\
+                id INTEGER PRIMARY KEY,\
+                sender TEXT NOT NULL,\
+                receiver TEXT,\
+                is_nudge BOOL NOT NULL,\
+                text TEXT NOT NULL,\
+                bold BOOL NOT NULL,\
+                italic BOOL NOT NULL,\
+                underline BOOL NOT NULL,\
+                strikethrough BOOL NOT NULL,\
+                session_id TEXT\
+            )",
+            (),
+        )?;
+
         Ok(Self { pool })
     }
 
     pub fn select_user_emails(&self) -> rusqlite::Result<Vec<String>> {
-        let mut emails = Vec::new();
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare("SELECT email FROM users")?;
-            let users = stmt.query_map([], |row| {
-                Ok(User {
-                    email: row.get(0)?,
-                    personal_message: None,
-                    display_picture: None,
-                })
-            });
-
-            for user in users?.flatten() {
-                emails.push(user.email);
-            }
+            let emails = stmt.query_map([], |row| row.get(0));
+            return emails?.collect();
         }
 
-        Ok(emails)
+        Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
     pub fn select_user(&self, email: &str) -> rusqlite::Result<User> {
@@ -76,9 +84,8 @@ impl Sqlite {
 
             let users = stmt.query_map([email], |row| {
                 Ok(User {
-                    email: String::new(),
-                    personal_message: row.get(0)?,
-                    display_picture: row.get(1)?,
+                    personal_message: row.get(0).ok(),
+                    display_picture: row.get(1).ok(),
                 })
             });
 
@@ -93,6 +100,71 @@ impl Sqlite {
             let mut stmt = conn.prepare("SELECT picture FROM display_pictures WHERE hash = ?1")?;
             let picture = stmt.query_map([hash], |row| row.get::<usize, Vec<u8>>(0))?;
             return picture.last().ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn select_messages(
+        &self,
+        sender1: &str,
+        sender2: &str,
+    ) -> rusqlite::Result<Vec<message::Message>> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare(
+                "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
+                WHERE (sender = ?1 OR receiver = ?1) AND (receiver = ?2 OR sender = ?2)",
+            )?;
+
+            let messages = stmt.query_map([sender1, sender2], |row| {
+                Ok(message::Message {
+                    sender: Arc::new(row.get(0)?),
+                    receiver: row.get(1).ok().map(Arc::new),
+                    is_nudge: row.get(2)?,
+                    text: row.get(3)?,
+                    bold: row.get(4)?,
+                    italic: row.get(5)?,
+                    underline: row.get(6)?,
+                    strikethrough: row.get(7)?,
+                    session_id: row.get(8).ok().map(Arc::new),
+                    color: "0".to_string(),
+                    is_history: true,
+                })
+            });
+
+            return messages?.collect();
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn select_messages_by_session_id(
+        &self,
+        session_id: &str,
+    ) -> rusqlite::Result<Vec<message::Message>> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare(
+                "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
+                WHERE session_id = ?1",
+            )?;
+
+            let messages = stmt.query_map([session_id], |row| {
+                Ok(message::Message {
+                    sender: Arc::new(row.get(0)?),
+                    receiver: row.get(1).ok().map(Arc::new),
+                    is_nudge: row.get(2)?,
+                    text: row.get(3)?,
+                    bold: row.get(4)?,
+                    italic: row.get(5)?,
+                    underline: row.get(6)?,
+                    strikethrough: row.get(7)?,
+                    session_id: row.get(8).ok().map(Arc::new),
+                    color: "0".to_string(),
+                    is_history: true,
+                })
+            });
+
+            return messages?.collect();
         }
 
         Err(rusqlite::Error::QueryReturnedNoRows)
@@ -118,6 +190,37 @@ impl Sqlite {
             conn.execute(
                 "INSERT INTO display_pictures (picture, hash) VALUES (?1, ?2)",
                 params![display_picture, display_picture_hash],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn insert_message(&self, message: &message::Message) -> rusqlite::Result<()> {
+        if let Ok(conn) = self.pool.get() {
+            conn.execute(
+                "INSERT INTO messages (\
+                sender,\
+                receiver,\
+                is_nudge,\
+                text,\
+                bold,\
+                italic,\
+                underline,\
+                strikethrough,\
+                session_id\
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    message.sender,
+                    message.receiver,
+                    message.is_nudge,
+                    message.text,
+                    message.bold,
+                    message.italic,
+                    message.underline,
+                    message.strikethrough,
+                    message.session_id
+                ],
             )?;
         }
 

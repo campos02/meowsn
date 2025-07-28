@@ -10,5 +10,7 @@ pub struct Message {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+    pub session_id: Option<Arc<String>>,
     pub color: String,
+    pub is_history: bool,
 }

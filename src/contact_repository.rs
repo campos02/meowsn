@@ -14,7 +14,7 @@ impl ContactRepository {
         }
     }
 
-    pub fn get_contact(&self, email: &Arc<String>) -> Option<Contact> {
+    pub fn get_contact(&self, email: &String) -> Option<Contact> {
         if let Ok(contacts) = self.contacts.lock() {
             contacts.get(email).cloned()
         } else {

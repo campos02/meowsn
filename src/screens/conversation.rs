@@ -6,7 +6,7 @@ use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::{Style, Weight};
 use iced::widget::{
-    column, container, horizontal_space, rich_text, row, span, svg, text, text_editor,
+    column, container, horizontal_space, rich_text, row, scrollable, span, svg, text, text_editor,
     vertical_space,
 };
 use iced::{Border, Element, Fill, Font, Task, Theme, widget};
@@ -35,6 +35,7 @@ pub struct Conversation {
     new_message: text_editor::Content,
     user_display_picture: Option<Cow<'static, [u8]>>,
     message_buffer: Vec<message::Message>,
+    sqlite: Sqlite,
 }
 
 impl Conversation {
@@ -57,18 +58,31 @@ impl Conversation {
             .unwrap_or_default()
             .unwrap_or_default();
 
+        let mut messages = Vec::new();
+        if switchboard.participants.len() > 1 {
+            if let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id) {
+                messages = message_history;
+            }
+        }
+
         let mut participants = HashMap::new();
-        for participant in switchboard.participants {
+        for participant in &switchboard.participants {
             participants.insert(
                 participant.clone(),
                 contact_repository
-                    .get_contact(&participant)
+                    .get_contact(participant)
                     .unwrap_or(Contact {
                         email: participant.clone(),
                         display_name: participant.clone(),
                         ..Contact::default()
                     }),
             );
+
+            if switchboard.participants.len() == 1 {
+                if let Ok(message_history) = sqlite.select_messages(&user_email, participant) {
+                    messages = message_history;
+                }
+            }
         }
 
         Self {
@@ -78,10 +92,11 @@ impl Conversation {
             contact_repository,
             participants,
             last_participant: None,
-            messages: Vec::new(),
+            messages,
             new_message: text_editor::Content::new(),
             user_display_picture,
             message_buffer: Vec::new(),
+            sqlite,
         }
     }
 
@@ -131,47 +146,78 @@ impl Conversation {
                         },
                     ]
                     .width(Fill),
-                    column(self.messages.iter().map(|message| {
+                    scrollable(column(self.messages.iter().map(|message| {
                         column![
                             if !message.is_nudge {
                                 row![
-                                    text(&*message.sender).font(Font {
-                                        weight: Weight::Bold,
-                                        ..Font::default()
-                                    }),
-                                    " said:"
+                                    text(&*message.sender)
+                                        .font(Font {
+                                            weight: Weight::Bold,
+                                            ..Font::default()
+                                        })
+                                        .style(|theme: &Theme| text::Style {
+                                            color: if !message.is_history {
+                                                Some(theme.palette().text)
+                                            } else {
+                                                Some(theme.extended_palette().secondary.weak.color)
+                                            }
+                                        }),
+                                    text(" said:").style(|theme: &Theme| text::Style {
+                                        color: if !message.is_history {
+                                            Some(theme.palette().text)
+                                        } else {
+                                            Some(theme.extended_palette().secondary.weak.color)
+                                        }
+                                    })
                                 ]
                             } else {
-                                row![column![
-                                    text("⸺⸺"),
-                                    text(format!("{} sent you a nudge!", &*message.sender)),
-                                    text("⸺⸺")
-                                ]]
+                                row![
+                                    text(format!("⸺⸺\n{} sent you a nudge!\n⸺⸺", &*message.sender))
+                                        .style(|theme: &Theme| text::Style {
+                                            color: if !message.is_history {
+                                                Some(theme.palette().text)
+                                            } else {
+                                                Some(theme.extended_palette().secondary.weak.color)
+                                            }
+                                        })
+                                ]
                             },
                             if !message.is_nudge {
-                                container(rich_text([span(message.text.replace("\r\n", "\n"))
-                                    .underline(message.underline)
-                                    .strikethrough(message.strikethrough)
-                                    .font(Font {
-                                        weight: if message.bold {
-                                            Weight::Bold
-                                        } else {
-                                            Weight::Normal
+                                container(
+                                    rich_text([span(message.text.replace("\r\n", "\n"))
+                                        .underline(message.underline)
+                                        .strikethrough(message.strikethrough)
+                                        .font(Font {
+                                            weight: if message.bold {
+                                                Weight::Bold
+                                            } else {
+                                                Weight::Normal
+                                            },
+                                            style: if message.italic {
+                                                Style::Italic
+                                            } else {
+                                                Style::Normal
+                                            },
+                                            ..Font::default()
+                                        })])
+                                    .style(
+                                        |theme: &Theme| text::Style {
+                                            color: if !message.is_history {
+                                                Some(theme.palette().text)
+                                            } else {
+                                                Some(theme.extended_palette().secondary.weak.color)
+                                            },
                                         },
-                                        style: if message.italic {
-                                            Style::Italic
-                                        } else {
-                                            Style::Normal
-                                        },
-                                        ..Font::default()
-                                    })]))
+                                    ),
+                                )
                                 .padding(10)
                             } else {
                                 container(horizontal_space().height(7))
                             }
                         ]
                         .into()
-                    }))
+                    })))
+                    .anchor_bottom()
                     .height(Fill),
                     text_editor(&self.new_message)
                         .height(100)
@@ -271,14 +317,32 @@ impl Conversation {
                 if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action {
                     let message = message::Message {
                         sender: self.user_email.clone(),
-                        receiver: None,
+                        receiver: if self.participants.len() == 1 {
+                            Some(
+                                self.participants
+                                    .iter()
+                                    .next()
+                                    .expect("Could not get next contact")
+                                    .1
+                                    .email
+                                    .clone(),
+                            )
+                        } else if self.participants.is_empty()
+                            && let Some(last_participant) = &self.last_participant
+                        {
+                            Some(last_participant.email.clone())
+                        } else {
+                            None
+                        },
                         is_nudge: false,
                         text: self.new_message.text().replace("\n", "\r\n"),
                         bold: false,
                         italic: false,
                         underline: false,
                         strikethrough: false,
+                        session_id: None,
                         color: "0".to_string(),
+                        is_history: false,
                     };
 
                     let switchboard = self.switchboard.clone();
@@ -294,7 +358,9 @@ impl Conversation {
                             text: message.text.clone(),
                         };
 
+                        let _ = self.sqlite.insert_message(&message);
                         self.messages.push(message);
+
                         Task::perform(
                             async move { switchboard.send_text_message(&plain_text).await },
                             crate::Message::EmptyResultFuture,
@@ -327,7 +393,7 @@ impl Conversation {
 
             Message::MsnpEvent(event) => match event {
                 Event::TextMessage { email, message } => {
-                    self.messages.push(message::Message {
+                    let message = message::Message {
                         sender: Arc::new(email),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: false,
@@ -336,13 +402,18 @@ impl Conversation {
                         italic: message.italic,
                         underline: message.underline,
                         strikethrough: message.strikethrough,
+                        session_id: None,
                         color: message.color,
-                    });
+                        is_history: false,
+                    };
+
+                    let _ = self.sqlite.insert_message(&message);
+                    self.messages.push(message);
                 }
 
                 Event::Nudge { email } => {
                     let sender = Arc::new(email);
-                    self.messages.push(message::Message {
+                    let message = message::Message {
                         sender: sender.clone(),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: true,
@@ -351,8 +422,13 @@ impl Conversation {
                         italic: false,
                         underline: false,
                         strikethrough: false,
+                        session_id: None,
                         color: "0".to_string(),
-                    });
+                        is_history: false,
+                    };
+
+                    let _ = self.sqlite.insert_message(&message);
+                    self.messages.push(message);
                 }
 
                 Event::ParticipantInSwitchboard { email } => {
@@ -377,6 +453,7 @@ impl Conversation {
                             self.messages.reserve(messages.len());
 
                             for message in self.message_buffer.drain(..) {
+                                let _ = self.sqlite.insert_message(&message);
                                 self.messages.push(message);
                             }
 
