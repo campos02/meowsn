@@ -9,8 +9,8 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            server: "r2m.camposs.net".to_string(),
-            nexus_url: "https://r2m.camposs.net/rdr/pprdr.asp".to_string(),
+            server: "ms.msgrsvcs.ctsrv.xyz".to_string(),
+            nexus_url: "https://ctas.login.ugnet.xyz/rdr/pprdr.asp".to_string(),
         }
     }
 }
