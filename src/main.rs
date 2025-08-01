@@ -220,11 +220,11 @@ impl IcedM {
                 email: _,
                 ref result,
             } => {
-                if let Some(sender) = self.msnp_subscription_sender.as_mut() {
-                    if let Ok(client) = result {
-                        if let Err(error) = sender.start_send(Input::NewClient(client.1.clone())) {
-                            return Task::done(Message::OpenDialog(error.to_string()));
-                        }
+                if let Some(sender) = self.msnp_subscription_sender.as_mut()
+                    && let Ok((_, client)) = result
+                {
+                    if let Err(error) = sender.start_send(Input::NewClient(client.clone())) {
+                        return Task::done(Message::OpenDialog(error.to_string()));
                     }
                 }
 
@@ -243,15 +243,15 @@ impl IcedM {
                     return Task::none();
                 };
 
-                if let Some(window) = self
+                if let Some((id, _)) = self
                     .windows
                     .iter()
-                    .find(|window| matches!(window.1.get_screen(), Screen::PersonalSettings(..)))
+                    .find(|(_, window)| matches!(window.get_screen(), Screen::PersonalSettings(..)))
                 {
-                    return window::gain_focus(*window.0);
+                    return window::gain_focus(*id);
                 }
 
-                let (_id, open) = window::open(IcedM::window_settings(Size::new(500.0, 500.0)));
+                let (_, open) = window::open(IcedM::window_settings(Size::new(500.0, 500.0)));
                 open.map(move |id| {
                     Message::WindowOpened(
                         id,
@@ -273,14 +273,14 @@ impl IcedM {
                     return Task::none();
                 };
 
-                if let Some(window) = self.windows.iter_mut().find(|window| {
-                    let Screen::Conversation(conversation) = window.1.get_screen() else {
+                if let Some((id, _)) = self.windows.iter_mut().find(|(_, window)| {
+                    let Screen::Conversation(conversation) = window.get_screen() else {
                         return false;
                     };
 
                     conversation.get_participants().contains_key(&contact_email)
                 }) {
-                    window::gain_focus(*window.0)
+                    window::gain_focus(*id)
                 } else {
                     let contact_email = contact_email.clone();
                     let contact = contact_email.clone();
@@ -344,7 +344,7 @@ impl IcedM {
                     return Task::none();
                 };
 
-                let (_id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
+                let (_, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
                 open.map(move |id| {
                     Message::WindowOpened(
                         id,
@@ -379,15 +379,15 @@ impl IcedM {
                     return Task::none();
                 };
 
-                if let Some(window) = self
+                if let Some((id, _)) = self
                     .windows
                     .iter()
-                    .find(|window| matches!(window.1.get_screen(), Screen::AddContact(..)))
+                    .find(|(_, window)| matches!(window.get_screen(), Screen::AddContact(..)))
                 {
-                    return window::gain_focus(*window.0);
+                    return window::gain_focus(*id);
                 }
 
-                let (_id, open) = window::open(IcedM::window_settings(Size::new(400.0, 220.0)));
+                let (_, open) = window::open(IcedM::window_settings(Size::new(400.0, 220.0)));
                 open.map(move |id| {
                     Message::WindowOpened(id, WindowType::AddContact(client.clone()))
                 })
@@ -436,11 +436,13 @@ impl IcedM {
                         }
 
                         _ => {
-                            if let Some(window) = self.windows.iter_mut().find(|window| {
-                                matches!(window.1.get_screen(), Screen::Contacts(..))
-                            }) {
-                                return window.1.update(Message::Contacts(
-                                    *window.0,
+                            if let Some((id, window)) =
+                                self.windows.iter_mut().find(|(_, window)| {
+                                    matches!(window.get_screen(), Screen::Contacts(..))
+                                })
+                            {
+                                return window.update(Message::Contacts(
+                                    *id,
                                     // Using Authenticated as a default event
                                     contacts::Message::NotificationServerEvent(std::mem::replace(
                                         event,
@@ -535,13 +537,13 @@ impl IcedM {
                             return Task::none();
                         };
 
-                        if let Some(window) = self
+                        if let Some((id, window)) = self
                             .windows
                             .iter_mut()
-                            .find(|window| matches!(window.1.get_screen(), Screen::Contacts(..)))
+                            .find(|(_, window)| matches!(window.get_screen(), Screen::Contacts(..)))
                         {
-                            return window.1.update(Message::Contacts(
-                                *window.0,
+                            return window.update(Message::Contacts(
+                                *id,
                                 contacts::Message::NotificationServerEvent(event),
                             ));
                         }

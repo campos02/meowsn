@@ -67,12 +67,13 @@ impl Conversation {
         user_email: Arc<String>,
         sqlite: Sqlite,
     ) -> Self {
-        let mut user_display_picture = None;
-        if let Ok(user) = sqlite.select_user(&user_email) {
-            if let Some(picture) = user.display_picture {
-                user_display_picture = Some(Cow::Owned(picture))
-            }
-        }
+        let user_display_picture = if let Ok(user) = sqlite.select_user(&user_email)
+            && let Some(picture) = user.display_picture
+        {
+            Some(Cow::Owned(picture))
+        } else {
+            None
+        };
 
         let session_id = switchboard
             .switchboard
@@ -81,13 +82,15 @@ impl Conversation {
             .unwrap_or_default();
 
         let mut messages = Vec::new();
-        if switchboard.participants.len() > 1 {
-            if let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id) {
-                messages = message_history;
-            }
+        if switchboard.participants.len() > 1
+            && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id)
+        {
+            messages = message_history;
         }
 
         let mut participants = HashMap::new();
+        participants.reserve(switchboard.participants.len());
+
         for participant in &switchboard.participants {
             participants.insert(
                 participant.clone(),

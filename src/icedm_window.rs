@@ -117,37 +117,36 @@ impl Window {
             }
 
             Message::Conversation(id, message) => {
-                if let Screen::Conversation(conversation) = &mut self.screen {
-                    if let Some(action) = conversation.update(message) {
-                        return match action {
-                            conversation::Action::ParticipantTypingTimeout => Task::perform(
-                                tokio::time::sleep(Duration::from_secs(5)),
-                                move |_| {
-                                    Message::Conversation(
-                                        id,
-                                        conversation::Message::ParticipantTypingTimeout,
-                                    )
-                                },
-                            ),
+                if let Screen::Conversation(conversation) = &mut self.screen
+                    && let Some(action) = conversation.update(message)
+                {
+                    return match action {
+                        conversation::Action::ParticipantTypingTimeout => {
+                            Task::perform(tokio::time::sleep(Duration::from_secs(5)), move |_| {
+                                Message::Conversation(
+                                    id,
+                                    conversation::Message::ParticipantTypingTimeout,
+                                )
+                            })
+                        }
 
-                            conversation::Action::UserTypingTimeout(task) => {
-                                let id = self.id;
-                                Task::batch([
-                                    task,
-                                    Task::perform(
-                                        tokio::time::sleep(Duration::from_secs(5)),
-                                        move |_| {
-                                            Message::Conversation(
-                                                id,
-                                                conversation::Message::UserTypingTimeout,
-                                            )
-                                        },
-                                    ),
-                                ])
-                            }
+                        conversation::Action::UserTypingTimeout(task) => {
+                            let id = self.id;
+                            Task::batch([
+                                task,
+                                Task::perform(
+                                    tokio::time::sleep(Duration::from_secs(5)),
+                                    move |_| {
+                                        Message::Conversation(
+                                            id,
+                                            conversation::Message::UserTypingTimeout,
+                                        )
+                                    },
+                                ),
+                            ])
+                        }
 
-                            conversation::Action::RunTask(task) => task,
-                        };
+                        conversation::Action::RunTask(task) => task,
                     };
                 }
 
@@ -155,26 +154,26 @@ impl Window {
             }
 
             Message::Dialog(id, message) => {
-                if let Screen::Dialog(dialog) = &mut self.screen {
-                    if let Some(_action) = dialog.update(message) {
-                        return window::close::<Message>(id);
-                    }
+                if let Screen::Dialog(dialog) = &mut self.screen
+                    && dialog.update(message).is_some()
+                {
+                    return window::close::<Message>(id);
                 }
 
                 Task::none()
             }
 
             Message::AddContact(id, message) => {
-                if let Screen::AddContact(add_contact) = &mut self.screen {
-                    if let Some(action) = add_contact.update(message) {
-                        return match action {
-                            add_contact::Action::OkPressed(task) => {
-                                Task::batch([task, window::close::<Message>(id)])
-                            }
+                if let Screen::AddContact(add_contact) = &mut self.screen
+                    && let Some(action) = add_contact.update(message)
+                {
+                    return match action {
+                        add_contact::Action::OkPressed(task) => {
+                            Task::batch([task, window::close::<Message>(id)])
+                        }
 
-                            add_contact::Action::CancelPressed => window::close::<Message>(id),
-                        };
-                    }
+                        add_contact::Action::CancelPressed => window::close::<Message>(id),
+                    };
                 }
 
                 Task::none()
@@ -186,11 +185,11 @@ impl Window {
                 result,
             } => {
                 match result {
-                    Ok(result) => {
+                    Ok((personal_message, client)) => {
                         self.screen = Screen::Contacts(contacts::Contacts::new(
                             email,
-                            result.0,
-                            result.1,
+                            personal_message,
+                            client,
                             self.sqlite.clone(),
                             self.msnp_subscription_sender.clone(),
                         ));
@@ -212,42 +211,41 @@ impl Window {
                 if let msnp_listener::Event::Switchboard { session_id, event } = event {
                     match &mut self.screen {
                         Screen::Conversation(conversation) => {
-                            if *conversation.get_session_id() == *session_id {
-                                if let Some(action) = conversation
+                            if *conversation.get_session_id() == *session_id
+                                && let Some(action) = conversation
                                     .update(conversation::Message::MsnpEvent(Box::from(event)))
-                                {
-                                    return match action {
-                                        conversation::Action::ParticipantTypingTimeout => {
-                                            let id = self.id;
+                            {
+                                return match action {
+                                    conversation::Action::ParticipantTypingTimeout => {
+                                        let id = self.id;
+                                        Task::perform(
+                                            tokio::time::sleep(Duration::from_secs(5)),
+                                            move |_| {
+                                                Message::Conversation(
+                                                    id,
+                                                    conversation::Message::ParticipantTypingTimeout,
+                                                )
+                                            },
+                                        )
+                                    }
+
+                                    conversation::Action::UserTypingTimeout(task) => {
+                                        let id = self.id;
+                                        Task::batch([
+                                            task,
                                             Task::perform(
                                                 tokio::time::sleep(Duration::from_secs(5)),
                                                 move |_| {
                                                     Message::Conversation(
                                                         id,
-                                                        conversation::Message::ParticipantTypingTimeout,
-                                                    )
-                                                },
-                                            )
-                                        }
-
-                                        conversation::Action::UserTypingTimeout(task) => {
-                                            let id = self.id;
-                                            Task::batch([
-                                                task,
-                                                Task::perform(
-                                                    tokio::time::sleep(Duration::from_secs(5)),
-                                                    move |_| {
-                                                        Message::Conversation(
-                                                        id,
                                                         conversation::Message::UserTypingTimeout,
                                                     )
-                                                    },
-                                                ),
-                                            ])
-                                        }
+                                                },
+                                            ),
+                                        ])
+                                    }
 
-                                        conversation::Action::RunTask(task) => task,
-                                    };
+                                    conversation::Action::RunTask(task) => task,
                                 };
                             }
                         }
