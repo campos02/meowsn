@@ -213,8 +213,8 @@ impl Window {
                     match &mut self.screen {
                         Screen::Conversation(conversation) => {
                             if *conversation.get_session_id() == *session_id {
-                                if let Some(action) =
-                                    conversation.update(conversation::Message::MsnpEvent(event))
+                                if let Some(action) = conversation
+                                    .update(conversation::Message::MsnpEvent(Box::from(event)))
                                 {
                                     return match action {
                                         conversation::Action::ParticipantTypingTimeout => {

@@ -27,7 +27,7 @@ pub enum Message {
     Edit(text_editor::Action),
     ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
-    MsnpEvent(Event),
+    MsnpEvent(Box<Event>),
     Focused,
     Unfocused,
     ParticipantTypingTimeout,
@@ -535,7 +535,7 @@ impl Conversation {
                 self.user_display_picture = Some(picture);
             }
 
-            Message::MsnpEvent(event) => match event {
+            Message::MsnpEvent(event) => match *event {
                 Event::TypingNotification { email } => {
                     if self.participant_typing.is_none() {
                         self.participant_typing = Some(email);
@@ -666,7 +666,7 @@ impl Conversation {
                 for participant in self.participants.values() {
                     if participant.display_picture.is_none()
                         && let Some(status) = &participant.status
-                        && let Some(msn_object) = status.msn_object.clone()
+                        && let Some(msn_object) = status.msn_object_string.clone()
                     {
                         let switchboard = self.switchboard.clone();
                         let email = participant.email.clone();
