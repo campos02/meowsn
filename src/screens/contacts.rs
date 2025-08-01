@@ -9,7 +9,7 @@ use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
-use iced::widget::{button, column, container, pick_list, row, svg, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
@@ -201,10 +201,11 @@ impl Contacts {
                         .on_press(Message::AddContact),
                 ]
                 .align_y(Center),
-                column(self.contacts.iter().map(|contact| {
-                    ContextMenu::new(
-                        row![
+                scrollable(
+                    column(self.contacts.iter().map(|contact| {
+                        ContextMenu::new(
                             row![
+                                row![
                                 svg(if let Some(status) = &contact.status {
                                     if contact.lists.contains(&MsnpList::BlockList) {
                                         svg::Handle::from_memory(include_bytes!(
@@ -261,59 +262,62 @@ impl Contacts {
                                 })
                                 .width(Fill)
                             ]
+                                .align_y(Center)
+                            ]
                             .align_y(Center)
-                        ]
-                        .align_y(Center)
-                        .spacing(10)
-                        .width(Fill),
-                        || {
-                            let menu_button = |theme: &Theme, status| match status {
-                                button::Status::Hovered | button::Status::Pressed => {
-                                    button::primary(theme, status)
-                                }
+                            .spacing(10)
+                            .width(Fill),
+                            || {
+                                let menu_button = |theme: &Theme, status| match status {
+                                    button::Status::Hovered | button::Status::Pressed => {
+                                        button::primary(theme, status)
+                                    }
 
-                                button::Status::Active | button::Status::Disabled => {
-                                    button::secondary(theme, status)
-                                        .with_background(Color::TRANSPARENT)
-                                }
-                            };
+                                    button::Status::Active | button::Status::Disabled => {
+                                        button::secondary(theme, status)
+                                            .with_background(Color::TRANSPARENT)
+                                    }
+                                };
 
-                            container(column![
-                                if !contact.lists.contains(&MsnpList::BlockList) {
-                                    button(text("Block").size(15))
-                                        .on_press(Message::BlockContact(contact.email.clone()))
+                                container(column![
+                                    if !contact.lists.contains(&MsnpList::BlockList) {
+                                        button(text("Block").size(15))
+                                            .on_press(Message::BlockContact(contact.email.clone()))
+                                            .style(menu_button)
+                                            .width(Fill)
+                                    } else {
+                                        button(text("Unblock").size(15))
+                                            .on_press(Message::UnblockContact(
+                                                contact.email.clone(),
+                                            ))
+                                            .style(menu_button)
+                                            .width(Fill)
+                                    },
+                                    button(text("Delete").size(15))
+                                        .on_press(Message::RemoveContact(contact.email.clone()))
                                         .style(menu_button)
                                         .width(Fill)
-                                } else {
-                                    button(text("Unblock").size(15))
-                                        .on_press(Message::UnblockContact(contact.email.clone()))
-                                        .style(menu_button)
-                                        .width(Fill)
-                                },
-                                button(text("Delete").size(15))
-                                    .on_press(Message::RemoveContact(contact.email.clone()))
-                                    .style(menu_button)
-                                    .width(Fill)
-                            ])
-                            .style(|theme: &Theme| container::Style {
-                                border: Border {
-                                    color: Color::TRANSPARENT,
-                                    width: 0.0,
-                                    radius: radius(2.0),
-                                },
-                                background: Some(Background::Color(
-                                    theme.extended_palette().secondary.base.color,
-                                )),
-                                ..container::Style::default()
-                            })
-                            .width(150)
-                            .into()
-                        },
-                    )
-                    .into()
-                }))
-                .spacing(10)
-                .padding(10)
+                                ])
+                                .style(|theme: &Theme| container::Style {
+                                    border: Border {
+                                        color: Color::TRANSPARENT,
+                                        width: 0.0,
+                                        radius: radius(2.0),
+                                    },
+                                    background: Some(Background::Color(
+                                        theme.extended_palette().secondary.base.color,
+                                    )),
+                                    ..container::Style::default()
+                                })
+                                .width(150)
+                                .into()
+                            },
+                        )
+                        .into()
+                    }))
+                    .spacing(10)
+                    .padding(10)
+                )
             ]
             .spacing(10),
         )
