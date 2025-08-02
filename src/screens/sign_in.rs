@@ -50,8 +50,8 @@ impl SignIn {
         let mut display_picture = None;
 
         let emails = sqlite.select_user_emails().unwrap_or_default();
-        if let Some(last_email) = emails.last() {
-            email = Some(last_email.clone());
+        if let Some(last_email) = emails.first() {
+            email = Some(last_email.to_owned());
             remember_me = true;
 
             if let Ok(entry) = Entry::new("icedm", last_email) {

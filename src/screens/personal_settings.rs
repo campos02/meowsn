@@ -5,6 +5,12 @@ use iced::{Center, Element, Fill, Task};
 use msnp11_sdk::Client;
 use std::sync::Arc;
 
+#[allow(dead_code)]
+pub enum Action {
+    SavePressed(Task<crate::Message>),
+    RunTask(Task<crate::Message>),
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     DisplayNameChanged(String),
@@ -69,7 +75,8 @@ impl PersonalSettings {
         .into()
     }
 
-    pub fn update(&mut self, message: Message) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message) -> Option<Action> {
+        let mut action = None;
         match message {
             Message::DisplayNameChanged(display_name) => self.display_name = display_name,
             Message::ServerChanged(server) => self.server = server,
@@ -90,7 +97,7 @@ impl PersonalSettings {
                     let display_name = self.display_name.clone();
                     let new_display_name = display_name.clone();
 
-                    return Task::batch([
+                    action = Some(Action::SavePressed(Task::batch([
                         Task::perform(
                             async move { client.set_display_name(&display_name).await },
                             crate::Message::EmptyResultFuture,
@@ -100,11 +107,13 @@ impl PersonalSettings {
                                 msnp11_sdk::Event::DisplayName(new_display_name),
                             ),
                         )),
-                    ]);
+                    ])));
+                } else {
+                    action = Some(Action::SavePressed(Task::none()))
                 }
             }
         }
 
-        Task::none()
+        action
     }
 }

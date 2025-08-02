@@ -1,6 +1,6 @@
 use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
-use crate::screens::{add_contact, contacts, conversation, sign_in};
+use crate::screens::{add_contact, contacts, conversation, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use crate::{Message, msnp_listener, sign_in_async};
 use iced::futures::channel::mpsc::Sender;
@@ -108,9 +108,16 @@ impl Window {
                 Task::none()
             }
 
-            Message::PersonalSettings(.., message) => {
-                if let Screen::PersonalSettings(personal_settings) = &mut self.screen {
-                    return personal_settings.update(message);
+            Message::PersonalSettings(id, message) => {
+                if let Screen::PersonalSettings(personal_settings) = &mut self.screen
+                    && let Some(action) = personal_settings.update(message)
+                {
+                    return match action {
+                        personal_settings::Action::RunTask(task) => task,
+                        personal_settings::Action::SavePressed(task) => {
+                            Task::batch([task, window::close::<Message>(id)])
+                        }
+                    };
                 }
 
                 Task::none()
@@ -185,10 +192,11 @@ impl Window {
                 result,
             } => {
                 match result {
-                    Ok((personal_message, client)) => {
+                    Ok((personal_message, initial_status, client)) => {
                         self.screen = Screen::Contacts(contacts::Contacts::new(
                             email,
                             personal_message,
+                            initial_status,
                             client,
                             self.sqlite.clone(),
                             self.msnp_subscription_sender.clone(),

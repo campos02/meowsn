@@ -57,10 +57,18 @@ impl Contacts {
     pub fn new(
         email: Arc<String>,
         personal_message: String,
+        initial_status: MsnpStatus,
         client: Arc<Client>,
         sqlite: Sqlite,
         msnp_subscription_sender: Option<Sender<Input>>,
     ) -> Self {
+        let initial_status = match initial_status {
+            MsnpStatus::Busy => ContactListStatus::Busy,
+            MsnpStatus::Away => ContactListStatus::Away,
+            MsnpStatus::AppearOffline => ContactListStatus::AppearOffline,
+            _ => ContactListStatus::Online,
+        };
+
         if let Ok(user) = sqlite.select_user(&email) {
             if let Some(picture) = user.display_picture {
                 return Self {
@@ -68,7 +76,7 @@ impl Contacts {
                     display_picture: Some(Cow::Owned(picture)),
                     display_name: Arc::new(String::new()),
                     personal_message,
-                    status: Some(ContactListStatus::Online),
+                    status: Some(initial_status),
                     contact_repository: ContactRepository::new(),
                     contacts: Vec::new(),
                     client,
@@ -84,7 +92,7 @@ impl Contacts {
             display_picture: None,
             display_name: Arc::new(String::new()),
             personal_message,
-            status: Some(ContactListStatus::Online),
+            status: Some(initial_status),
             contact_repository: ContactRepository::new(),
             contacts: Vec::new(),
             client,

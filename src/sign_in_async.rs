@@ -10,7 +10,7 @@ pub async fn sign_in_async(
     password: Arc<String>,
     status: Option<SignInStatus>,
     sqlite: Sqlite,
-) -> Result<(String, Arc<Client>), SdkError> {
+) -> Result<(String, MsnpStatus, Arc<Client>), SdkError> {
     let settings = settings::get_settings().unwrap_or_default();
     let mut client = Client::new(&settings.server, 1863).await?;
 
@@ -54,7 +54,7 @@ pub async fn sign_in_async(
         None => MsnpStatus::Online,
     };
 
-    client.set_presence(status).await?;
+    client.set_presence(status.clone()).await?;
 
     let personal_message = PersonalMessage {
         psm: psm.unwrap_or_default(),
@@ -62,5 +62,5 @@ pub async fn sign_in_async(
     };
 
     client.set_personal_message(&personal_message).await?;
-    Ok((personal_message.psm, Arc::new(client)))
+    Ok((personal_message.psm, status, Arc::new(client)))
 }

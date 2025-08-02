@@ -17,7 +17,7 @@ use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp11_sdk::sdk_error::SdkError;
-use msnp11_sdk::{Client, Switchboard};
+use msnp11_sdk::{Client, MsnpStatus, Switchboard};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
@@ -43,7 +43,7 @@ pub enum Message {
     SignedIn {
         id: window::Id,
         email: Arc<String>,
-        result: Result<(String, Arc<Client>), SdkError>,
+        result: Result<(String, MsnpStatus, Arc<Client>), SdkError>,
     },
 
     Contacts(window::Id, contacts::Message),
@@ -227,7 +227,7 @@ impl IcedM {
                 ref result,
             } => {
                 if let Some(sender) = self.msnp_subscription_sender.as_mut()
-                    && let Ok((_, client)) = result
+                    && let Ok((_, _, client)) = result
                 {
                     if let Err(error) = sender.start_send(Input::NewClient(client.clone())) {
                         return Task::done(Message::OpenDialog(error.to_string()));
