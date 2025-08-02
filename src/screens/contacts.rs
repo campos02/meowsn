@@ -17,6 +17,7 @@ use notify_rust::Notification;
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 pub enum Action {
@@ -48,7 +49,7 @@ pub struct Contacts {
     contact_repository: ContactRepository,
     contacts: Vec<Contact>,
     client: Arc<Client>,
-    orphan_switchboards: HashMap<String, SwitchboardAndParticipants>,
+    orphan_switchboards: HashMap<Rc<String>, SwitchboardAndParticipants>,
     sqlite: Sqlite,
     msnp_subscription_sender: Option<Sender<Input>>,
 }
@@ -483,11 +484,17 @@ impl Contacts {
             }
 
             Message::Conversation(contact) => {
-                if contact.status.is_some() {
+                if contact.status.is_some() && self.status != Some(ContactListStatus::AppearOffline)
+                {
                     let mut tasks = Vec::new();
-                    for (_, switchboard) in self.orphan_switchboards.extract_if(|_, switchboard| {
-                        switchboard.participants.contains(&contact.email)
-                    }) {
+                    let mut open_session_id = None;
+
+                    if let Some((session_id, switchboard)) = self
+                        .orphan_switchboards
+                        .iter()
+                        .find(|(_, switchboard)| switchboard.participants.contains(&contact.email))
+                    {
+                        open_session_id = Some(session_id.clone());
                         tasks.push(Task::done(
                             crate::Message::CreateConversationWithSwitchboard {
                                 contact_repository: self.contact_repository.clone(),
@@ -496,6 +503,10 @@ impl Contacts {
                                 switchboard: switchboard.clone(),
                             },
                         ));
+                    }
+
+                    if let Some(open_session_id) = open_session_id {
+                        self.orphan_switchboards.remove(&open_session_id);
                     }
 
                     if !tasks.is_empty() {
@@ -636,7 +647,7 @@ impl Contacts {
                 Event::SessionAnswered(switchboard) => {
                     if let Ok(Some(session_id)) = switchboard.get_session_id() {
                         self.orphan_switchboards.insert(
-                            session_id,
+                            Rc::new(session_id),
                             SwitchboardAndParticipants {
                                 switchboard: switchboard.clone(),
                                 participants: Vec::new(),
@@ -677,7 +688,7 @@ impl Contacts {
                         contact.new_messages = true;
                         let sender = Arc::new(email);
 
-                        if self.orphan_switchboards.contains_key(session_id.as_str()) {
+                        if self.orphan_switchboards.contains_key(&*session_id) {
                             let message = message::Message {
                                 sender: sender.clone(),
                                 receiver: Some(self.email.clone()),
@@ -710,7 +721,7 @@ impl Contacts {
                     if let Some(contact) = contact {
                         contact.new_messages = true;
 
-                        if self.orphan_switchboards.contains_key(session_id.as_str()) {
+                        if self.orphan_switchboards.contains_key(&*session_id) {
                             let message = message::Message {
                                 sender: Arc::new(email),
                                 receiver: Some(self.email.clone()),

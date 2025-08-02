@@ -54,20 +54,19 @@ impl SignIn {
             email = Some(last_email.to_owned());
             remember_me = true;
 
-            if let Ok(entry) = Entry::new("icedm", last_email) {
-                if let Ok(passwd) = entry.get_password() {
-                    password = passwd;
-                    remember_my_password = true;
-                }
+            if let Ok(entry) = Entry::new("icedm", last_email)
+                && let Ok(passwd) = entry.get_password()
+            {
+                password = passwd;
+                remember_my_password = true;
             }
         }
 
-        if let Some(ref email) = email {
-            if let Ok(user) = sqlite.select_user(email) {
-                if let Some(picture) = user.display_picture {
-                    display_picture = Some(Cow::Owned(picture))
-                }
-            }
+        if let Some(ref email) = email
+            && let Ok(user) = sqlite.select_user(email)
+            && let Some(picture) = user.display_picture
+        {
+            display_picture = Some(Cow::Owned(picture))
         }
 
         Self {
@@ -198,17 +197,17 @@ impl SignIn {
             }
 
             Message::EmailSelected(email) => {
-                if let Ok(entry) = Entry::new("icedm", &email) {
-                    if let Ok(passwd) = entry.get_password() {
-                        self.password = passwd;
-                        self.remember_my_password = true;
-                    }
+                if let Ok(entry) = Entry::new("icedm", &email)
+                    && let Ok(passwd) = entry.get_password()
+                {
+                    self.password = passwd;
+                    self.remember_my_password = true;
                 }
 
-                if let Ok(user) = self.sqlite.select_user(&email) {
-                    if let Some(picture) = user.display_picture {
-                        self.display_picture = Some(Cow::Owned(picture))
-                    }
+                if let Ok(user) = self.sqlite.select_user(&email)
+                    && let Some(picture) = user.display_picture
+                {
+                    self.display_picture = Some(Cow::Owned(picture))
                 }
 
                 self.remember_me = true;
@@ -266,9 +265,6 @@ impl SignIn {
             Message::ForgetMe => {
                 if let Some(ref email) = self.email {
                     let _ = self.sqlite.delete_user(email);
-                }
-
-                if let Some(ref email) = self.email {
                     if let Ok(entry) = Entry::new("icedm", email) {
                         let _ = entry.delete_credential();
                     }
