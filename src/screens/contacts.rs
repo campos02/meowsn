@@ -42,7 +42,7 @@ pub enum Message {
 pub struct Contacts {
     email: Arc<String>,
     display_picture: Option<Cow<'static, [u8]>>,
-    display_name: String,
+    display_name: Arc<String>,
     personal_message: String,
     status: Option<ContactListStatus>,
     contact_repository: ContactRepository,
@@ -66,7 +66,7 @@ impl Contacts {
                 return Self {
                     email,
                     display_picture: Some(Cow::Owned(picture)),
-                    display_name: String::new(),
+                    display_name: Arc::new(String::new()),
                     personal_message,
                     status: Some(ContactListStatus::Online),
                     contact_repository: ContactRepository::new(),
@@ -82,7 +82,7 @@ impl Contacts {
         Self {
             email,
             display_picture: None,
-            display_name: String::new(),
+            display_name: Arc::new(String::new()),
             personal_message,
             status: Some(ContactListStatus::Online),
             contact_repository: ContactRepository::new(),
@@ -128,7 +128,7 @@ impl Contacts {
                     },
                     column![
                         row![
-                            text(&self.display_name).size(14),
+                            text(format!(" {}", self.display_name)).size(14),
                             pick_list(
                                 ContactListStatus::ALL,
                                 self.status.as_ref(),
@@ -484,6 +484,7 @@ impl Contacts {
                             crate::Message::CreateConversationWithSwitchboard {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
+                                display_name: self.display_name.clone(),
                                 switchboard: switchboard.clone(),
                             },
                         ));
@@ -496,6 +497,7 @@ impl Contacts {
                             crate::Message::OpenConversation {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
+                                display_name: self.display_name.clone(),
                                 contact_email: contact.email.clone(),
                                 client: self.client.clone(),
                             },
@@ -516,8 +518,10 @@ impl Contacts {
 
             Message::NotificationServerEvent(event) => match event {
                 Event::DisplayName(display_name) => {
-                    self.display_name = display_name;
-                    self.display_name.insert(0, ' ');
+                    self.display_name = Arc::new(display_name);
+                    action = Some(Action::RunTask(Task::done(
+                        crate::Message::UserDisplayNameUpdated(self.display_name.clone()),
+                    )));
                 }
 
                 Event::ContactInForwardList {
@@ -670,7 +674,7 @@ impl Contacts {
                                 sender: sender.clone(),
                                 receiver: Some(self.email.clone()),
                                 is_nudge: true,
-                                text: format!("{sender} sent you a nudge!"),
+                                text: format!("{} just sent you a nudge!", contact.display_name),
                                 bold: false,
                                 italic: false,
                                 underline: false,

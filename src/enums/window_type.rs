@@ -15,6 +15,7 @@ pub enum WindowType {
         contact_repository: ContactRepository,
         switchboard: SwitchboardAndParticipants,
         email: Arc<String>,
+        display_name: Arc<String>,
     },
 
     Dialog(String),

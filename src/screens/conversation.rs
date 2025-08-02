@@ -26,6 +26,7 @@ pub enum Action {
 pub enum Message {
     Edit(text_editor::Action),
     ContactUpdated(Arc<String>),
+    UserDisplayNameUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Box<Event>),
     Focused,
@@ -41,6 +42,7 @@ pub enum Message {
 
 pub struct Conversation {
     user_email: Arc<String>,
+    user_display_name: Arc<String>,
     switchboard: Arc<Switchboard>,
     session_id: String,
     contact_repository: ContactRepository,
@@ -52,7 +54,7 @@ pub struct Conversation {
     message_buffer: Vec<message::Message>,
     sqlite: Sqlite,
     focused: bool,
-    participant_typing: Option<String>,
+    participant_typing: Option<Arc<String>>,
     user_typing: bool,
     bold: bool,
     italic: bool,
@@ -65,6 +67,7 @@ impl Conversation {
         contact_repository: ContactRepository,
         switchboard: SwitchboardAndParticipants,
         user_email: Arc<String>,
+        user_display_name: Arc<String>,
         sqlite: Sqlite,
     ) -> Self {
         let user_display_picture = if let Ok(user) = sqlite.select_user(&user_email)
@@ -112,6 +115,7 @@ impl Conversation {
 
         Self {
             user_email,
+            user_display_name,
             switchboard: switchboard.switchboard,
             session_id,
             contact_repository,
@@ -149,18 +153,17 @@ impl Conversation {
                     row![
                         "To: ",
                         if self.participants.len() == 1 {
-                            let display_name = &self
-                                .participants
-                                .iter()
-                                .next()
-                                .expect("Could not get next contact")
-                                .1
-                                .display_name;
-
-                            text(&**display_name).font(Font {
+                            text(if let Some(contact) = &self.participants.values().next() {
+                                contact.display_name.as_str()
+                            } else {
+                                ""
+                            })
+                            .font(Font {
                                 weight: Weight::Bold,
                                 ..Font::default()
                             })
+                        } else if self.participants.len() > 1 {
+                            text(format!("{} participants", self.participants.len()))
                         } else if let Some(last_participant) = &self.last_participant {
                             text(&*last_participant.display_name).font(Font {
                                 weight: Weight::Bold,
@@ -171,15 +174,14 @@ impl Conversation {
                         },
                         " ",
                         if self.participants.len() == 1 {
-                            let email = &self
-                                .participants
-                                .iter()
-                                .next()
-                                .expect("Could not get next contact")
-                                .1
-                                .email;
-
-                            text(format!("<{email}>"))
+                            text(format!(
+                                "<{}>",
+                                if let Some(email) = &self.participants.keys().next() {
+                                    email.as_str()
+                                } else {
+                                    ""
+                                }
+                            ))
                         } else if let Some(last_participant) = &self.last_participant {
                             text(format!("<{}>", last_participant.email))
                         } else {
@@ -199,12 +201,24 @@ impl Conversation {
                         column![
                             if !message.is_nudge {
                                 row![
-                                    text(&*message.sender)
-                                        .font(Font {
-                                            weight: Weight::Bold,
-                                            ..Font::default()
-                                        })
-                                        .style(history),
+                                    text(if message.sender == self.user_email {
+                                        self.user_display_name.as_str()
+                                    } else if let Some(participant) =
+                                        self.participants.get(&message.sender)
+                                    {
+                                        &*participant.display_name
+                                    } else if let Some(participant) = &self.last_participant
+                                        && participant.email == message.sender
+                                    {
+                                        &*participant.display_name
+                                    } else {
+                                        &*message.sender
+                                    })
+                                    .font(Font {
+                                        weight: Weight::Bold,
+                                        ..Font::default()
+                                    })
+                                    .style(history),
                                     text(" said:").style(history)
                                 ]
                             } else {
@@ -343,25 +357,60 @@ impl Conversation {
                 .spacing(10),
                 column![
                     if self.participants.len() == 1
-                        && let Some(picture) = &self
-                            .participants
-                            .iter()
-                            .next()
-                            .expect("Could not get next contact")
-                            .1
-                            .display_picture
+                        && let Some(contact) = &self.participants.values().next()
+                        && let Some(picture) = contact.display_picture.clone()
                     {
                         container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            picture.clone(),
+                            picture,
                         ))))
                         .width(100)
                         .style(picture_border)
                         .padding(3)
+                    } else if self.participants.len() > 1 {
+                        container(
+                            column(self.participants.values().map(|participant| {
+                                row![
+                                    if let Some(picture) = participant.display_picture.clone() {
+                                        container(widget::image(widget::image::Handle::from_bytes(
+                                            Box::from(picture),
+                                        )))
+                                        .width(40)
+                                        .style(|theme: &Theme| container::Style {
+                                            border: Border {
+                                                color: theme.palette().text,
+                                                width: 1.0,
+                                                radius: radius(5.0),
+                                            },
+                                            ..Default::default()
+                                        })
+                                        .padding(3)
+                                    } else {
+                                        container(svg(svg::Handle::from_memory(default_picture)))
+                                            .width(40)
+                                            .style(|theme: &Theme| container::Style {
+                                                border: Border {
+                                                    color: theme.palette().text,
+                                                    width: 1.0,
+                                                    radius: radius(5.0),
+                                                },
+                                                ..Default::default()
+                                            })
+                                            .padding(3)
+                                    },
+                                    text(&*participant.display_name).size(14)
+                                ]
+                                .spacing(5)
+                                .align_y(Center)
+                                .width(100)
+                                .into()
+                            }))
+                            .spacing(5),
+                        )
                     } else if let Some(last_participant) = &self.last_participant
-                        && let Some(display_picture) = &last_participant.display_picture
+                        && let Some(picture) = &last_participant.display_picture
                     {
                         container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            display_picture.clone(),
+                            picture.clone(),
                         ))))
                         .width(100)
                         .style(picture_border)
@@ -538,10 +587,20 @@ impl Conversation {
                 self.user_display_picture = Some(picture);
             }
 
+            Message::UserDisplayNameUpdated(display_name) => {
+                self.user_display_name = display_name;
+            }
+
             Message::MsnpEvent(event) => match *event {
                 Event::TypingNotification { email } => {
                     if self.participant_typing.is_none() {
-                        self.participant_typing = Some(email);
+                        self.participant_typing =
+                            if let Some(participant) = self.participants.get(&email) {
+                                Some(participant.display_name.clone())
+                            } else {
+                                Some(Arc::new(email))
+                            };
+
                         action = Some(Action::ParticipantTypingTimeout);
                     }
                 }
@@ -564,7 +623,23 @@ impl Conversation {
                     let _ = self.sqlite.insert_message(&message);
                     if !self.focused {
                         let _ = Notification::new()
-                            .summary(format!("{} said:", message.sender).as_str())
+                            .summary(
+                                format!(
+                                    "{} said:",
+                                    if let Some(participant) =
+                                        self.participants.get(&message.sender)
+                                    {
+                                        &participant.display_name
+                                    } else if let Some(participant) = &self.last_participant
+                                        && participant.email == message.sender
+                                    {
+                                        &*participant.display_name
+                                    } else {
+                                        &message.sender
+                                    }
+                                )
+                                .as_str(),
+                            )
                             .body(&message.text)
                             .show();
                     }
@@ -579,7 +654,18 @@ impl Conversation {
                         sender: sender.clone(),
                         receiver: Some(self.user_email.clone()),
                         is_nudge: true,
-                        text: format!("{sender} just sent you a nudge!"),
+                        text: format!(
+                            "{} just sent you a nudge!",
+                            if let Some(participant) = self.participants.get(&sender) {
+                                &participant.display_name
+                            } else if let Some(participant) = &self.last_participant
+                                && participant.email == sender
+                            {
+                                &*participant.display_name
+                            } else {
+                                &sender
+                            }
+                        ),
                         bold: false,
                         italic: false,
                         underline: false,

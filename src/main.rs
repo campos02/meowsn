@@ -61,17 +61,20 @@ pub enum Message {
         result: Result<Arc<Switchboard>, SdkError>,
         contact_email: Arc<String>,
         email: Arc<String>,
+        display_name: Arc<String>,
     },
 
     CreateConversationWithSwitchboard {
         contact_repository: ContactRepository,
         email: Arc<String>,
+        display_name: Arc<String>,
         switchboard: SwitchboardAndParticipants,
     },
 
     OpenConversation {
         contact_repository: ContactRepository,
         email: Arc<String>,
+        display_name: Arc<String>,
         contact_email: Arc<String>,
         client: Arc<Client>,
     },
@@ -84,6 +87,7 @@ pub enum Message {
     EventFuture(Result<msnp11_sdk::Event, SdkError>),
     ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Option<Cow<'static, [u8]>>),
+    UserDisplayNameUpdated(Arc<String>),
     FocusNext,
     FocusPrevious,
 }
@@ -136,10 +140,12 @@ impl IcedM {
                         contact_repository,
                         switchboard,
                         email,
+                        display_name,
                     } => Screen::Conversation(conversation::Conversation::new(
                         contact_repository,
                         switchboard,
                         email,
+                        display_name,
                         self.sqlite.clone(),
                     )),
 
@@ -266,6 +272,7 @@ impl IcedM {
             Message::OpenConversation {
                 contact_repository,
                 email,
+                display_name,
                 contact_email,
                 client,
             } => {
@@ -292,6 +299,7 @@ impl IcedM {
                             result: result.map(Arc::new),
                             contact_email: contact.clone(),
                             email: email.clone(),
+                            display_name: display_name.clone(),
                         },
                     )
                 }
@@ -302,6 +310,7 @@ impl IcedM {
                 result,
                 contact_email: mut contact,
                 mut email,
+                mut display_name,
             } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
@@ -326,6 +335,7 @@ impl IcedM {
                                         participants: vec![std::mem::take(&mut contact)],
                                     },
                                     email: std::mem::take(&mut email),
+                                    display_name: std::mem::take(&mut display_name),
                                 },
                             )
                         })
@@ -338,6 +348,7 @@ impl IcedM {
             Message::CreateConversationWithSwitchboard {
                 mut contact_repository,
                 mut email,
+                mut display_name,
                 switchboard,
             } => {
                 if self.windows.keys().last().is_none() {
@@ -352,6 +363,7 @@ impl IcedM {
                             contact_repository: std::mem::take(&mut contact_repository),
                             switchboard: switchboard.clone(),
                             email: std::mem::take(&mut email),
+                            display_name: std::mem::take(&mut display_name),
                         },
                     )
                 })
@@ -522,6 +534,24 @@ impl IcedM {
 
                             _ => (),
                         }
+                    }
+                }
+
+                Task::batch(tasks)
+            }
+
+            Message::UserDisplayNameUpdated(display_name) => {
+                if self.windows.keys().last().is_none() {
+                    return Task::none();
+                };
+
+                let mut tasks = Vec::new();
+                for (id, window) in self.windows.iter_mut() {
+                    if matches!(window.get_screen(), Screen::Conversation(..)) {
+                        tasks.push(window.update(Message::Conversation(
+                            *id,
+                            conversation::Message::UserDisplayNameUpdated(display_name.clone()),
+                        )));
                     }
                 }
 
