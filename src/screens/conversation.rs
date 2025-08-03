@@ -451,19 +451,14 @@ impl Conversation {
                     let message = message::Message {
                         sender: self.user_email.clone(),
                         receiver: if self.participants.len() == 1 {
-                            Some(
-                                self.participants
-                                    .iter()
-                                    .next()
-                                    .expect("Could not get next contact")
-                                    .1
-                                    .email
-                                    .clone(),
-                            )
-                        } else if self.participants.is_empty()
-                            && let Some(last_participant) = &self.last_participant
-                        {
-                            Some(last_participant.email.clone())
+                            self.participants
+                                .values()
+                                .next()
+                                .map(|participant| participant.email.clone())
+                        } else if self.participants.is_empty() {
+                            self.last_participant
+                                .as_ref()
+                                .map(|participant| participant.email.clone())
                         } else {
                             None
                         },
@@ -528,19 +523,14 @@ impl Conversation {
                 let message = message::Message {
                     sender: self.user_email.clone(),
                     receiver: if self.participants.len() == 1 {
-                        Some(
-                            self.participants
-                                .iter()
-                                .next()
-                                .expect("Could not get next contact")
-                                .1
-                                .email
-                                .clone(),
-                        )
-                    } else if self.participants.is_empty()
-                        && let Some(last_participant) = &self.last_participant
-                    {
-                        Some(last_participant.email.clone())
+                        self.participants
+                            .values()
+                            .next()
+                            .map(|participant| participant.email.clone())
+                    } else if self.participants.is_empty() {
+                        self.last_participant
+                            .as_ref()
+                            .map(|participant| participant.email.clone())
                     } else {
                         None
                     },

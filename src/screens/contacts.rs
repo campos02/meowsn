@@ -414,7 +414,7 @@ impl Contacts {
                             client: Some(self.client.clone()),
                             display_name: Some(self.display_name.trim().to_string()),
                         },
-                    )))
+                    )));
                 }
 
                 ContactListStatus::SignOut => {
