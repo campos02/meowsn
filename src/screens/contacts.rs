@@ -777,7 +777,7 @@ impl Contacts {
 
                             let _ = self.sqlite.insert_message(&message);
                             let _ = Notification::new()
-                                .summary(format!("{} said:", message.sender).as_str())
+                                .summary(format!("{} said:", contact.display_name).as_str())
                                 .body(&message.text)
                                 .show();
                         }

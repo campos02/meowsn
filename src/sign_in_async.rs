@@ -31,7 +31,7 @@ pub async fn sign_in_async(
                 &password,
                 &settings.nexus_url,
                 "icedm",
-                "0.1.1",
+                "0.2.1",
             )
             .await?;
     }

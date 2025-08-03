@@ -416,7 +416,8 @@ impl Conversation {
                         .style(picture_border)
                         .padding(3)
                     } else {
-                        container(svg(svg::Handle::from_memory(default_picture)).width(100))
+                        container(svg(svg::Handle::from_memory(default_picture)))
+                            .width(100)
                             .style(picture_border)
                             .padding(3)
                     },
