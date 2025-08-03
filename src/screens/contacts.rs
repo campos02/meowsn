@@ -10,7 +10,7 @@ use iced::border::radius;
 use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
-use iced::{Background, Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
+use iced::{Background, Border, Center, Color, Element, Fill, Font, Padding, Task, Theme, widget};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use notify_rust::Notification;
@@ -47,7 +47,8 @@ pub struct Contacts {
     personal_message: String,
     status: Option<ContactListStatus>,
     contact_repository: ContactRepository,
-    contacts: Vec<Contact>,
+    online_contacts: HashMap<Arc<String>, Contact>,
+    offline_contacts: HashMap<Arc<String>, Contact>,
     client: Arc<Client>,
     orphan_switchboards: HashMap<Rc<String>, SwitchboardAndParticipants>,
     sqlite: Sqlite,
@@ -79,7 +80,8 @@ impl Contacts {
                     personal_message,
                     status: Some(initial_status),
                     contact_repository: ContactRepository::new(),
-                    contacts: Vec::new(),
+                    online_contacts: HashMap::new(),
+                    offline_contacts: HashMap::new(),
                     client,
                     orphan_switchboards: HashMap::new(),
                     sqlite,
@@ -95,7 +97,8 @@ impl Contacts {
             personal_message,
             status: Some(initial_status),
             contact_repository: ContactRepository::new(),
-            contacts: Vec::new(),
+            online_contacts: HashMap::new(),
+            offline_contacts: HashMap::new(),
             client,
             orphan_switchboards: HashMap::new(),
             sqlite,
@@ -210,127 +213,148 @@ impl Contacts {
                         .on_press(Message::AddContact),
                 ]
                 .align_y(Center),
-                scrollable(
-                    column(self.contacts.iter().map(|contact| {
-                        ContextMenu::new(
-                            row![
-                                row![
-                                svg(if let Some(status) = &contact.status {
-                                    if contact.lists.contains(&MsnpList::BlockList) {
-                                        svg::Handle::from_memory(include_bytes!(
-                                            "../../assets/default_display_picture_blocked.svg"
-                                        ))
-                                    } else {
-                                        match status.status {
-                                            MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                                svg::Handle::from_memory(include_bytes!(
-                                                    "../../assets/default_display_picture_busy.svg"
-                                                ))
-                                            }
-
-                                            MsnpStatus::Away
-                                            | MsnpStatus::Idle
-                                            | MsnpStatus::BeRightBack
-                                            | MsnpStatus::OutToLunch => {
-                                                svg::Handle::from_memory(include_bytes!(
-                                                    "../../assets/default_display_picture_away.svg"
-                                                ))
-                                            }
-
-                                            _ => svg::Handle::from_memory(default_picture),
-                                        }
-                                    }
-                                } else if contact.lists.contains(&MsnpList::BlockList) {
-                                    svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_offline_blocked.svg"
-                                    ))
-                                } else {
-                                    svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_offline.svg"
-                                    ))
-                                })
-                                .width(30),
-                                button(if contact.new_messages {
-                                    text(&*contact.display_name).font(Font {
-                                        weight: Weight::Bold,
-                                        ..Font::default()
-                                    })
-                                } else {
-                                    text(&*contact.display_name)
-                                })
-                                .on_press(Message::Conversation(contact.clone()))
-                                .style(|theme: &Theme, status| match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::secondary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                })
-                                .width(Fill)
-                            ]
-                                .align_y(Center)
-                            ]
-                            .align_y(Center)
-                            .spacing(10)
-                            .width(Fill),
-                            || {
-                                let menu_button = |theme: &Theme, status| match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                };
-
-                                container(column![
-                                    if !contact.lists.contains(&MsnpList::BlockList) {
-                                        button(text("Block").size(15))
-                                            .on_press(Message::BlockContact(contact.email.clone()))
-                                            .style(menu_button)
-                                            .width(Fill)
-                                    } else {
-                                        button(text("Unblock").size(15))
-                                            .on_press(Message::UnblockContact(
-                                                contact.email.clone(),
-                                            ))
-                                            .style(menu_button)
-                                            .width(Fill)
-                                    },
-                                    button(text("Delete").size(15))
-                                        .on_press(Message::RemoveContact(contact.email.clone()))
-                                        .style(menu_button)
-                                        .width(Fill)
-                                ])
-                                .style(|theme: &Theme| container::Style {
-                                    border: Border {
-                                        color: Color::TRANSPARENT,
-                                        width: 0.0,
-                                        radius: radius(2.0),
-                                    },
-                                    background: Some(Background::Color(
-                                        theme.extended_palette().secondary.base.color,
-                                    )),
-                                    ..container::Style::default()
-                                })
-                                .width(150)
-                                .into()
-                            },
-                        )
-                        .into()
-                    }))
+                scrollable(column![
+                    column(
+                        self.online_contacts
+                            .values()
+                            .map(|contact| Self::contact_map(
+                                contact,
+                                Cow::Borrowed(default_picture)
+                            ))
+                    )
+                    .spacing(10)
+                    .padding(Padding {
+                        top: 10.0,
+                        right: 10.0,
+                        bottom: 0.0,
+                        left: 10.0,
+                    }),
+                    column(
+                        self.offline_contacts
+                            .values()
+                            .map(|contact| Self::contact_map(
+                                contact,
+                                Cow::Borrowed(default_picture)
+                            ))
+                    )
                     .spacing(10)
                     .padding(10)
-                )
+                ])
             ]
             .spacing(10),
         )
         .padding(15)
+        .into()
+    }
+
+    fn contact_map<'a>(
+        contact: &'a Contact,
+        default_picture: Cow<'static, [u8]>,
+    ) -> Element<'a, Message> {
+        ContextMenu::new(
+            row![
+                row![
+                    svg(if let Some(status) = &contact.status {
+                        if contact.lists.contains(&MsnpList::BlockList) {
+                            svg::Handle::from_memory(include_bytes!(
+                                "../../assets/default_display_picture_blocked.svg"
+                            ))
+                        } else {
+                            match status.status {
+                                MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                    svg::Handle::from_memory(include_bytes!(
+                                        "../../assets/default_display_picture_busy.svg"
+                                    ))
+                                }
+
+                                MsnpStatus::Away
+                                | MsnpStatus::Idle
+                                | MsnpStatus::BeRightBack
+                                | MsnpStatus::OutToLunch => svg::Handle::from_memory(
+                                    include_bytes!("../../assets/default_display_picture_away.svg"),
+                                ),
+
+                                _ => svg::Handle::from_memory(default_picture),
+                            }
+                        }
+                    } else if contact.lists.contains(&MsnpList::BlockList) {
+                        svg::Handle::from_memory(include_bytes!(
+                            "../../assets/default_display_picture_offline_blocked.svg"
+                        ))
+                    } else {
+                        svg::Handle::from_memory(include_bytes!(
+                            "../../assets/default_display_picture_offline.svg"
+                        ))
+                    })
+                    .width(30),
+                    button(if contact.new_messages {
+                        text(&*contact.display_name).font(Font {
+                            weight: Weight::Bold,
+                            ..Font::default()
+                        })
+                    } else {
+                        text(&*contact.display_name)
+                    })
+                    .on_press(Message::Conversation(contact.clone()))
+                    .style(|theme: &Theme, status| match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            button::secondary(theme, status)
+                        }
+
+                        button::Status::Active | button::Status::Disabled => {
+                            button::secondary(theme, status).with_background(Color::TRANSPARENT)
+                        }
+                    })
+                    .width(Fill)
+                ]
+                .align_y(Center)
+            ]
+            .align_y(Center)
+            .spacing(10)
+            .width(Fill),
+            || {
+                let menu_button = |theme: &Theme, status| match status {
+                    button::Status::Hovered | button::Status::Pressed => {
+                        button::primary(theme, status)
+                    }
+
+                    button::Status::Active | button::Status::Disabled => {
+                        button::secondary(theme, status).with_background(Color::TRANSPARENT)
+                    }
+                };
+
+                container(column![
+                    if !contact.lists.contains(&MsnpList::BlockList) {
+                        button(text("Block").size(15))
+                            .on_press(Message::BlockContact(contact.email.clone()))
+                            .style(menu_button)
+                            .width(Fill)
+                    } else {
+                        button(text("Unblock").size(15))
+                            .on_press(Message::UnblockContact(contact.email.clone()))
+                            .style(menu_button)
+                            .width(Fill)
+                    },
+                    button(text("Delete").size(15))
+                        .on_press(Message::RemoveContact(contact.email.clone()))
+                        .style(menu_button)
+                        .width(Fill)
+                ])
+                .style(|theme: &Theme| container::Style {
+                    border: Border {
+                        color: Color::TRANSPARENT,
+                        width: 0.0,
+                        radius: radius(2.0),
+                    },
+                    background: Some(Background::Color(
+                        theme.extended_palette().secondary.base.color,
+                    )),
+                    ..container::Style::default()
+                })
+                .width(150)
+                .into()
+            },
+        )
         .into()
     }
 
@@ -420,10 +444,11 @@ impl Contacts {
             },
 
             Message::BlockContact(email) => {
-                let contact = self
-                    .contacts
-                    .iter_mut()
-                    .find(|contact| *contact.email == *email);
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
 
                 if let Some(contact) = contact {
                     contact.lists.push(MsnpList::BlockList);
@@ -440,10 +465,11 @@ impl Contacts {
             }
 
             Message::UnblockContact(email) => {
-                let contact = self
-                    .contacts
-                    .iter_mut()
-                    .find(|contact| *contact.email == *email);
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
 
                 if let Some(contact) = contact {
                     contact.lists.retain(|list| list != &MsnpList::BlockList);
@@ -460,14 +486,16 @@ impl Contacts {
             }
 
             Message::RemoveContact(email) => {
-                let contact = self
-                    .contacts
-                    .iter_mut()
-                    .position(|contact| *contact.email == *email);
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
 
                 if let Some(contact) = contact {
-                    let guid = self.contacts[contact].guid.clone();
-                    self.contacts.remove(contact);
+                    let guid = contact.guid.clone();
+                    self.online_contacts.remove(&email);
+                    self.offline_contacts.remove(&email);
 
                     let client = self.client.clone();
                     action = Some(Action::RunTask(Task::perform(
@@ -523,11 +551,12 @@ impl Contacts {
                         )));
                     }
 
-                    let contact_email = contact.email.as_ref();
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == *contact_email);
+                    let contact =
+                        if let Some(contact) = self.online_contacts.get_mut(&contact.email) {
+                            Some(contact)
+                        } else {
+                            self.offline_contacts.get_mut(&contact.email)
+                        };
 
                     if let Some(contact) = contact {
                         contact.new_messages = false;
@@ -561,7 +590,9 @@ impl Contacts {
                         new_messages: false,
                     };
 
-                    self.contacts.push(contact.clone());
+                    self.offline_contacts
+                        .insert(contact.email.clone(), contact.clone());
+
                     self.contact_repository.add_contacts(&[contact]);
                 }
 
@@ -570,13 +601,14 @@ impl Contacts {
                     display_name,
                     presence,
                 } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
                     let mut previous_status = None;
-                    if let Some(contact) = contact {
+                    if let Some(contact) = &mut contact {
                         if let Some(msn_object) = &presence.msn_object
                             && msn_object.object_type == 3
                         {
@@ -601,10 +633,11 @@ impl Contacts {
                         self.contact_repository.update_contacts(&[contact.clone()]);
                     }
 
-                    // Sort only if the contact was previously offline
-                    if previous_status.is_none() {
-                        self.contacts
-                            .sort_unstable_by_key(|contact| contact.status.is_none());
+                    if let Some(contact) = contact.cloned()
+                        && previous_status.is_none()
+                    {
+                        self.offline_contacts.remove(&email);
+                        self.online_contacts.insert(contact.email.clone(), contact);
                     }
                 }
 
@@ -612,10 +645,11 @@ impl Contacts {
                     email,
                     personal_message,
                 } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
                     if let Some(contact) = contact {
                         contact.personal_message = Some(Arc::new(personal_message.psm));
@@ -626,12 +660,13 @@ impl Contacts {
                 }
 
                 Event::ContactOffline { email } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
-                    if let Some(contact) = contact {
+                    if let Some(contact) = &mut contact {
                         contact.status = None;
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
                             contact.email.clone(),
@@ -640,8 +675,10 @@ impl Contacts {
                         self.contact_repository.update_contacts(&[contact.clone()]);
                     }
 
-                    self.contacts
-                        .sort_unstable_by_key(|contact| contact.status.is_none());
+                    if let Some(contact) = contact.cloned() {
+                        self.online_contacts.remove(&email);
+                        self.offline_contacts.insert(contact.email.clone(), contact);
+                    }
                 }
 
                 Event::SessionAnswered(switchboard) => {
@@ -679,10 +716,11 @@ impl Contacts {
                 }
 
                 Event::Nudge { email } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
                     if let Some(contact) = contact {
                         contact.new_messages = true;
@@ -713,10 +751,11 @@ impl Contacts {
                 }
 
                 Event::TextMessage { email, message } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
                     if let Some(contact) = contact {
                         contact.new_messages = true;
@@ -746,10 +785,11 @@ impl Contacts {
                 }
 
                 Event::DisplayPicture { email, data } => {
-                    let contact = self
-                        .contacts
-                        .iter_mut()
-                        .find(|contact| *contact.email == email);
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
                     if let Some(contact) = contact {
                         if let Some(status) = &contact.status
