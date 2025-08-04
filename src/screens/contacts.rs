@@ -422,7 +422,7 @@ impl Contacts {
                     action = Some(Action::SignOut(Task::perform(
                         async move { client.disconnect().await },
                         crate::Message::EmptyResultFuture,
-                    )))
+                    )));
                 }
 
                 _ => {

@@ -401,7 +401,7 @@ impl Conversation {
                                 ]
                                 .spacing(5)
                                 .align_y(Center)
-                                .width(100)
+                                .width(110)
                                 .into()
                             }))
                             .spacing(5),
