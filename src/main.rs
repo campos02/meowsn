@@ -598,7 +598,7 @@ impl IcedM {
     fn title(&self, window_id: window::Id) -> String {
         if let Some(window) = self.windows.get(&window_id) {
             match window.get_screen() {
-                Screen::Conversation(..) => "Conversation".to_string(),
+                Screen::Conversation(conversation) => conversation.get_title(),
                 Screen::AddContact(..) => "Add new contact".to_string(),
                 Screen::PersonalSettings(..) => "Personal settings".to_string(),
                 _ => "icedm".to_string(),

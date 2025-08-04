@@ -788,6 +788,27 @@ impl Conversation {
         &self.session_id
     }
 
+    pub fn get_title(&self) -> String {
+        if !self.participants.is_empty() {
+            let mut title = "".to_string();
+            for participant in self.participants.values() {
+                title.push_str(&participant.display_name);
+                title.push_str(", ");
+            }
+
+            title.pop();
+            title.pop();
+            title.push_str(" - Conversation");
+            title
+        } else if let Some(last_participant) = &self.last_participant {
+            let mut title = (*last_participant.display_name).clone();
+            title.push_str(" - Conversation");
+            title
+        } else {
+            "Conversation".to_string()
+        }
+    }
+
     pub fn leave_switchboard_task(&self) -> Task<crate::Message> {
         let switchboard = self.switchboard.clone();
         Task::perform(
