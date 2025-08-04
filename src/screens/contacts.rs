@@ -514,31 +514,22 @@ impl Contacts {
             Message::Conversation(contact) => {
                 if contact.status.is_some() && self.status != Some(ContactListStatus::AppearOffline)
                 {
-                    let mut tasks = Vec::new();
                     let mut open_session_id = None;
-
                     if let Some((session_id, switchboard)) = self
                         .orphan_switchboards
                         .iter()
                         .find(|(_, switchboard)| switchboard.participants.contains(&contact.email))
                     {
                         open_session_id = Some(session_id.clone());
-                        tasks.push(Task::done(
+                        action = Some(Action::RunTask(Task::done(
                             crate::Message::CreateConversationWithSwitchboard {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
                                 display_name: self.display_name.clone(),
                                 switchboard: switchboard.clone(),
+                                minimized: false,
                             },
-                        ));
-                    }
-
-                    if let Some(open_session_id) = open_session_id {
-                        self.orphan_switchboards.remove(&open_session_id);
-                    }
-
-                    if !tasks.is_empty() {
-                        action = Some(Action::RunTask(Task::batch(tasks)));
+                        )));
                     } else {
                         action = Some(Action::RunTask(Task::done(
                             crate::Message::OpenConversation {
@@ -549,6 +540,10 @@ impl Contacts {
                                 client: self.client.clone(),
                             },
                         )));
+                    }
+
+                    if let Some(open_session_id) = open_session_id {
+                        self.orphan_switchboards.remove(&open_session_id);
                     }
 
                     let contact =
@@ -716,71 +711,120 @@ impl Contacts {
                 }
 
                 Event::Nudge { email } => {
-                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    let sender = Arc::new(email);
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&sender) {
                         Some(contact)
                     } else {
-                        self.offline_contacts.get_mut(&email)
+                        self.offline_contacts.get_mut(&sender)
                     };
 
-                    if let Some(contact) = contact {
+                    let message = message::Message {
+                        sender: sender.clone(),
+                        receiver: Some(self.email.clone()),
+                        is_nudge: true,
+                        text: format!(
+                            "{} just sent you a nudge!",
+                            if let Some(ref contact) = contact {
+                                &contact.display_name
+                            } else {
+                                &sender
+                            }
+                        ),
+                        bold: false,
+                        italic: false,
+                        underline: false,
+                        strikethrough: false,
+                        session_id: Some(session_id.clone()),
+                        color: "0".to_string(),
+                        is_history: true,
+                    };
+
+                    let _ = self.sqlite.insert_message(&message);
+                    let _ = Notification::new()
+                        .summary("New message")
+                        .body(&message.text)
+                        .show();
+
+                    if let Some(contact) = &mut contact {
                         contact.new_messages = true;
-                        let sender = Arc::new(email);
+                    }
 
-                        if self.orphan_switchboards.contains_key(&*session_id) {
-                            let message = message::Message {
-                                sender: sender.clone(),
-                                receiver: Some(self.email.clone()),
-                                is_nudge: true,
-                                text: format!("{} just sent you a nudge!", contact.display_name),
-                                bold: false,
-                                italic: false,
-                                underline: false,
-                                strikethrough: false,
-                                session_id: Some(session_id),
-                                color: "0".to_string(),
-                                is_history: true,
-                            };
-
-                            let _ = self.sqlite.insert_message(&message);
-                            let _ = Notification::new()
-                                .summary("New message")
-                                .body(&message.text)
-                                .show();
-                        }
+                    if let Some((_, switchboard)) = self
+                        .orphan_switchboards
+                        .extract_if(|sess_id, switchboard| {
+                            **sess_id == *session_id
+                                && (switchboard.participants.len() > 1 || contact.is_none())
+                        })
+                        .next()
+                    {
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::CreateConversationWithSwitchboard {
+                                contact_repository: self.contact_repository.clone(),
+                                email: self.email.clone(),
+                                display_name: self.display_name.clone(),
+                                switchboard: switchboard.clone(),
+                                minimized: true,
+                            },
+                        )));
                     }
                 }
 
                 Event::TextMessage { email, message } => {
-                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    let sender = Arc::new(email);
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&sender) {
                         Some(contact)
                     } else {
-                        self.offline_contacts.get_mut(&email)
+                        self.offline_contacts.get_mut(&sender)
                     };
 
-                    if let Some(contact) = contact {
+                    let message = message::Message {
+                        sender: sender.clone(),
+                        receiver: Some(self.email.clone()),
+                        is_nudge: false,
+                        text: message.text,
+                        bold: message.bold,
+                        italic: message.italic,
+                        underline: message.underline,
+                        strikethrough: message.strikethrough,
+                        session_id: Some(session_id.clone()),
+                        color: message.color,
+                        is_history: true,
+                    };
+
+                    let _ = self.sqlite.insert_message(&message);
+                    let _ = Notification::new()
+                        .summary(&format!(
+                            "{} said:",
+                            if let Some(ref contact) = contact {
+                                &contact.display_name
+                            } else {
+                                &sender
+                            }
+                        ))
+                        .body(&message.text)
+                        .show();
+
+                    if let Some(contact) = &mut contact {
                         contact.new_messages = true;
+                    }
 
-                        if self.orphan_switchboards.contains_key(&*session_id) {
-                            let message = message::Message {
-                                sender: Arc::new(email),
-                                receiver: Some(self.email.clone()),
-                                is_nudge: false,
-                                text: message.text,
-                                bold: message.bold,
-                                italic: message.italic,
-                                underline: message.underline,
-                                strikethrough: message.strikethrough,
-                                session_id: Some(session_id),
-                                color: message.color,
-                                is_history: true,
-                            };
-
-                            let _ = self.sqlite.insert_message(&message);
-                            let _ = Notification::new()
-                                .summary(format!("{} said:", contact.display_name).as_str())
-                                .body(&message.text)
-                                .show();
-                        }
+                    if let Some((_, switchboard)) = self
+                        .orphan_switchboards
+                        .extract_if(|sess_id, switchboard| {
+                            **sess_id == *session_id
+                                && (switchboard.participants.len() > 1 || contact.is_none())
+                        })
+                        .next()
+                    {
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::CreateConversationWithSwitchboard {
+                                contact_repository: self.contact_repository.clone(),
+                                email: self.email.clone(),
+                                display_name: self.display_name.clone(),
+                                switchboard: switchboard.clone(),
+                                minimized: true,
+                            },
+                        )));
                     }
                 }
 

@@ -69,6 +69,7 @@ pub enum Message {
         email: Arc<String>,
         display_name: Arc<String>,
         switchboard: SwitchboardAndParticipants,
+        minimized: bool,
     },
 
     OpenConversation {
@@ -108,7 +109,8 @@ struct IcedM {
 impl IcedM {
     fn new() -> (Self, Task<Message>) {
         let sqlite = Sqlite::new().expect("Could not create database");
-        let (_id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
+        let (_, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
+
         (
             Self {
                 windows: BTreeMap::new(),
@@ -322,7 +324,7 @@ impl IcedM {
                             let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
                         }
 
-                        let (_id, open) =
+                        let (_, open) =
                             window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
 
                         open.map(move |id| {
@@ -350,12 +352,13 @@ impl IcedM {
                 mut email,
                 mut display_name,
                 switchboard,
+                minimized,
             } => {
                 if self.windows.keys().last().is_none() {
                     return Task::none();
                 };
 
-                let (_, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
+                let (id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
                 open.map(move |id| {
                     Message::WindowOpened(
                         id,
@@ -367,6 +370,7 @@ impl IcedM {
                         },
                     )
                 })
+                .chain(window::minimize(id, minimized))
             }
 
             Message::OpenDialog(mut message) => {
