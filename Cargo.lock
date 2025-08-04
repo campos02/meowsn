@@ -3072,9 +3072,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f64e78be867804366d84dc7b6a114b8c694c94d5c6f074f9375f0b3daa86c85"
+checksum = "871a8d1fcb80cecea4fab7f9e46cec3d7672bf64a70b7a83918589d4ed7581da"
 dependencies = [
  "async-channel 2.4.0",
  "async-trait",
