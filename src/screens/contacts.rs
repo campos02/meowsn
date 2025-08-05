@@ -214,21 +214,20 @@ impl Contacts {
                 ]
                 .align_y(Center),
                 scrollable(column![
-                    column(
-                        self.online_contacts
-                            .values()
-                            .map(|contact| Self::contact_map(
-                                contact,
-                                Cow::Borrowed(default_picture)
-                            ))
-                    )
-                    .spacing(10)
-                    .padding(Padding {
-                        top: 10.0,
-                        right: 10.0,
-                        bottom: 0.0,
-                        left: 10.0,
-                    }),
+                    if !self.online_contacts.is_empty() {
+                        column(self.online_contacts.values().map(|contact| {
+                            Self::contact_map(contact, Cow::Borrowed(default_picture))
+                        }))
+                        .spacing(10)
+                        .padding(Padding {
+                            top: 10.0,
+                            right: 10.0,
+                            bottom: 0.0,
+                            left: 10.0,
+                        })
+                    } else {
+                        column![].height(0).padding(0)
+                    },
                     column(
                         self.offline_contacts
                             .values()
@@ -718,32 +717,34 @@ impl Contacts {
                         self.offline_contacts.get_mut(&sender)
                     };
 
-                    let message = message::Message {
-                        sender: sender.clone(),
-                        receiver: Some(self.email.clone()),
-                        is_nudge: true,
-                        text: format!(
-                            "{} just sent you a nudge!",
-                            if let Some(ref contact) = contact {
-                                &contact.display_name
-                            } else {
-                                &sender
-                            }
-                        ),
-                        bold: false,
-                        italic: false,
-                        underline: false,
-                        strikethrough: false,
-                        session_id: Some(session_id.clone()),
-                        color: "0".to_string(),
-                        is_history: true,
-                    };
+                    if self.orphan_switchboards.contains_key(&*session_id) {
+                        let message = message::Message {
+                            sender: sender.clone(),
+                            receiver: Some(self.email.clone()),
+                            is_nudge: true,
+                            text: format!(
+                                "{} just sent you a nudge!",
+                                if let Some(ref contact) = contact {
+                                    &contact.display_name
+                                } else {
+                                    &sender
+                                }
+                            ),
+                            bold: false,
+                            italic: false,
+                            underline: false,
+                            strikethrough: false,
+                            session_id: Some(session_id.clone()),
+                            color: "0".to_string(),
+                            is_history: true,
+                        };
 
-                    let _ = self.sqlite.insert_message(&message);
-                    let _ = Notification::new()
-                        .summary("New message")
-                        .body(&message.text)
-                        .show();
+                        let _ = self.sqlite.insert_message(&message);
+                        let _ = Notification::new()
+                            .summary("New message")
+                            .body(&message.text)
+                            .show();
+                    }
 
                     if let Some(contact) = &mut contact {
                         contact.new_messages = true;
@@ -777,32 +778,34 @@ impl Contacts {
                         self.offline_contacts.get_mut(&sender)
                     };
 
-                    let message = message::Message {
-                        sender: sender.clone(),
-                        receiver: Some(self.email.clone()),
-                        is_nudge: false,
-                        text: message.text,
-                        bold: message.bold,
-                        italic: message.italic,
-                        underline: message.underline,
-                        strikethrough: message.strikethrough,
-                        session_id: Some(session_id.clone()),
-                        color: message.color,
-                        is_history: true,
-                    };
+                    if self.orphan_switchboards.contains_key(&*session_id) {
+                        let message = message::Message {
+                            sender: sender.clone(),
+                            receiver: Some(self.email.clone()),
+                            is_nudge: false,
+                            text: message.text,
+                            bold: message.bold,
+                            italic: message.italic,
+                            underline: message.underline,
+                            strikethrough: message.strikethrough,
+                            session_id: Some(session_id.clone()),
+                            color: message.color,
+                            is_history: true,
+                        };
 
-                    let _ = self.sqlite.insert_message(&message);
-                    let _ = Notification::new()
-                        .summary(&format!(
-                            "{} said:",
-                            if let Some(ref contact) = contact {
-                                &contact.display_name
-                            } else {
-                                &sender
-                            }
-                        ))
-                        .body(&message.text)
-                        .show();
+                        let _ = self.sqlite.insert_message(&message);
+                        let _ = Notification::new()
+                            .summary(&format!(
+                                "{} said:",
+                                if let Some(ref contact) = contact {
+                                    &contact.display_name
+                                } else {
+                                    &sender
+                                }
+                            ))
+                            .body(&message.text)
+                            .show();
+                    }
 
                     if let Some(contact) = &mut contact {
                         contact.new_messages = true;
