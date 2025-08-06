@@ -34,6 +34,7 @@ mod screens;
 mod settings;
 mod sign_in_async;
 mod sqlite;
+mod svg;
 
 #[derive(Clone)]
 pub enum Message {

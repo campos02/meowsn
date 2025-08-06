@@ -137,7 +137,6 @@ impl Conversation {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let default_picture = include_bytes!("../../assets/default_display_picture.svg");
         let picture_border = |theme: &Theme| container::Style {
             border: Border {
                 color: theme.palette().text,
@@ -385,7 +384,7 @@ impl Conversation {
                                         })
                                         .padding(3)
                                     } else {
-                                        container(svg(svg::Handle::from_memory(default_picture)))
+                                        container(svg(crate::svg::default_display_picture()))
                                             .width(40)
                                             .style(|theme: &Theme| container::Style {
                                                 border: Border {
@@ -416,7 +415,7 @@ impl Conversation {
                         .style(picture_border)
                         .padding(3)
                     } else {
-                        container(svg(svg::Handle::from_memory(default_picture)))
+                        container(svg(crate::svg::default_display_picture()))
                             .width(100)
                             .style(picture_border)
                             .padding(3)
@@ -430,7 +429,7 @@ impl Conversation {
                         .style(picture_border)
                         .padding(3)
                     } else {
-                        container(svg(svg::Handle::from_memory(default_picture)))
+                        container(svg(crate::svg::default_display_picture()))
                             .width(100)
                             .style(picture_border)
                             .padding(3)

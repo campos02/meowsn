@@ -107,7 +107,6 @@ impl Contacts {
     }
 
     pub fn view(&self) -> Element<Message> {
-        let default_picture = include_bytes!("../../assets/default_display_picture.svg");
         container(
             column![
                 row![
@@ -126,7 +125,7 @@ impl Contacts {
                         })
                         .padding(3)
                     } else {
-                        container(svg(svg::Handle::from_memory(default_picture)))
+                        container(svg(crate::svg::default_display_picture()))
                             .width(70)
                             .style(|theme: &Theme| container::Style {
                                 border: Border {
@@ -193,10 +192,7 @@ impl Contacts {
                 ]
                 .spacing(10),
                 row![
-                    svg(svg::Handle::from_memory(include_bytes!(
-                        "../../assets/add_contact.svg"
-                    )))
-                    .width(30),
+                    svg(crate::svg::add_contact()).width(30),
                     button("Add a contact")
                         .style(|theme: &Theme, status| {
                             match status {
@@ -215,9 +211,11 @@ impl Contacts {
                 .align_y(Center),
                 scrollable(column![
                     if !self.online_contacts.is_empty() {
-                        column(self.online_contacts.values().map(|contact| {
-                            Self::contact_map(contact, Cow::Borrowed(default_picture))
-                        }))
+                        column(
+                            self.online_contacts
+                                .values()
+                                .map(|contact| Self::contact_map(contact)),
+                        )
                         .spacing(10)
                         .padding(Padding {
                             top: 10.0,
@@ -231,10 +229,7 @@ impl Contacts {
                     column(
                         self.offline_contacts
                             .values()
-                            .map(|contact| Self::contact_map(
-                                contact,
-                                Cow::Borrowed(default_picture)
-                            ))
+                            .map(|contact| Self::contact_map(contact))
                     )
                     .spacing(10)
                     .padding(10)
@@ -246,44 +241,33 @@ impl Contacts {
         .into()
     }
 
-    fn contact_map<'a>(
-        contact: &'a Contact,
-        default_picture: Cow<'static, [u8]>,
-    ) -> Element<'a, Message> {
+    fn contact_map(contact: &Contact) -> Element<Message> {
         ContextMenu::new(
             row![
                 row![
                     svg(if let Some(status) = &contact.status {
                         if contact.lists.contains(&MsnpList::BlockList) {
-                            svg::Handle::from_memory(include_bytes!(
-                                "../../assets/default_display_picture_blocked.svg"
-                            ))
+                            crate::svg::default_display_picture_blocked()
                         } else {
                             match status.status {
                                 MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                    svg::Handle::from_memory(include_bytes!(
-                                        "../../assets/default_display_picture_busy.svg"
-                                    ))
+                                    crate::svg::default_display_picture_busy()
                                 }
 
                                 MsnpStatus::Away
                                 | MsnpStatus::Idle
                                 | MsnpStatus::BeRightBack
-                                | MsnpStatus::OutToLunch => svg::Handle::from_memory(
-                                    include_bytes!("../../assets/default_display_picture_away.svg"),
-                                ),
+                                | MsnpStatus::OutToLunch => {
+                                    crate::svg::default_display_picture_away()
+                                }
 
-                                _ => svg::Handle::from_memory(default_picture),
+                                _ => crate::svg::default_display_picture(),
                             }
                         }
                     } else if contact.lists.contains(&MsnpList::BlockList) {
-                        svg::Handle::from_memory(include_bytes!(
-                            "../../assets/default_display_picture_offline_blocked.svg"
-                        ))
+                        crate::svg::default_display_picture_offline_blocked()
                     } else {
-                        svg::Handle::from_memory(include_bytes!(
-                            "../../assets/default_display_picture_offline.svg"
-                        ))
+                        crate::svg::default_display_picture_offline()
                     })
                     .width(30),
                     button(if contact.new_messages {

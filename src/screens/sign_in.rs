@@ -100,19 +100,17 @@ impl SignIn {
                     })
                     .padding(3)
                 } else {
-                    container(svg(svg::Handle::from_memory(include_bytes!(
-                        "../../assets/default_display_picture.svg"
-                    ))))
-                    .width(120)
-                    .style(|theme: &Theme| container::Style {
-                        border: Border {
-                            color: theme.palette().text,
-                            width: 1.0,
-                            radius: radius(10.0),
-                        },
-                        ..container::Style::default()
-                    })
-                    .padding(3)
+                    container(svg(crate::svg::default_display_picture()))
+                        .width(120)
+                        .style(|theme: &Theme| container::Style {
+                            border: Border {
+                                color: theme.palette().text,
+                                width: 1.0,
+                                radius: radius(10.0),
+                            },
+                            ..container::Style::default()
+                        })
+                        .padding(3)
                 },
                 column![
                     column![
