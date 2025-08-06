@@ -71,28 +71,13 @@ impl Contacts {
             _ => ContactListStatus::Online,
         };
 
-        if let Ok(user) = sqlite.select_user(&email) {
-            if let Some(picture) = user.display_picture {
-                return Self {
-                    email,
-                    display_picture: Some(Cow::Owned(picture)),
-                    display_name: Arc::new(String::new()),
-                    personal_message,
-                    status: Some(initial_status),
-                    contact_repository: ContactRepository::new(),
-                    online_contacts: HashMap::new(),
-                    offline_contacts: HashMap::new(),
-                    client,
-                    orphan_switchboards: HashMap::new(),
-                    sqlite,
-                    msnp_subscription_sender,
-                };
-            }
-        }
-
         Self {
-            email,
-            display_picture: None,
+            email: email.clone(),
+            display_picture: if let Ok(user) = sqlite.select_user(&email) {
+                user.display_picture.map(Cow::Owned)
+            } else {
+                None
+            },
             display_name: Arc::new(String::new()),
             personal_message,
             status: Some(initial_status),
@@ -242,6 +227,10 @@ impl Contacts {
     }
 
     fn contact_map(contact: &Contact) -> Element<Message> {
+        let personal_message_color = |theme: &Theme| text::Style {
+            color: Some(theme.extended_palette().secondary.weak.color),
+        };
+
         ContextMenu::new(
             row![
                 row![
@@ -270,14 +259,26 @@ impl Contacts {
                         crate::svg::default_display_picture_offline()
                     })
                     .width(30),
-                    button(if contact.new_messages {
-                        text(&*contact.display_name).font(Font {
-                            weight: Weight::Bold,
-                            ..Font::default()
-                        })
-                    } else {
-                        text(&*contact.display_name)
-                    })
+                    button(row![
+                        if contact.new_messages {
+                            text(&*contact.display_name).font(Font {
+                                weight: Weight::Bold,
+                                ..Font::default()
+                            })
+                        } else {
+                            text(&*contact.display_name)
+                        },
+                        if let Some(personal_message) = &contact.personal_message
+                            && !personal_message.is_empty()
+                        {
+                            row![
+                                text(" - ").style(personal_message_color),
+                                text(&**personal_message).style(personal_message_color)
+                            ]
+                        } else {
+                            row![]
+                        }
+                    ])
                     .on_press(Message::Conversation(contact.clone()))
                     .style(|theme: &Theme, status| match status {
                         button::Status::Hovered | button::Status::Pressed => {
