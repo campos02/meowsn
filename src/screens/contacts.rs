@@ -661,7 +661,7 @@ impl Contacts {
                 }
 
                 Event::SessionAnswered(switchboard) => {
-                    if let Ok(Some(session_id)) = switchboard.get_session_id() {
+                    if let Ok(session_id) = switchboard.get_session_id() {
                         self.orphan_switchboards.insert(
                             Rc::new(session_id),
                             SwitchboardAndParticipants {
