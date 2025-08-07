@@ -442,7 +442,9 @@ impl Conversation {
         let mut action = None;
         match message {
             Message::Edit(edit_action) => {
-                if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action {
+                if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action
+                    && !self.new_message.text().trim().is_empty()
+                {
                     let message = message::Message {
                         sender: self.user_email.clone(),
                         receiver: if self.participants.len() == 1 {
