@@ -2,38 +2,28 @@ name: Build for macOS
 on:
   release:
     types: [published]
+  push:
+    branches:
+    - master
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-arm:
-    strategy:
-      matrix:
-        BUILD_TARGET: [release]
-        
-    runs-on: macos-14
-    steps:
-    - uses: actions/checkout@v4
-    - name: Build binaries in "${{ matrix.BUILD_TARGET }}" mode
-      run: cargo build --profile ${{ matrix.BUILD_TARGET }}
-      
-    - name: Upload release artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: icedm-arm
-        path: target/${{ matrix.BUILD_TARGET }}/icedm
-
   build-x86:
     strategy:
       matrix:
         BUILD_TARGET: [release]
         
-    runs-on: macos-13
+    runs-on: macos-15
     steps:
     - uses: actions/checkout@v4
+
+    - name: Install x86 target
+      run: rustup target install x86_64-apple-darwin
+      
     - name: Build binaries in "${{ matrix.BUILD_TARGET }}" mode
-      run: cargo build --profile ${{ matrix.BUILD_TARGET }}
+      run: cargo build --target x86_64-apple-darwin --profile ${{ matrix.BUILD_TARGET }}
       
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
