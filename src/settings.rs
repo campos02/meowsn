@@ -10,7 +10,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             server: "ms.msgrsvcs.ctsrv.xyz".to_string(),
-            nexus_url: "https://ctas.login.ugnet.xyz/rdr/pprdr.asp".to_string(),
+            nexus_url: "https://pp.login.ugnet.xyz/rdr/pprdr.asp".to_string(),
         }
     }
 }
