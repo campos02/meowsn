@@ -1,4 +1,5 @@
 use iced::futures::channel::mpsc;
+use iced::futures::executor::block_on;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::stream;
 use std::sync::Arc;
@@ -39,7 +40,7 @@ pub fn listen() -> impl Stream<Item = Event> {
 
                 Input::NewSwitchboard(switchboard) => {
                     let output = output.clone();
-                    if let Ok(session_id) = switchboard.get_session_id() {
+                    if let Ok(session_id) = block_on(switchboard.get_session_id()) {
                         let session_id = Arc::new(session_id);
 
                         switchboard.add_event_handler_closure(move |event| {

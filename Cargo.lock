@@ -2443,7 +2443,7 @@ dependencies = [
 
 [[package]]
 name = "icedm"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "dark-light 2.0.0",
  "dirs 6.0.0",
@@ -3072,9 +3072,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.7.6"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "806fb31aeb9536f2f0354906584a417fcdf83ce5f3709b072d5b76503bef70d0"
+checksum = "384de5560d4aa9cf47c39358ddbd7d24a245581fdfb41bb781fa72aae67a2bbc"
 dependencies = [
  "async-channel 2.4.0",
  "async-trait",

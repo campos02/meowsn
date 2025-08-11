@@ -5,6 +5,7 @@ use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::{Family, Style, Weight};
+use iced::futures::executor::block_on;
 use iced::widget::{
     button, column, container, horizontal_space, rich_text, row, scrollable, span, svg, text,
     text_editor, vertical_space,
@@ -78,9 +79,9 @@ impl Conversation {
             None
         };
 
-        let session_id = switchboard.switchboard.get_session_id().unwrap_or_default();
-
+        let session_id = block_on(switchboard.switchboard.get_session_id()).unwrap_or_default();
         let mut messages = Vec::new();
+
         if switchboard.participants.len() > 1
             && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id)
         {

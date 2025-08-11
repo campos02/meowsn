@@ -1,8 +1,7 @@
 use crate::enums::sign_in_status::SignInStatus;
 use crate::settings;
 use crate::sqlite::Sqlite;
-use msnp11_sdk::sdk_error::SdkError;
-use msnp11_sdk::{Client, MsnpStatus, PersonalMessage};
+use msnp11_sdk::{Client, MsnpStatus, PersonalMessage, SdkError};
 use std::sync::Arc;
 
 pub async fn sign_in_async(
@@ -20,7 +19,7 @@ pub async fn sign_in_async(
             &password,
             &settings.nexus_url,
             "icedm",
-            "0.4.1",
+            "0.4.3",
         )
         .await?
     {
@@ -31,7 +30,7 @@ pub async fn sign_in_async(
                 &password,
                 &settings.nexus_url,
                 "icedm",
-                "0.4.1",
+                "0.4.3",
             )
             .await?;
     }
@@ -40,7 +39,7 @@ pub async fn sign_in_async(
     if let Ok(user) = sqlite.select_user(&email) {
         psm = user.personal_message;
         if let Some(display_picture) = user.display_picture {
-            client.set_display_picture(display_picture)?;
+            client.set_display_picture(display_picture).await?;
         }
     }
 

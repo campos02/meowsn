@@ -9,6 +9,7 @@ use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
+use iced::futures::executor::block_on;
 use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
 use iced::{Background, Border, Center, Color, Element, Fill, Font, Padding, Task, Theme, widget};
 use iced_aw::ContextMenu;
@@ -661,7 +662,7 @@ impl Contacts {
                 }
 
                 Event::SessionAnswered(switchboard) => {
-                    if let Ok(session_id) = switchboard.get_session_id() {
+                    if let Ok(session_id) = block_on(switchboard.get_session_id()) {
                         self.orphan_switchboards.insert(
                             Rc::new(session_id),
                             SwitchboardAndParticipants {
