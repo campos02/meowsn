@@ -20,8 +20,8 @@ pub enum Input {
 }
 
 pub fn listen() -> impl Stream<Item = Event> {
-    stream::channel(64, |mut output| async move {
-        let (sender, mut receiver) = mpsc::channel::<Input>(64);
+    stream::channel(256, |mut output| async move {
+        let (sender, mut receiver) = mpsc::channel::<Input>(32);
         let _ = output.send(Event::Ready(sender)).await;
 
         loop {

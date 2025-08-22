@@ -1994,11 +1994,11 @@ dependencies = [
 
 [[package]]
 name = "guid-create"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "738068c48cd875ab1ff0bb5de7fa448cb88769ce74783f4eb964257e693f8a19"
+checksum = "c332e3cc6970b85f68ff39438fdb87b5c9e27a0260d720d7d550701d9964baa0"
 dependencies = [
- "rand 0.8.5",
+ "rand 0.9.1",
  "winapi",
 ]
 
@@ -2443,7 +2443,7 @@ dependencies = [
 
 [[package]]
 name = "icedm"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "dark-light 2.0.0",
  "dirs 6.0.0",
@@ -3072,9 +3072,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "384de5560d4aa9cf47c39358ddbd7d24a245581fdfb41bb781fa72aae67a2bbc"
+checksum = "30027000e90805303d8373c2f33c77d418ee8d30934dbf5258356cda53f0daab"
 dependencies = [
  "async-channel 2.4.0",
  "async-trait",
