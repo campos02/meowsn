@@ -1,7 +1,7 @@
 use crate::settings::Settings;
 use crate::{msnp_listener, settings};
-use iced::widget::{button, column, container, text, text_input};
-use iced::{Center, Element, Fill, Task};
+use iced::widget::{button, column, container, text, text_input, vertical_space};
+use iced::{Center, Element, Fill, Task, Theme};
 use msnp11_sdk::Client;
 use std::sync::Arc;
 
@@ -66,6 +66,10 @@ impl PersonalSettings {
                 ]
                 .spacing(5),
                 button("Save").on_press(Message::Save),
+                vertical_space().height(Fill),
+                text("icedm v0.5.0").style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().secondary.weak.color),
+                }),
             ]
             .spacing(15)
             .align_x(Center),
