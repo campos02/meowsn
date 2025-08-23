@@ -31,7 +31,7 @@ impl AddContact {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
                 column![

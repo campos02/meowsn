@@ -1,10 +1,10 @@
-use crate::settings::Settings;
+use crate::msnp_listener;
 use crate::settings;
+use crate::settings::Settings;
 use iced::widget::{button, checkbox, column, container, text, text_input, vertical_space};
 use iced::{Center, Element, Fill, Task, Theme};
 use msnp11_sdk::Client;
 use std::sync::Arc;
-use crate::msnp_listener;
 
 #[allow(dead_code)]
 pub enum Action {
@@ -41,7 +41,7 @@ impl PersonalSettings {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
                 column![

@@ -5,18 +5,18 @@
 
 use crate::contact_repository::ContactRepository;
 use crate::icedm_window::Window;
-use msnp_listener::Input;
-use helpers::notify_new_version::notify_new_version;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use dark_light::Mode;
 use enums::window_type::WindowType;
+use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
-use iced::window::{icon, Position, Settings};
-use iced::{keyboard, widget, window, Element, Size, Subscription, Task, Theme};
+use iced::window::{Position, Settings, icon};
+use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
+use msnp_listener::Input;
 use msnp11_sdk::{Client, MsnpStatus, SdkError, Switchboard};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -24,15 +24,15 @@ use std::fmt::Debug;
 use std::sync::Arc;
 mod contact_repository;
 mod enums;
+mod helpers;
 mod icedm_window;
+pub mod keyboard_listener;
 mod models;
+pub mod msnp_listener;
 mod screens;
 mod settings;
 mod sqlite;
 mod svg;
-mod helpers;
-pub mod keyboard_listener;
-pub mod msnp_listener;
 
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
@@ -232,10 +232,9 @@ impl IcedM {
             } => {
                 if let Some(sender) = self.msnp_subscription_sender.as_mut()
                     && let Ok((_, _, client)) = result
+                    && let Err(error) = sender.start_send(Input::NewClient(client.clone()))
                 {
-                    if let Err(error) = sender.start_send(Input::NewClient(client.clone())) {
-                        return Task::done(Message::OpenDialog(error.to_string()));
-                    }
+                    return Task::done(Message::OpenDialog(error.to_string()));
                 }
 
                 if let Some(window) = self.windows.get_mut(&id) {
@@ -615,7 +614,7 @@ impl IcedM {
         }
     }
 
-    fn view(&self, window_id: window::Id) -> Element<Message> {
+    fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         if let Some(window) = self.windows.get(&window_id) {
             window.view(window_id)
         } else {

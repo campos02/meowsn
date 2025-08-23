@@ -103,10 +103,10 @@ impl Conversation {
                     }),
             );
 
-            if switchboard.participants.len() == 1 {
-                if let Ok(message_history) = sqlite.select_messages(&user_email, participant) {
-                    messages = message_history;
-                }
+            if switchboard.participants.len() == 1
+                && let Ok(message_history) = sqlite.select_messages(&user_email, participant)
+            {
+                messages = message_history;
             }
         }
 
@@ -133,7 +133,7 @@ impl Conversation {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let picture_border = |theme: &Theme| container::Style {
             border: Border {
                 color: theme.palette().text,

@@ -19,7 +19,7 @@ impl Dialog {
         Self { message }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
                 text(&*self.message).height(Fill),

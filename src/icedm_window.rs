@@ -1,12 +1,12 @@
+use crate::helpers::sign_in_async;
 use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
-use crate::{msnp_listener, Message};
+use crate::{Message, msnp_listener};
 use iced::futures::channel::mpsc::Sender;
-use iced::{window, Element, Task};
+use iced::{Element, Task, window};
 use std::time::Duration;
-use crate::helpers::sign_in_async;
 
 pub struct Window {
     id: window::Id,
@@ -33,38 +33,38 @@ impl Window {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SignIn(id, message) => {
-                if let Screen::SignIn(sign_in) = &mut self.screen {
-                    if let Some(action) = sign_in.update(message) {
-                        return match action {
-                            sign_in::Action::SignIn => {
-                                let (email, password, status) = sign_in.get_sign_in_info();
-                                Task::perform(
-                                    sign_in_async::sign_in_async(
-                                        email.clone(),
-                                        password,
-                                        status,
-                                        self.sqlite.clone(),
-                                    ),
-                                    move |result| Message::SignedIn {
-                                        id,
-                                        email: email.clone(),
-                                        result,
-                                    },
-                                )
-                            }
+                if let Screen::SignIn(sign_in) = &mut self.screen
+                    && let Some(action) = sign_in.update(message)
+                {
+                    return match action {
+                        sign_in::Action::SignIn => {
+                            let (email, password, status) = sign_in.get_sign_in_info();
+                            Task::perform(
+                                sign_in_async::sign_in_async(
+                                    email.clone(),
+                                    password,
+                                    status,
+                                    self.sqlite.clone(),
+                                ),
+                                move |result| Message::SignedIn {
+                                    id,
+                                    email: email.clone(),
+                                    result,
+                                },
+                            )
+                        }
 
-                            sign_in::Action::PersonalSettings => {
-                                Task::done(Message::OpenPersonalSettings {
-                                    client: None,
-                                    display_name: None,
-                                })
-                            }
+                        sign_in::Action::PersonalSettings => {
+                            Task::done(Message::OpenPersonalSettings {
+                                client: None,
+                                display_name: None,
+                            })
+                        }
 
-                            sign_in::Action::Dialog(message) => {
-                                Task::done(Message::OpenDialog(message))
-                            }
-                        };
-                    }
+                        sign_in::Action::Dialog(message) => {
+                            Task::done(Message::OpenDialog(message))
+                        }
+                    };
                 }
 
                 Task::none()
@@ -92,18 +92,17 @@ impl Window {
                     }
                 }
 
-                if let Screen::Contacts(contacts) = &mut self.screen {
-                    if let Some(action) = contacts.update(message) {
-                        return match action {
-                            contacts::Action::SignOut(task) => {
-                                self.screen =
-                                    Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
-                                task
-                            }
+                if let Screen::Contacts(contacts) = &mut self.screen
+                    && let Some(action) = contacts.update(message)
+                {
+                    return match action {
+                        contacts::Action::SignOut(task) => {
+                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                            task
+                        }
 
-                            contacts::Action::RunTask(task) => task,
-                        };
-                    }
+                        contacts::Action::RunTask(task) => task,
+                    };
                 }
 
                 Task::none()
@@ -287,7 +286,7 @@ impl Window {
         }
     }
 
-    pub fn view(&self, id: window::Id) -> Element<Message> {
+    pub fn view(&self, id: window::Id) -> Element<'_, Message> {
         match &self.screen {
             Screen::SignIn(sign_in) => sign_in
                 .view()

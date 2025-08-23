@@ -82,7 +82,7 @@ impl SignIn {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
                 if let Some(picture) = self.display_picture.clone() {
@@ -247,12 +247,11 @@ impl SignIn {
                             let _ = self.sqlite.insert_user_if_not_in_db(email);
                         }
 
-                        if self.remember_my_password {
-                            if let Some(ref email) = self.email {
-                                if let Ok(entry) = Entry::new("icedm", email) {
-                                    let _ = entry.set_password(&self.password);
-                                }
-                            }
+                        if self.remember_my_password
+                            && let Some(ref email) = self.email
+                            && let Ok(entry) = Entry::new("icedm", email)
+                        {
+                            let _ = entry.set_password(&self.password);
                         }
                     }
 

@@ -1,10 +1,10 @@
 use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
+use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::models::contact::Contact;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
-use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::Weight;
@@ -92,7 +92,7 @@ impl Contacts {
         }
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
                 row![
@@ -227,7 +227,7 @@ impl Contacts {
         .into()
     }
 
-    fn contact_map(contact: &Contact) -> Element<Message> {
+    fn contact_map(contact: &Contact) -> Element<'_, Message> {
         let personal_message_color = |theme: &Theme| text::Style {
             color: Some(theme.extended_palette().secondary.weak.color),
         };
@@ -610,7 +610,8 @@ impl Contacts {
                             contact.email.clone(),
                         ))));
 
-                        self.contact_repository.update_contacts(&[contact.clone()]);
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
                     }
 
                     if let Some(contact) = contact.cloned()
@@ -652,7 +653,8 @@ impl Contacts {
                             contact.email.clone(),
                         ))));
 
-                        self.contact_repository.update_contacts(&[contact.clone()]);
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
                     }
 
                     if let Some(contact) = contact.cloned() {
@@ -836,7 +838,8 @@ impl Contacts {
                             contact.email.clone(),
                         ))));
 
-                        self.contact_repository.update_contacts(&[contact.clone()]);
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
                     }
                 }
 
