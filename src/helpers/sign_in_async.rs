@@ -11,6 +11,7 @@ pub async fn sign_in_async(
     sqlite: Sqlite,
 ) -> Result<(String, MsnpStatus, Arc<Client>), SdkError> {
     let settings = settings::get_settings().unwrap_or_default();
+    let version = env!("CARGO_PKG_VERSION");
     let mut client = Client::new(&settings.server, 1863).await?;
 
     if let msnp11_sdk::Event::RedirectedTo { server, port } = client
@@ -19,7 +20,7 @@ pub async fn sign_in_async(
             &password,
             &settings.nexus_url,
             "icedm",
-            "0.5.0",
+            version,
         )
         .await?
     {
@@ -30,7 +31,7 @@ pub async fn sign_in_async(
                 &password,
                 &settings.nexus_url,
                 "icedm",
-                "0.5.0",
+                version,
             )
             .await?;
     }
