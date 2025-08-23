@@ -5,8 +5,8 @@
 
 use crate::contact_repository::ContactRepository;
 use crate::icedm_window::Window;
-use crate::msnp_listener::Input;
-use crate::notify_new_version::notify_new_version;
+use msnp_listener::Input;
+use helpers::notify_new_version::notify_new_version;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
@@ -14,28 +14,25 @@ use dark_light::Mode;
 use enums::window_type::WindowType;
 use iced::futures::channel::mpsc::Sender;
 use iced::widget::horizontal_space;
-use iced::window::{Position, Settings, icon};
-use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
+use iced::window::{icon, Position, Settings};
+use iced::{keyboard, widget, window, Element, Size, Subscription, Task, Theme};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp11_sdk::{Client, MsnpStatus, SdkError, Switchboard};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-
 mod contact_repository;
 mod enums;
 mod icedm_window;
-mod keyboard_listener;
 mod models;
-mod msnp_listener;
-mod notify_new_version;
-mod pick_display_picture;
 mod screens;
 mod settings;
-mod sign_in_async;
 mod sqlite;
 mod svg;
+mod helpers;
+pub mod keyboard_listener;
+pub mod msnp_listener;
 
 pub enum Message {
     WindowEvent((window::Id, window::Event)),

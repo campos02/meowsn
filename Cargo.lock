@@ -2443,7 +2443,7 @@ dependencies = [
 
 [[package]]
 name = "icedm"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dark-light 2.0.0",
  "dirs 6.0.0",

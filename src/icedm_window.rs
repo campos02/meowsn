@@ -2,10 +2,11 @@ use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
-use crate::{Message, msnp_listener, sign_in_async};
+use crate::{msnp_listener, Message};
 use iced::futures::channel::mpsc::Sender;
-use iced::{Element, Task, window};
+use iced::{window, Element, Task};
 use std::time::Duration;
+use crate::helpers::sign_in_async;
 
 pub struct Window {
     id: window::Id,

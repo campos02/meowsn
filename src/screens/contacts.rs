@@ -4,7 +4,7 @@ use crate::models::contact::Contact;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
-use crate::pick_display_picture::pick_display_picture;
+use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::Weight;

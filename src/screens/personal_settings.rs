@@ -1,9 +1,10 @@
 use crate::settings::Settings;
-use crate::{msnp_listener, settings};
+use crate::settings;
 use iced::widget::{button, checkbox, column, container, text, text_input, vertical_space};
 use iced::{Center, Element, Fill, Task, Theme};
 use msnp11_sdk::Client;
 use std::sync::Arc;
+use crate::msnp_listener;
 
 #[allow(dead_code)]
 pub enum Action {
