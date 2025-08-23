@@ -84,7 +84,7 @@ impl PersonalSettings {
             .spacing(15)
             .align_x(Center),
         )
-        .padding(50)
+        .padding(40)
         .center_x(Fill)
         .into()
     }
