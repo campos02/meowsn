@@ -1,6 +1,6 @@
 use crate::settings::Settings;
 use crate::{msnp_listener, settings};
-use iced::widget::{button, column, container, text, text_input, vertical_space};
+use iced::widget::{button, checkbox, column, container, text, text_input, vertical_space};
 use iced::{Center, Element, Fill, Task, Theme};
 use msnp11_sdk::Client;
 use std::sync::Arc;
@@ -16,6 +16,7 @@ pub enum Message {
     DisplayNameChanged(String),
     ServerChanged(String),
     NexusUrlChanged(String),
+    CheckForUpdatesToggled(bool),
     Save,
 }
 
@@ -24,6 +25,7 @@ pub struct PersonalSettings {
     display_name: String,
     server: String,
     nexus_url: String,
+    check_for_updates: bool,
 }
 
 impl PersonalSettings {
@@ -34,6 +36,7 @@ impl PersonalSettings {
             display_name: display_name.unwrap_or_default(),
             server: settings.server,
             nexus_url: settings.nexus_url,
+            check_for_updates: settings.check_for_updates,
         }
     }
 
@@ -65,6 +68,12 @@ impl PersonalSettings {
                         .on_input(Message::NexusUrlChanged)
                 ]
                 .spacing(5),
+                container(
+                    checkbox("Check for updates on startup", self.check_for_updates)
+                        .on_toggle(Message::CheckForUpdatesToggled)
+                )
+                .width(Fill),
+                vertical_space().height(5),
                 button("Save").on_press(Message::Save),
                 vertical_space().height(Fill),
                 text("icedm v0.5.0").style(|theme: &Theme| text::Style {
@@ -85,6 +94,10 @@ impl PersonalSettings {
             Message::DisplayNameChanged(display_name) => self.display_name = display_name,
             Message::ServerChanged(server) => self.server = server,
             Message::NexusUrlChanged(nexus_url) => self.nexus_url = nexus_url,
+            Message::CheckForUpdatesToggled(check_for_updates) => {
+                self.check_for_updates = check_for_updates
+            }
+
             Message::Save => {
                 self.display_name = self.display_name.trim().to_string();
                 self.server = self.server.trim().to_string();
@@ -93,6 +106,7 @@ impl PersonalSettings {
                 let settings = Settings {
                     server: self.server.clone(),
                     nexus_url: self.nexus_url.clone(),
+                    check_for_updates: self.check_for_updates,
                 };
 
                 let _ = settings::save_settings(&settings);
@@ -104,7 +118,7 @@ impl PersonalSettings {
                     action = Some(Action::SavePressed(Task::batch([
                         Task::perform(
                             async move { client.set_display_name(&display_name).await },
-                            crate::Message::EmptyResultFuture,
+                            crate::Message::UnitResult,
                         ),
                         Task::done(crate::Message::MsnpEvent(
                             msnp_listener::Event::NotificationServer(

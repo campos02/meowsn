@@ -489,7 +489,7 @@ impl Conversation {
 
                         action = Some(Action::RunTask(Task::perform(
                             async move { switchboard.send_text_message(&plain_text).await },
-                            crate::Message::EmptyResultFuture,
+                            crate::Message::UnitResult,
                         )));
                     } else {
                         self.message_buffer.push(message);
@@ -497,7 +497,7 @@ impl Conversation {
                         if let Some(last_participant) = self.last_participant.clone() {
                             action = Some(Action::RunTask(Task::perform(
                                 async move { switchboard.invite(&last_participant.email).await },
-                                crate::Message::EmptyResultFuture,
+                                crate::Message::UnitResult,
                             )));
                         }
                     }
@@ -511,7 +511,7 @@ impl Conversation {
                         self.user_typing = true;
                         action = Some(Action::UserTypingTimeout(Task::perform(
                             async move { switchboard.send_typing_user(&email).await },
-                            crate::Message::EmptyResultFuture,
+                            crate::Message::UnitResult,
                         )));
                     }
                 };
@@ -552,7 +552,7 @@ impl Conversation {
 
                     action = Some(Action::RunTask(Task::perform(
                         async move { switchboard.send_nudge().await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
                 } else {
                     self.message_buffer.push(message);
@@ -560,7 +560,7 @@ impl Conversation {
                     if let Some(last_participant) = self.last_participant.clone() {
                         action = Some(Action::RunTask(Task::perform(
                             async move { switchboard.invite(&last_participant.email).await },
-                            crate::Message::EmptyResultFuture,
+                            crate::Message::UnitResult,
                         )));
                     }
                 }
@@ -717,7 +717,7 @@ impl Conversation {
                                         let _ = switchboard.send_text_message(&message).await;
                                     }
                                 },
-                                crate::Message::Empty,
+                                crate::Message::Unit,
                             )));
                         }
                     }
@@ -755,7 +755,7 @@ impl Conversation {
                                     .request_contact_display_picture(&email, &msn_object)
                                     .await
                             },
-                            crate::Message::EmptyResultFuture,
+                            crate::Message::UnitResult,
                         ));
                     }
                 }
@@ -811,7 +811,7 @@ impl Conversation {
         let switchboard = self.switchboard.clone();
         Task::perform(
             async move { switchboard.disconnect().await },
-            crate::Message::EmptyResultFuture,
+            crate::Message::UnitResult,
         )
     }
 }

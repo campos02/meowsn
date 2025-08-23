@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub server: String,
     pub nexus_url: String,
+    pub check_for_updates: bool,
 }
 
 impl Default for Settings {
@@ -11,6 +12,7 @@ impl Default for Settings {
         Self {
             server: "ms.msgrsvcs.ctsrv.xyz".to_string(),
             nexus_url: "https://pp.login.ugnet.xyz/rdr/pprdr.asp".to_string(),
+            check_for_updates: true,
         }
     }
 }

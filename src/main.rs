@@ -6,6 +6,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::icedm_window::Window;
 use crate::msnp_listener::Input;
+use crate::notify_new_version::notify_new_version;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
@@ -28,6 +29,7 @@ mod icedm_window;
 mod keyboard_listener;
 mod models;
 mod msnp_listener;
+mod notify_new_version;
 mod pick_display_picture;
 mod screens;
 mod settings;
@@ -35,7 +37,6 @@ mod sign_in_async;
 mod sqlite;
 mod svg;
 
-#[derive(Clone)]
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
@@ -83,9 +84,10 @@ pub enum Message {
     OpenDialog(String),
     OpenAddContact(Arc<Client>),
     MsnpEvent(msnp_listener::Event),
-    EmptyResultFuture(Result<(), SdkError>),
-    Empty(()),
-    EventFuture(Result<msnp11_sdk::Event, SdkError>),
+    UnitResult(Result<(), SdkError>),
+    Unit(()),
+    EventResult(Result<msnp11_sdk::Event, SdkError>),
+    UnitBoxedError(Result<(), Box<dyn std::error::Error + Send + Sync>>),
     ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Option<Cow<'static, [u8]>>),
     UserDisplayNameUpdated(Arc<String>),
@@ -118,7 +120,10 @@ impl IcedM {
                 msnp_subscription_sender: None,
                 sqlite,
             },
-            open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
+            Task::batch([
+                open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
+                Task::perform(notify_new_version(), Message::UnitBoxedError),
+            ]),
         )
     }
 
@@ -472,7 +477,7 @@ impl IcedM {
                     }
                 }
 
-                msnp_listener::Event::Switchboard { .. } => {
+                msnp_listener::Event::Switchboard { session_id, event } => {
                     if self.windows.keys().last().is_none() {
                         return Task::none();
                     };
@@ -483,7 +488,12 @@ impl IcedM {
                             window.get_screen(),
                             Screen::Conversation(..) | Screen::Contacts(..)
                         ) {
-                            tasks.push(window.update(message.clone()));
+                            tasks.push(window.update(Message::MsnpEvent(
+                                msnp_listener::Event::Switchboard {
+                                    session_id: session_id.clone(),
+                                    event: event.clone(),
+                                },
+                            )));
                         }
                     }
 
@@ -564,7 +574,7 @@ impl IcedM {
 
             Message::FocusNext => widget::focus_next(),
             Message::FocusPrevious => widget::focus_previous(),
-            Message::EventFuture(result) => {
+            Message::EventResult(result) => {
                 match result {
                     Ok(event) => {
                         if self.windows.keys().last().is_none() {

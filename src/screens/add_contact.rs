@@ -84,7 +84,7 @@ impl AddContact {
                                 .await
                         }
                     },
-                    crate::Message::EventFuture,
+                    crate::Message::EventResult,
                 )));
             }
 

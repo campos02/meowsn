@@ -368,7 +368,7 @@ impl Contacts {
                 action = Some(Action::RunTask(Task::batch([
                     Task::perform(
                         async move { client.set_personal_message(&personal_message).await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     ),
                     widget::focus_next(),
                 ])));
@@ -406,7 +406,7 @@ impl Contacts {
                     let client = self.client.clone();
                     action = Some(Action::SignOut(Task::perform(
                         async move { client.disconnect().await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
                 }
 
@@ -421,7 +421,7 @@ impl Contacts {
 
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.set_presence(presence).await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
 
                     self.status = Some(status);
@@ -444,7 +444,7 @@ impl Contacts {
 
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.block_contact(&email).await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
                 }
             }
@@ -465,7 +465,7 @@ impl Contacts {
 
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.unblock_contact(&email).await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
                 }
             }
@@ -485,7 +485,7 @@ impl Contacts {
                     let client = self.client.clone();
                     action = Some(Action::RunTask(Task::perform(
                         async move { client.remove_contact_from_forward_list(&guid).await },
-                        crate::Message::EmptyResultFuture,
+                        crate::Message::UnitResult,
                     )));
                 }
             }
