@@ -12,6 +12,7 @@ use dark_light::Mode;
 use enums::window_type::WindowType;
 use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
+use iced::futures::executor::block_on;
 use iced::widget::horizontal_space;
 use iced::window::{Position, Settings, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
@@ -22,6 +23,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+
 mod contact_repository;
 mod enums;
 mod helpers;
@@ -66,6 +68,7 @@ pub enum Message {
         contact_repository: ContactRepository,
         email: Arc<String>,
         display_name: Arc<String>,
+        session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         minimized: bool,
     },
@@ -76,6 +79,11 @@ pub enum Message {
         display_name: Arc<String>,
         contact_email: Arc<String>,
         client: Arc<Client>,
+    },
+
+    AddSwitchboardToConversation {
+        session_id: Arc<String>,
+        switchboard: SwitchboardAndParticipants,
     },
 
     OpenDialog(String),
@@ -100,6 +108,7 @@ impl Debug for Message {
 
 struct IcedM {
     windows: BTreeMap<window::Id, Window>,
+    main_window_id: window::Id,
     modal_id: Option<window::Id>,
     msnp_subscription_sender: Option<Sender<Input>>,
     sqlite: Sqlite,
@@ -108,11 +117,12 @@ struct IcedM {
 impl IcedM {
     fn new() -> (Self, Task<Message>) {
         let sqlite = Sqlite::new().expect("Could not create database");
-        let (_, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
+        let (id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
 
         (
             Self {
                 windows: BTreeMap::new(),
+                main_window_id: id,
                 modal_id: None,
                 msnp_subscription_sender: None,
                 sqlite,
@@ -142,11 +152,13 @@ impl IcedM {
 
                     WindowType::Conversation {
                         contact_repository,
+                        session_id,
                         switchboard,
                         email,
                         display_name,
                     } => Screen::Conversation(conversation::Conversation::new(
                         contact_repository,
+                        session_id,
                         switchboard,
                         email,
                         display_name,
@@ -176,7 +188,7 @@ impl IcedM {
                         match window.get_screen() {
                             Screen::SignIn(..) | Screen::Contacts(..) => iced::exit(),
                             Screen::Conversation(conversation) => {
-                                conversation.leave_switchboard_task()
+                                conversation.leave_switchboards_task()
                             }
 
                             Screen::Dialog(..) => {
@@ -333,6 +345,9 @@ impl IcedM {
                                 id,
                                 WindowType::Conversation {
                                     contact_repository: std::mem::take(&mut contact_repository),
+                                    session_id: Arc::new(
+                                        block_on(switchboard.get_session_id()).unwrap_or_default(),
+                                    ),
                                     switchboard: SwitchboardAndParticipants {
                                         switchboard: switchboard.clone(),
                                         participants: vec![std::mem::take(&mut contact)],
@@ -352,6 +367,7 @@ impl IcedM {
                 mut contact_repository,
                 mut email,
                 mut display_name,
+                session_id,
                 switchboard,
                 minimized,
             } => {
@@ -360,18 +376,73 @@ impl IcedM {
                 };
 
                 let (id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
-                open.map(move |id| {
-                    Message::WindowOpened(
-                        id,
-                        WindowType::Conversation {
-                            contact_repository: std::mem::take(&mut contact_repository),
-                            switchboard: switchboard.clone(),
-                            email: std::mem::take(&mut email),
-                            display_name: std::mem::take(&mut display_name),
-                        },
-                    )
-                })
-                .chain(window::minimize(id, minimized))
+                let switchboard_task;
+
+                {
+                    let mut session_id = session_id.clone();
+                    switchboard_task = open
+                        .map(move |id| {
+                            Message::WindowOpened(
+                                id,
+                                WindowType::Conversation {
+                                    contact_repository: std::mem::take(&mut contact_repository),
+                                    session_id: std::mem::take(&mut session_id),
+                                    switchboard: switchboard.clone(),
+                                    email: std::mem::take(&mut email),
+                                    display_name: std::mem::take(&mut display_name),
+                                },
+                            )
+                        })
+                        .chain(window::minimize(id, minimized));
+                }
+
+                if let Some(window) = self.windows.get_mut(&self.main_window_id) {
+                    let remove_task = window.update(Message::Contacts(
+                        self.main_window_id,
+                        contacts::Message::RemoveSwitchboard(session_id),
+                    ));
+
+                    return Task::batch([switchboard_task, remove_task]);
+                }
+
+                switchboard_task
+            }
+
+            Message::AddSwitchboardToConversation {
+                session_id,
+                switchboard,
+            } => {
+                if let Some((id, window)) = self.windows.iter_mut().find(|(_, window)| {
+                    let Screen::Conversation(conversation) = window.get_screen() else {
+                        return false;
+                    };
+
+                    conversation.get_participants().len() == 1
+                        && switchboard.participants.iter().all(|participant| {
+                            conversation.get_participants().contains_key(participant)
+                        })
+                }) {
+                    let switchboard_task = window.update(Message::Conversation(
+                        *id,
+                        conversation::Message::NewSwitchboard(
+                            session_id.clone(),
+                            switchboard.switchboard,
+                        ),
+                    ));
+
+                    if let Some(window) = self.windows.get_mut(&self.main_window_id) {
+                        let remove_task = window.update(Message::Contacts(
+                            self.main_window_id,
+                            contacts::Message::RemoveSwitchboard(session_id.clone()),
+                        ));
+
+                        return Task::batch([switchboard_task, remove_task]);
+                    }
+
+                    return switchboard_task;
+                }
+
+                Task::none()
             }
 
             Message::OpenDialog(mut message) => {
@@ -453,13 +524,9 @@ impl IcedM {
                         }
 
                         _ => {
-                            if let Some((id, window)) =
-                                self.windows.iter_mut().find(|(_, window)| {
-                                    matches!(window.get_screen(), Screen::Contacts(..))
-                                })
-                            {
+                            if let Some(window) = self.windows.get_mut(&self.main_window_id) {
                                 return window.update(Message::Contacts(
-                                    *id,
+                                    self.main_window_id,
                                     // Using Authenticated as a default event
                                     contacts::Message::NotificationServerEvent(std::mem::replace(
                                         event,
@@ -577,13 +644,9 @@ impl IcedM {
                             return Task::none();
                         };
 
-                        if let Some((id, window)) = self
-                            .windows
-                            .iter_mut()
-                            .find(|(_, window)| matches!(window.get_screen(), Screen::Contacts(..)))
-                        {
+                        if let Some(window) = self.windows.get_mut(&self.main_window_id) {
                             return window.update(Message::Contacts(
-                                *id,
+                                self.main_window_id,
                                 contacts::Message::NotificationServerEvent(event),
                             ));
                         }

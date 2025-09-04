@@ -13,6 +13,7 @@ pub enum WindowType {
 
     Conversation {
         contact_repository: ContactRepository,
+        session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         email: Arc<String>,
         display_name: Arc<String>,

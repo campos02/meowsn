@@ -219,7 +219,7 @@ impl Window {
                 if let msnp_listener::Event::Switchboard { session_id, event } = event {
                     match &mut self.screen {
                         Screen::Conversation(conversation) => {
-                            if *conversation.get_session_id() == *session_id
+                            if conversation.contains_switchboard(&session_id)
                                 && let Some(action) = conversation
                                     .update(conversation::Message::MsnpEvent(Box::from(event)))
                             {

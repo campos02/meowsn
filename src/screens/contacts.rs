@@ -18,7 +18,6 @@ use notify_rust::Notification;
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 pub enum Action {
@@ -34,6 +33,7 @@ pub enum Message {
     Conversation(Contact),
     NotificationServerEvent(Event),
     SwitchboardEvent(Arc<String>, Event),
+    RemoveSwitchboard(Arc<String>),
     BlockContact(Arc<String>),
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
@@ -51,7 +51,7 @@ pub struct Contacts {
     online_contacts: HashMap<Arc<String>, Contact>,
     offline_contacts: HashMap<Arc<String>, Contact>,
     client: Arc<Client>,
-    orphan_switchboards: HashMap<Rc<String>, SwitchboardAndParticipants>,
+    orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     sqlite: Sqlite,
     msnp_subscription_sender: Option<Sender<Input>>,
 }
@@ -428,6 +428,10 @@ impl Contacts {
                 }
             },
 
+            Message::RemoveSwitchboard(session_id) => {
+                self.orphan_switchboards.remove(&session_id);
+            }
+
             Message::BlockContact(email) => {
                 let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
                     Some(contact)
@@ -499,18 +503,17 @@ impl Contacts {
             Message::Conversation(contact) => {
                 if contact.status.is_some() && self.status != Some(ContactListStatus::AppearOffline)
                 {
-                    let mut open_session_id = None;
                     if let Some((session_id, switchboard)) = self
                         .orphan_switchboards
                         .iter()
                         .find(|(_, switchboard)| switchboard.participants.contains(&contact.email))
                     {
-                        open_session_id = Some(session_id.clone());
                         action = Some(Action::RunTask(Task::done(
                             crate::Message::CreateConversationWithSwitchboard {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
                                 display_name: self.display_name.clone(),
+                                session_id: session_id.clone(),
                                 switchboard: switchboard.clone(),
                                 minimized: false,
                             },
@@ -525,10 +528,6 @@ impl Contacts {
                                 client: self.client.clone(),
                             },
                         )));
-                    }
-
-                    if let Some(open_session_id) = open_session_id {
-                        self.orphan_switchboards.remove(&open_session_id);
                     }
 
                     let contact =
@@ -666,7 +665,7 @@ impl Contacts {
                 Event::SessionAnswered(switchboard) => {
                     if let Ok(session_id) = block_on(switchboard.get_session_id()) {
                         self.orphan_switchboards.insert(
-                            Rc::new(session_id),
+                            Arc::new(session_id),
                             SwitchboardAndParticipants {
                                 switchboard: switchboard.clone(),
                                 participants: Vec::new(),
@@ -686,6 +685,12 @@ impl Contacts {
                 Event::ParticipantInSwitchboard { email } => {
                     if let Some(switchboard) = self.orphan_switchboards.get_mut(&*session_id) {
                         switchboard.participants.push(Arc::new(email));
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::AddSwitchboardToConversation {
+                                session_id: session_id.clone(),
+                                switchboard: switchboard.clone(),
+                            },
+                        )));
                     }
                 }
 
@@ -694,6 +699,13 @@ impl Contacts {
                         switchboard
                             .participants
                             .retain(|participant| **participant != email);
+
+                        action = Some(Action::RunTask(Task::done(
+                            crate::Message::AddSwitchboardToConversation {
+                                session_id: session_id.clone(),
+                                switchboard: switchboard.clone(),
+                            },
+                        )));
                     }
                 }
 
@@ -738,7 +750,7 @@ impl Contacts {
                         contact.new_messages = true;
                     }
 
-                    if let Some((_, switchboard)) = self
+                    if let Some((session_id, switchboard)) = self
                         .orphan_switchboards
                         .extract_if(|sess_id, switchboard| {
                             **sess_id == *session_id
@@ -751,6 +763,7 @@ impl Contacts {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
                                 display_name: self.display_name.clone(),
+                                session_id,
                                 switchboard: switchboard.clone(),
                                 minimized: true,
                             },
@@ -799,7 +812,7 @@ impl Contacts {
                         contact.new_messages = true;
                     }
 
-                    if let Some((_, switchboard)) = self
+                    if let Some((session_id, switchboard)) = self
                         .orphan_switchboards
                         .extract_if(|sess_id, switchboard| {
                             **sess_id == *session_id
@@ -812,6 +825,7 @@ impl Contacts {
                                 contact_repository: self.contact_repository.clone(),
                                 email: self.email.clone(),
                                 display_name: self.display_name.clone(),
+                                session_id,
                                 switchboard: switchboard.clone(),
                                 minimized: true,
                             },

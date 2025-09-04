@@ -5,7 +5,6 @@ use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
 use iced::border::radius;
 use iced::font::{Family, Style, Weight};
-use iced::futures::executor::block_on;
 use iced::widget::{
     button, column, container, horizontal_space, rich_text, row, scrollable, span, svg, text,
     text_editor, vertical_space,
@@ -30,6 +29,7 @@ pub enum Message {
     UserDisplayNameUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Box<Event>),
+    NewSwitchboard(Arc<String>, Arc<Switchboard>),
     Focused,
     Unfocused,
     ParticipantTypingTimeout,
@@ -44,8 +44,7 @@ pub enum Message {
 pub struct Conversation {
     user_email: Arc<String>,
     user_display_name: Arc<String>,
-    switchboard: Arc<Switchboard>,
-    session_id: String,
+    switchboards: HashMap<Arc<String>, Arc<Switchboard>>,
     contact_repository: ContactRepository,
     participants: HashMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
@@ -66,6 +65,7 @@ pub struct Conversation {
 impl Conversation {
     pub fn new(
         contact_repository: ContactRepository,
+        session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         user_email: Arc<String>,
         user_display_name: Arc<String>,
@@ -79,9 +79,7 @@ impl Conversation {
             None
         };
 
-        let session_id = block_on(switchboard.switchboard.get_session_id()).unwrap_or_default();
         let mut messages = Vec::new();
-
         if switchboard.participants.len() > 1
             && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id)
         {
@@ -110,11 +108,13 @@ impl Conversation {
             }
         }
 
+        let mut switchboards = HashMap::new();
+        switchboards.insert(session_id, switchboard.switchboard);
+
         Self {
             user_email,
             user_display_name,
-            switchboard: switchboard.switchboard,
-            session_id,
+            switchboards,
             contact_repository,
             participants,
             last_participant: None,
@@ -443,6 +443,10 @@ impl Conversation {
         let mut action = None;
         match message {
             Message::Edit(edit_action) => {
+                let Some(switchboard) = self.switchboards.values().next().cloned() else {
+                    return action;
+                };
+
                 if let text_editor::Action::Edit(text_editor::Edit::Enter) = edit_action
                     && !self.new_message.text().trim().is_empty()
                 {
@@ -471,9 +475,7 @@ impl Conversation {
                         is_history: false,
                     };
 
-                    let switchboard = self.switchboard.clone();
                     self.new_message = text_editor::Content::new();
-
                     if !self.participants.is_empty() {
                         let plain_text = PlainText {
                             bold: message.bold,
@@ -503,8 +505,6 @@ impl Conversation {
                     }
                 } else {
                     self.new_message.perform(edit_action);
-
-                    let switchboard = self.switchboard.clone();
                     let email = self.user_email.clone();
 
                     if !self.user_typing {
@@ -518,6 +518,10 @@ impl Conversation {
             }
 
             Message::SendNudge => {
+                let Some(switchboard) = self.switchboards.values().next().cloned() else {
+                    return action;
+                };
+
                 let message = message::Message {
                     sender: self.user_email.clone(),
                     receiver: if self.participants.len() == 1 {
@@ -543,9 +547,7 @@ impl Conversation {
                     is_history: false,
                 };
 
-                let switchboard = self.switchboard.clone();
                 self.new_message = text_editor::Content::new();
-
                 if !self.participants.is_empty() {
                     let _ = self.sqlite.insert_message(&message);
                     self.messages.push(message);
@@ -556,7 +558,6 @@ impl Conversation {
                     )));
                 } else {
                     self.message_buffer.push(message);
-
                     if let Some(last_participant) = self.last_participant.clone() {
                         action = Some(Action::RunTask(Task::perform(
                             async move { switchboard.invite(&last_participant.email).await },
@@ -578,6 +579,10 @@ impl Conversation {
 
             Message::UserDisplayNameUpdated(display_name) => {
                 self.user_display_name = display_name;
+            }
+
+            Message::NewSwitchboard(session_id, switchboard) => {
+                self.switchboards.insert(session_id, switchboard);
             }
 
             Message::MsnpEvent(event) => match *event {
@@ -690,36 +695,36 @@ impl Conversation {
                     );
 
                     // If the switchboard had no prior participants
-                    if self.participants.len() == 1 {
-                        let switchboard = self.switchboard.clone();
+                    if self.participants.len() == 1 && !self.message_buffer.is_empty() {
+                        let Some(switchboard) = self.switchboards.values().next().cloned() else {
+                            return action;
+                        };
 
-                        if !self.message_buffer.is_empty() {
-                            let messages = self.message_buffer.clone();
-                            self.messages.reserve(messages.len());
+                        let messages = self.message_buffer.clone();
+                        self.messages.reserve(messages.len());
 
-                            for message in self.message_buffer.drain(..) {
-                                let _ = self.sqlite.insert_message(&message);
-                                self.messages.push(message);
-                            }
-
-                            action = Some(Action::RunTask(Task::perform(
-                                async move {
-                                    for message in messages {
-                                        let message = PlainText {
-                                            bold: message.bold,
-                                            italic: message.italic,
-                                            underline: message.underline,
-                                            strikethrough: message.strikethrough,
-                                            color: message.color,
-                                            text: message.text,
-                                        };
-
-                                        let _ = switchboard.send_text_message(&message).await;
-                                    }
-                                },
-                                crate::Message::Unit,
-                            )));
+                        for message in self.message_buffer.drain(..) {
+                            let _ = self.sqlite.insert_message(&message);
+                            self.messages.push(message);
                         }
+
+                        action = Some(Action::RunTask(Task::perform(
+                            async move {
+                                for message in messages {
+                                    let message = PlainText {
+                                        bold: message.bold,
+                                        italic: message.italic,
+                                        underline: message.underline,
+                                        strikethrough: message.strikethrough,
+                                        color: message.color,
+                                        text: message.text,
+                                    };
+
+                                    let _ = switchboard.send_text_message(&message).await;
+                                }
+                            },
+                            crate::Message::Unit,
+                        )));
                     }
                 }
 
@@ -746,9 +751,11 @@ impl Conversation {
                         && let Some(status) = &participant.status
                         && let Some(msn_object) = status.msn_object_string.clone()
                     {
-                        let switchboard = self.switchboard.clone();
-                        let email = participant.email.clone();
+                        let Some(switchboard) = self.switchboards.values().next().cloned() else {
+                            return action;
+                        };
 
+                        let email = participant.email.clone();
                         tasks.push(Task::perform(
                             async move {
                                 switchboard
@@ -763,10 +770,7 @@ impl Conversation {
                 action = Some(Action::RunTask(Task::batch(tasks)));
             }
 
-            Message::Unfocused => {
-                self.focused = false;
-            }
-
+            Message::Unfocused => self.focused = false,
             Message::ParticipantTypingTimeout => self.participant_typing = None,
             Message::UserTypingTimeout => self.user_typing = false,
             Message::BoldPressed => self.bold = !self.bold,
@@ -782,8 +786,8 @@ impl Conversation {
         &self.participants
     }
 
-    pub fn get_session_id(&self) -> &str {
-        &self.session_id
+    pub fn contains_switchboard(&self, session_id: &Arc<String>) -> bool {
+        self.switchboards.contains_key(session_id)
     }
 
     pub fn get_title(&self) -> String {
@@ -807,11 +811,16 @@ impl Conversation {
         }
     }
 
-    pub fn leave_switchboard_task(&self) -> Task<crate::Message> {
-        let switchboard = self.switchboard.clone();
-        Task::perform(
-            async move { switchboard.disconnect().await },
-            crate::Message::UnitResult,
-        )
+    pub fn leave_switchboards_task(&self) -> Task<crate::Message> {
+        let mut tasks = Vec::new();
+        for switchboard in self.switchboards.values() {
+            let switchboard = switchboard.clone();
+            tasks.push(Task::perform(
+                async move { switchboard.disconnect().await },
+                crate::Message::UnitResult,
+            ));
+        }
+
+        Task::batch(tasks)
     }
 }
