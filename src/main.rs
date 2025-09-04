@@ -52,9 +52,18 @@ pub enum Message {
     Dialog(window::Id, dialog::Message),
     AddContact(window::Id, add_contact::Message),
     ContactFocused(Arc<String>),
+    NewMessageFromContact(Arc<String>),
     OpenPersonalSettings {
         client: Option<Arc<Client>>,
         display_name: Option<String>,
+    },
+
+    OpenConversation {
+        contact_repository: ContactRepository,
+        email: Arc<String>,
+        display_name: Arc<String>,
+        contact_email: Arc<String>,
+        client: Arc<Client>,
     },
 
     CreateConversation {
@@ -72,14 +81,6 @@ pub enum Message {
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         minimized: bool,
-    },
-
-    OpenConversation {
-        contact_repository: ContactRepository,
-        email: Arc<String>,
-        display_name: Arc<String>,
-        contact_email: Arc<String>,
-        client: Arc<Client>,
     },
 
     AddSwitchboardToConversation {
@@ -669,6 +670,17 @@ impl IcedM {
                     return window.update(Message::Contacts(
                         self.main_window_id,
                         contacts::contacts::Message::ContactFocused(email),
+                    ));
+                }
+
+                Task::none()
+            }
+
+            Message::NewMessageFromContact(email) => {
+                if let Some(window) = self.windows.get_mut(&self.main_window_id) {
+                    return window.update(Message::Contacts(
+                        self.main_window_id,
+                        contacts::contacts::Message::NewMessageFromContact(email),
                     ));
                 }
 

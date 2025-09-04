@@ -39,6 +39,7 @@ pub enum Message {
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
     ContactFocused(Arc<String>),
+    NewMessageFromContact(Arc<String>),
     AddContact,
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
 }
@@ -365,6 +366,18 @@ impl Contacts {
                 }
             }
 
+            Message::NewMessageFromContact(email) => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = contact {
+                    contact.new_messages = true;
+                }
+            }
+
             Message::Conversation(contact) => {
                 if contact.status.is_some() && self.status != Some(ContactListStatus::AppearOffline)
                 {
@@ -611,10 +624,9 @@ impl Contacts {
                             .show();
 
                         action = Some(Action::NewMessage);
-                    }
-
-                    if let Some(contact) = &mut contact {
-                        contact.new_messages = true;
+                        if let Some(contact) = &mut contact {
+                            contact.new_messages = true;
+                        }
                     }
 
                     if let Some((session_id, switchboard)) = self
@@ -675,10 +687,9 @@ impl Contacts {
                             .show();
 
                         action = Some(Action::NewMessage);
-                    }
-
-                    if let Some(contact) = &mut contact {
-                        contact.new_messages = true;
+                        if let Some(contact) = &mut contact {
+                            contact.new_messages = true;
+                        }
                     }
 
                     if let Some((session_id, switchboard)) = self

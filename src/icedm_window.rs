@@ -164,12 +164,13 @@ impl Window {
                         }
 
                         conversation::conversation::Action::RunTask(task) => task,
-                        conversation::conversation::Action::NewMessage => {
+                        conversation::conversation::Action::NewMessage(email) => Task::batch([
                             window::request_user_attention(
                                 self.id,
                                 Some(UserAttention::Informational),
-                            )
-                        }
+                            ),
+                            Task::done(Message::NewMessageFromContact(email)),
+                        ]),
                     };
                 }
 
@@ -273,9 +274,13 @@ impl Window {
                                     }
 
                                     conversation::conversation::Action::RunTask(task) => task,
-                                    conversation::conversation::Action::NewMessage => {
-                                        window::request_user_attention(self.id, Some(UserAttention::Informational))
-                                    }
+                                    conversation::conversation::Action::NewMessage(email) => Task::batch([
+                                        window::request_user_attention(
+                                            self.id,
+                                            Some(UserAttention::Informational),
+                                        ),
+                                        Task::done(Message::NewMessageFromContact(email)),
+                                    ])
                                 };
                             }
                         }
