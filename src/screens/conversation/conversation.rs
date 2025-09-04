@@ -21,6 +21,7 @@ pub enum Action {
     ParticipantTypingTimeout,
     UserTypingTimeout(Task<crate::Message>),
     RunTask(Task<crate::Message>),
+    NewMessage,
 }
 
 #[derive(Clone)]
@@ -557,6 +558,8 @@ impl Conversation {
                             )
                             .body(&message.text)
                             .show();
+
+                        action = Some(Action::NewMessage);
                     }
 
                     self.messages.push(message);
@@ -596,6 +599,8 @@ impl Conversation {
                             .summary("New message")
                             .body(&message.text)
                             .show();
+
+                        action = Some(Action::NewMessage);
                     }
 
                     self.messages.push(message);

@@ -5,6 +5,7 @@ use crate::screens::{add_contact, contacts, conversation, personal_settings, sig
 use crate::sqlite::Sqlite;
 use crate::{Message, msnp_listener};
 use iced::futures::channel::mpsc::Sender;
+use iced::window::UserAttention;
 use iced::{Element, Task, window};
 use std::time::Duration;
 
@@ -107,6 +108,10 @@ impl Window {
                         }
 
                         contacts::contacts::Action::RunTask(task) => task,
+                        contacts::contacts::Action::NewMessage => window::request_user_attention(
+                            self.id,
+                            Some(UserAttention::Informational),
+                        ),
                     };
                 }
 
@@ -159,6 +164,12 @@ impl Window {
                         }
 
                         conversation::conversation::Action::RunTask(task) => task,
+                        conversation::conversation::Action::NewMessage => {
+                            window::request_user_attention(
+                                self.id,
+                                Some(UserAttention::Informational),
+                            )
+                        }
                     };
                 }
 
@@ -262,6 +273,9 @@ impl Window {
                                     }
 
                                     conversation::conversation::Action::RunTask(task) => task,
+                                    conversation::conversation::Action::NewMessage => {
+                                        window::request_user_attention(self.id, Some(UserAttention::Informational))
+                                    }
                                 };
                             }
                         }
@@ -279,6 +293,12 @@ impl Window {
                                     }
 
                                     contacts::contacts::Action::RunTask(task) => task,
+                                    contacts::contacts::Action::NewMessage => {
+                                        window::request_user_attention(
+                                            self.id,
+                                            Some(UserAttention::Informational),
+                                        )
+                                    }
                                 };
                             }
                         }

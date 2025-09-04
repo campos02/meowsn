@@ -23,6 +23,7 @@ use std::sync::Arc;
 pub enum Action {
     SignOut(Task<crate::Message>),
     RunTask(Task<crate::Message>),
+    NewMessage,
 }
 
 #[derive(Clone)]
@@ -608,6 +609,8 @@ impl Contacts {
                             .summary("New message")
                             .body(&message.text)
                             .show();
+
+                        action = Some(Action::NewMessage);
                     }
 
                     if let Some(contact) = &mut contact {
@@ -670,6 +673,8 @@ impl Contacts {
                             ))
                             .body(&message.text)
                             .show();
+
+                        action = Some(Action::NewMessage);
                     }
 
                     if let Some(contact) = &mut contact {
