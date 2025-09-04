@@ -501,29 +501,21 @@ impl IcedM {
                     match event {
                         msnp11_sdk::Event::Disconnected
                         | msnp11_sdk::Event::LoggedInAnotherDevice => {
-                            let mut tasks = Vec::new();
-                            for (id, window) in self.windows.iter_mut() {
-                                // Close windows that aren't the main one and open dialog with disconnection message
-                                tasks.push(
-                                    if !matches!(
-                                        window.get_screen(),
-                                        Screen::Contacts(..) | Screen::SignIn(..)
-                                    ) {
-                                        window::close::<Message>(*id)
-                                    } else {
-                                        // Using Disconnected as a default to replace the event, since there's only supposed to be one
-                                        // window with this screen type
-                                        window.update(Message::Contacts(
-                                            *id,
-                                            contacts::contacts::Message::NotificationServerEvent(
-                                                std::mem::replace(
-                                                    event,
-                                                    msnp11_sdk::Event::Disconnected,
-                                                ),
-                                            ),
-                                        ))
-                                    },
-                                );
+                            let mut tasks = Vec::with_capacity(self.windows.len());
+                            for (id, _) in self.windows.iter_mut() {
+                                if *id != self.main_window_id {
+                                    tasks.push(window::close::<Message>(*id));
+                                }
+                            }
+
+                            if let Some(window) = self.windows.get_mut(&self.main_window_id) {
+                                // Using Disconnected as a default
+                                tasks.push(window.update(Message::Contacts(
+                                    self.main_window_id,
+                                    contacts::contacts::Message::NotificationServerEvent(
+                                        std::mem::replace(event, msnp11_sdk::Event::Disconnected),
+                                    ),
+                                )))
                             }
 
                             Task::batch(tasks)

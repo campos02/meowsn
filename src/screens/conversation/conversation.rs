@@ -87,9 +87,7 @@ impl Conversation {
             messages = message_history;
         }
 
-        let mut participants = HashMap::new();
-        participants.reserve(switchboard.participants.len());
-
+        let mut participants = HashMap::with_capacity(switchboard.participants.len());
         for participant in &switchboard.participants {
             participants.insert(
                 participant.clone(),
@@ -142,7 +140,7 @@ impl Conversation {
                         "To: ",
                         if self.participants.len() == 1 {
                             text(if let Some(contact) = &self.participants.values().next() {
-                                contact.display_name.as_str()
+                                &contact.display_name
                             } else {
                                 ""
                             })
@@ -165,7 +163,7 @@ impl Conversation {
                             text(format!(
                                 "<{}>",
                                 if let Some(email) = &self.participants.keys().next() {
-                                    email.as_str()
+                                    &email
                                 } else {
                                     ""
                                 }
@@ -190,7 +188,7 @@ impl Conversation {
                             if !message.is_nudge {
                                 row![
                                     text(if message.sender == self.user_email {
-                                        self.user_display_name.as_str()
+                                        &self.user_display_name
                                     } else if let Some(participant) =
                                         self.participants.get(&message.sender)
                                     {
@@ -735,7 +733,7 @@ impl Conversation {
     }
 
     pub fn leave_switchboards_task(&self) -> Task<crate::Message> {
-        let mut tasks = Vec::new();
+        let mut tasks = Vec::with_capacity(self.switchboards.len());
         for switchboard in self.switchboards.values() {
             let switchboard = switchboard.clone();
             tasks.push(Task::perform(

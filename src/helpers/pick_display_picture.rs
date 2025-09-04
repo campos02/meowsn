@@ -24,7 +24,7 @@ pub async fn pick_display_picture(
         .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)?;
 
     let hash = client.set_display_picture(bytes.clone()).await?;
-    let _ = sqlite.insert_display_picture(bytes.as_slice(), &hash);
+    let _ = sqlite.insert_display_picture(&bytes, &hash);
     let _ = sqlite.update_user_display_picture(&email, &hash);
 
     Ok(Cow::from(bytes))
