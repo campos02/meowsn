@@ -37,6 +37,7 @@ pub enum Message {
     BlockContact(Arc<String>),
     UnblockContact(Arc<String>),
     RemoveContact(Arc<String>),
+    ContactFocused(Arc<String>),
     AddContact,
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
 }
@@ -349,6 +350,18 @@ impl Contacts {
                 action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
                     self.client.clone(),
                 ))));
+            }
+
+            Message::ContactFocused(email) => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = contact {
+                    contact.new_messages = false;
+                }
             }
 
             Message::Conversation(contact) => {

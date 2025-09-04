@@ -688,6 +688,20 @@ impl Conversation {
                     }
                 }
 
+                if self.participants.len() == 1
+                    && let Some(participant) = self.participants.values().next()
+                {
+                    tasks.push(Task::done(crate::Message::ContactFocused(
+                        participant.email.clone(),
+                    )));
+                } else if self.participants.is_empty()
+                    && let Some(participant) = &self.last_participant
+                {
+                    tasks.push(Task::done(crate::Message::ContactFocused(
+                        participant.email.clone(),
+                    )));
+                }
+
                 action = Some(Action::RunTask(Task::batch(tasks)));
             }
 

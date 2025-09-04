@@ -51,6 +51,7 @@ pub enum Message {
     Conversation(window::Id, conversation::conversation::Message),
     Dialog(window::Id, dialog::Message),
     AddContact(window::Id, add_contact::Message),
+    ContactFocused(Arc<String>),
     OpenPersonalSettings {
         client: Option<Arc<Client>>,
         display_name: Option<String>,
@@ -658,6 +659,17 @@ impl IcedM {
                     Err(error) => {
                         return Task::done(Message::OpenDialog(error.to_string()));
                     }
+                }
+
+                Task::none()
+            }
+
+            Message::ContactFocused(email) => {
+                if let Some(window) = self.windows.get_mut(&self.main_window_id) {
+                    return window.update(Message::Contacts(
+                        self.main_window_id,
+                        contacts::contacts::Message::ContactFocused(email),
+                    ));
                 }
 
                 Task::none()
