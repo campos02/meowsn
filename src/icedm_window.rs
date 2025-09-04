@@ -37,7 +37,7 @@ impl Window {
                     && let Some(action) = sign_in.update(message)
                 {
                     return match action {
-                        sign_in::Action::SignIn => {
+                        sign_in::sign_in::Action::SignIn => {
                             let (email, password, status) = sign_in.get_sign_in_info();
                             Task::perform(
                                 sign_in_async::sign_in_async(
@@ -54,14 +54,14 @@ impl Window {
                             )
                         }
 
-                        sign_in::Action::PersonalSettings => {
+                        sign_in::sign_in::Action::PersonalSettings => {
                             Task::done(Message::OpenPersonalSettings {
                                 client: None,
                                 display_name: None,
                             })
                         }
 
-                        sign_in::Action::Dialog(message) => {
+                        sign_in::sign_in::Action::Dialog(message) => {
                             Task::done(Message::OpenDialog(message))
                         }
                     };
@@ -71,17 +71,21 @@ impl Window {
             }
 
             Message::Contacts(.., message) => {
-                if let contacts::Message::NotificationServerEvent(ref event) = message {
+                if let contacts::contacts::Message::NotificationServerEvent(ref event) = message {
                     match event {
                         msnp11_sdk::Event::Disconnected => {
-                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                            self.screen =
+                                Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()));
+
                             return Task::done(Message::OpenDialog(
                                 "Lost connection to the server".to_string(),
                             ));
                         }
 
                         msnp11_sdk::Event::LoggedInAnotherDevice => {
-                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                            self.screen =
+                                Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()));
+
                             return Task::done(Message::OpenDialog(
                                 "Disconnected as you have signed in on another computer"
                                     .to_string(),
@@ -96,12 +100,13 @@ impl Window {
                     && let Some(action) = contacts.update(message)
                 {
                     return match action {
-                        contacts::Action::SignOut(task) => {
-                            self.screen = Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()));
+                        contacts::contacts::Action::SignOut(task) => {
+                            self.screen =
+                                Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()));
                             task
                         }
 
-                        contacts::Action::RunTask(task) => task,
+                        contacts::contacts::Action::RunTask(task) => task,
                     };
                 }
 
@@ -128,16 +133,16 @@ impl Window {
                     && let Some(action) = conversation.update(message)
                 {
                     return match action {
-                        conversation::Action::ParticipantTypingTimeout => {
+                        conversation::conversation::Action::ParticipantTypingTimeout => {
                             Task::perform(tokio::time::sleep(Duration::from_secs(5)), move |_| {
                                 Message::Conversation(
                                     id,
-                                    conversation::Message::ParticipantTypingTimeout,
+                                    conversation::conversation::Message::ParticipantTypingTimeout,
                                 )
                             })
                         }
 
-                        conversation::Action::UserTypingTimeout(task) => {
+                        conversation::conversation::Action::UserTypingTimeout(task) => {
                             let id = self.id;
                             Task::batch([
                                 task,
@@ -146,14 +151,14 @@ impl Window {
                                     move |_| {
                                         Message::Conversation(
                                             id,
-                                            conversation::Message::UserTypingTimeout,
+                                            conversation::conversation::Message::UserTypingTimeout,
                                         )
                                     },
                                 ),
                             ])
                         }
 
-                        conversation::Action::RunTask(task) => task,
+                        conversation::conversation::Action::RunTask(task) => task,
                     };
                 }
 
@@ -193,7 +198,7 @@ impl Window {
             } => {
                 match result {
                     Ok((personal_message, initial_status, client)) => {
-                        self.screen = Screen::Contacts(contacts::Contacts::new(
+                        self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
                             email,
                             personal_message,
                             initial_status,
@@ -205,7 +210,7 @@ impl Window {
 
                     Err(error) => {
                         if let Screen::SignIn(sign_in) = &mut self.screen {
-                            sign_in.update(sign_in::Message::SignInFailed);
+                            sign_in.update(sign_in::sign_in::Message::SignInFailed);
                         }
 
                         return Task::done(Message::OpenDialog(error.to_string()));
@@ -220,24 +225,27 @@ impl Window {
                     match &mut self.screen {
                         Screen::Conversation(conversation) => {
                             if conversation.contains_switchboard(&session_id)
-                                && let Some(action) = conversation
-                                    .update(conversation::Message::MsnpEvent(Box::from(event)))
+                                && let Some(action) = conversation.update(
+                                    conversation::conversation::Message::MsnpEvent(Box::from(
+                                        event,
+                                    )),
+                                )
                             {
                                 return match action {
-                                    conversation::Action::ParticipantTypingTimeout => {
+                                    conversation::conversation::Action::ParticipantTypingTimeout => {
                                         let id = self.id;
                                         Task::perform(
                                             tokio::time::sleep(Duration::from_secs(5)),
                                             move |_| {
                                                 Message::Conversation(
                                                     id,
-                                                    conversation::Message::ParticipantTypingTimeout,
+                                                    conversation::conversation::Message::ParticipantTypingTimeout,
                                                 )
                                             },
                                         )
                                     }
 
-                                    conversation::Action::UserTypingTimeout(task) => {
+                                    conversation::conversation::Action::UserTypingTimeout(task) => {
                                         let id = self.id;
                                         Task::batch([
                                             task,
@@ -246,31 +254,31 @@ impl Window {
                                                 move |_| {
                                                     Message::Conversation(
                                                         id,
-                                                        conversation::Message::UserTypingTimeout,
+                                                        conversation::conversation::Message::UserTypingTimeout,
                                                     )
                                                 },
                                             ),
                                         ])
                                     }
 
-                                    conversation::Action::RunTask(task) => task,
+                                    conversation::conversation::Action::RunTask(task) => task,
                                 };
                             }
                         }
 
                         Screen::Contacts(contacts) => {
-                            if let Some(action) = contacts
-                                .update(contacts::Message::SwitchboardEvent(session_id, event))
-                            {
+                            if let Some(action) = contacts.update(
+                                contacts::contacts::Message::SwitchboardEvent(session_id, event),
+                            ) {
                                 return match action {
-                                    contacts::Action::SignOut(task) => {
-                                        self.screen = Screen::SignIn(sign_in::SignIn::new(
-                                            self.sqlite.clone(),
-                                        ));
+                                    contacts::contacts::Action::SignOut(task) => {
+                                        self.screen = Screen::SignIn(
+                                            sign_in::sign_in::SignIn::new(self.sqlite.clone()),
+                                        );
                                         task
                                     }
 
-                                    contacts::Action::RunTask(task) => task,
+                                    contacts::contacts::Action::RunTask(task) => task,
                                 };
                             }
                         }

@@ -28,7 +28,7 @@ mod contact_repository;
 mod enums;
 mod helpers;
 mod icedm_window;
-pub mod keyboard_listener;
+mod keyboard_listener;
 mod models;
 pub mod msnp_listener;
 mod screens;
@@ -39,16 +39,16 @@ mod svg;
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
     WindowOpened(window::Id, WindowType),
-    SignIn(window::Id, sign_in::Message),
+    SignIn(window::Id, sign_in::sign_in::Message),
     SignedIn {
         id: window::Id,
         email: Arc<String>,
         result: Result<(String, MsnpStatus, Arc<Client>), SdkError>,
     },
 
-    Contacts(window::Id, contacts::Message),
+    Contacts(window::Id, contacts::contacts::Message),
     PersonalSettings(window::Id, personal_settings::Message),
-    Conversation(window::Id, conversation::Message),
+    Conversation(window::Id, conversation::conversation::Message),
     Dialog(window::Id, dialog::Message),
     AddContact(window::Id, add_contact::Message),
     OpenPersonalSettings {
@@ -139,7 +139,7 @@ impl IcedM {
             Message::WindowOpened(id, window_type) => {
                 let screen = match window_type {
                     WindowType::MainWindow => {
-                        Screen::SignIn(sign_in::SignIn::new(self.sqlite.clone()))
+                        Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()))
                     }
 
                     WindowType::PersonalSettings {
@@ -156,7 +156,7 @@ impl IcedM {
                         switchboard,
                         email,
                         display_name,
-                    } => Screen::Conversation(conversation::Conversation::new(
+                    } => Screen::Conversation(conversation::conversation::Conversation::new(
                         contact_repository,
                         session_id,
                         switchboard,
@@ -207,7 +207,10 @@ impl IcedM {
                     if let Some(modal) = self.modal_id {
                         window::gain_focus(modal)
                     } else if let Some(window) = self.windows.get_mut(&id) {
-                        window.update(Message::Conversation(id, conversation::Message::Focused))
+                        window.update(Message::Conversation(
+                            id,
+                            conversation::conversation::Message::Focused,
+                        ))
                     } else {
                         Task::none()
                     }
@@ -215,7 +218,10 @@ impl IcedM {
 
                 window::Event::Unfocused => {
                     if let Some(window) = self.windows.get_mut(&id) {
-                        window.update(Message::Conversation(id, conversation::Message::Unfocused))
+                        window.update(Message::Conversation(
+                            id,
+                            conversation::conversation::Message::Unfocused,
+                        ))
                     } else {
                         Task::none()
                     }
@@ -399,7 +405,7 @@ impl IcedM {
                 if let Some(window) = self.windows.get_mut(&self.main_window_id) {
                     let remove_task = window.update(Message::Contacts(
                         self.main_window_id,
-                        contacts::Message::RemoveSwitchboard(session_id),
+                        contacts::contacts::Message::RemoveSwitchboard(session_id),
                     ));
 
                     return Task::batch([switchboard_task, remove_task]);
@@ -424,7 +430,7 @@ impl IcedM {
                 }) {
                     let switchboard_task = window.update(Message::Conversation(
                         *id,
-                        conversation::Message::NewSwitchboard(
+                        conversation::conversation::Message::NewSwitchboard(
                             session_id.clone(),
                             switchboard.switchboard,
                         ),
@@ -433,7 +439,7 @@ impl IcedM {
                     if let Some(window) = self.windows.get_mut(&self.main_window_id) {
                         let remove_task = window.update(Message::Contacts(
                             self.main_window_id,
-                            contacts::Message::RemoveSwitchboard(session_id.clone()),
+                            contacts::contacts::Message::RemoveSwitchboard(session_id.clone()),
                         ));
 
                         return Task::batch([switchboard_task, remove_task]);
@@ -509,7 +515,7 @@ impl IcedM {
                                         // window with this screen type
                                         window.update(Message::Contacts(
                                             *id,
-                                            contacts::Message::NotificationServerEvent(
+                                            contacts::contacts::Message::NotificationServerEvent(
                                                 std::mem::replace(
                                                     event,
                                                     msnp11_sdk::Event::Disconnected,
@@ -528,10 +534,9 @@ impl IcedM {
                                 return window.update(Message::Contacts(
                                     self.main_window_id,
                                     // Using Authenticated as a default event
-                                    contacts::Message::NotificationServerEvent(std::mem::replace(
-                                        event,
-                                        msnp11_sdk::Event::Authenticated,
-                                    )),
+                                    contacts::contacts::Message::NotificationServerEvent(
+                                        std::mem::replace(event, msnp11_sdk::Event::Authenticated),
+                                    ),
                                 ));
                             }
 
@@ -576,7 +581,9 @@ impl IcedM {
                     {
                         tasks.push(window.update(Message::Conversation(
                             *id,
-                            conversation::Message::ContactUpdated(std::mem::take(&mut contact)),
+                            conversation::conversation::Message::ContactUpdated(std::mem::take(
+                                &mut contact,
+                            )),
                         )));
                     }
                 }
@@ -596,7 +603,7 @@ impl IcedM {
                             Screen::Conversation(..) => {
                                 tasks.push(window.update(Message::Conversation(
                                     *id,
-                                    conversation::Message::UserDisplayPictureUpdated(
+                                    conversation::conversation::Message::UserDisplayPictureUpdated(
                                         picture.clone(),
                                     ),
                                 )));
@@ -605,7 +612,9 @@ impl IcedM {
                             Screen::Contacts(..) => {
                                 tasks.push(window.update(Message::Contacts(
                                     *id,
-                                    contacts::Message::UserDisplayPictureUpdated(picture.clone()),
+                                    contacts::contacts::Message::UserDisplayPictureUpdated(
+                                        picture.clone(),
+                                    ),
                                 )));
                             }
 
@@ -627,7 +636,9 @@ impl IcedM {
                     if matches!(window.get_screen(), Screen::Conversation(..)) {
                         tasks.push(window.update(Message::Conversation(
                             *id,
-                            conversation::Message::UserDisplayNameUpdated(display_name.clone()),
+                            conversation::conversation::Message::UserDisplayNameUpdated(
+                                display_name.clone(),
+                            ),
                         )));
                     }
                 }
@@ -647,7 +658,7 @@ impl IcedM {
                         if let Some(window) = self.windows.get_mut(&self.main_window_id) {
                             return window.update(Message::Contacts(
                                 self.main_window_id,
-                                contacts::Message::NotificationServerEvent(event),
+                                contacts::contacts::Message::NotificationServerEvent(event),
                             ));
                         }
                     }

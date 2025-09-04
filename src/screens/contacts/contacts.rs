@@ -5,14 +5,14 @@ use crate::models::contact::Contact;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
+use crate::screens::contacts::bordered_container::bordered_container;
+use crate::screens::contacts::contact_map::contact_map;
+use crate::screens::contacts::transparent_button::transparent_button;
 use crate::sqlite::Sqlite;
-use iced::border::radius;
-use iced::font::Weight;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
-use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
-use iced::{Background, Border, Center, Color, Element, Fill, Font, Padding, Task, Theme, widget};
-use iced_aw::ContextMenu;
+use iced::widget::{column, container, pick_list, row, scrollable, svg, text, text_input};
+use iced::{Background, Center, Color, Element, Padding, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
 use notify_rust::Notification;
 use rfd::AsyncFileDialog;
@@ -97,31 +97,11 @@ impl Contacts {
             column![
                 row![
                     if let Some(picture) = self.display_picture.clone() {
-                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            picture,
-                        ))))
-                        .width(70)
-                        .style(|theme: &Theme| container::Style {
-                            border: Border {
-                                color: theme.palette().text,
-                                width: 1.0,
-                                radius: radius(10.0),
-                            },
-                            ..container::Style::default()
-                        })
-                        .padding(3)
+                        bordered_container(widget::image(widget::image::Handle::from_bytes(
+                            Box::from(picture),
+                        )))
                     } else {
-                        container(svg(crate::svg::default_display_picture()))
-                            .width(70)
-                            .style(|theme: &Theme| container::Style {
-                                border: Border {
-                                    color: theme.palette().text,
-                                    width: 1.0,
-                                    radius: radius(10.0),
-                                },
-                                ..container::Style::default()
-                            })
-                            .padding(3)
+                        bordered_container(svg(crate::svg::default_display_picture()))
                     },
                     column![
                         row![
@@ -179,20 +159,7 @@ impl Contacts {
                 .spacing(10),
                 row![
                     svg(crate::svg::add_contact()).width(30),
-                    button("Add a contact")
-                        .style(|theme: &Theme, status| {
-                            match status {
-                                button::Status::Hovered | button::Status::Pressed => {
-                                    button::primary(theme, status)
-                                }
-
-                                button::Status::Active | button::Status::Disabled => {
-                                    button::secondary(theme, status)
-                                        .with_background(Color::TRANSPARENT)
-                                }
-                            }
-                        })
-                        .on_press(Message::AddContact),
+                    transparent_button("Add a contact").on_press(Message::AddContact),
                 ]
                 .align_y(Center),
                 scrollable(column![
@@ -200,7 +167,7 @@ impl Contacts {
                         column(
                             self.online_contacts
                                 .values()
-                                .map(|contact| Self::contact_map(contact)),
+                                .map(|contact| contact_map(contact)),
                         )
                         .spacing(10)
                         .padding(Padding {
@@ -215,7 +182,7 @@ impl Contacts {
                     column(
                         self.offline_contacts
                             .values()
-                            .map(|contact| Self::contact_map(contact))
+                            .map(|contact| contact_map(contact))
                     )
                     .spacing(10)
                     .padding(10)
@@ -224,122 +191,6 @@ impl Contacts {
             .spacing(10),
         )
         .padding(15)
-        .into()
-    }
-
-    fn contact_map(contact: &Contact) -> Element<'_, Message> {
-        let personal_message_color = |theme: &Theme| text::Style {
-            color: Some(theme.extended_palette().secondary.weak.color),
-        };
-
-        ContextMenu::new(
-            row![
-                row![
-                    svg(if let Some(status) = &contact.status {
-                        if contact.lists.contains(&MsnpList::BlockList) {
-                            crate::svg::default_display_picture_blocked()
-                        } else {
-                            match status.status {
-                                MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                    crate::svg::default_display_picture_busy()
-                                }
-
-                                MsnpStatus::Away
-                                | MsnpStatus::Idle
-                                | MsnpStatus::BeRightBack
-                                | MsnpStatus::OutToLunch => {
-                                    crate::svg::default_display_picture_away()
-                                }
-
-                                _ => crate::svg::default_display_picture(),
-                            }
-                        }
-                    } else if contact.lists.contains(&MsnpList::BlockList) {
-                        crate::svg::default_display_picture_offline_blocked()
-                    } else {
-                        crate::svg::default_display_picture_offline()
-                    })
-                    .width(30),
-                    button(row![
-                        if contact.new_messages {
-                            text(&*contact.display_name).font(Font {
-                                weight: Weight::Bold,
-                                ..Font::default()
-                            })
-                        } else {
-                            text(&*contact.display_name)
-                        },
-                        if let Some(personal_message) = &contact.personal_message
-                            && !personal_message.is_empty()
-                        {
-                            row![
-                                text(" - ").style(personal_message_color),
-                                text(&**personal_message).style(personal_message_color)
-                            ]
-                        } else {
-                            row![]
-                        }
-                    ])
-                    .on_press(Message::Conversation(contact.clone()))
-                    .style(|theme: &Theme, status| match status {
-                        button::Status::Hovered | button::Status::Pressed => {
-                            button::secondary(theme, status)
-                        }
-
-                        button::Status::Active | button::Status::Disabled => {
-                            button::secondary(theme, status).with_background(Color::TRANSPARENT)
-                        }
-                    })
-                    .width(Fill)
-                ]
-                .align_y(Center)
-            ]
-            .align_y(Center)
-            .spacing(10)
-            .width(Fill),
-            || {
-                let menu_button = |theme: &Theme, status| match status {
-                    button::Status::Hovered | button::Status::Pressed => {
-                        button::primary(theme, status)
-                    }
-
-                    button::Status::Active | button::Status::Disabled => {
-                        button::secondary(theme, status).with_background(Color::TRANSPARENT)
-                    }
-                };
-
-                container(column![
-                    if !contact.lists.contains(&MsnpList::BlockList) {
-                        button(text("Block").size(15))
-                            .on_press(Message::BlockContact(contact.email.clone()))
-                            .style(menu_button)
-                            .width(Fill)
-                    } else {
-                        button(text("Unblock").size(15))
-                            .on_press(Message::UnblockContact(contact.email.clone()))
-                            .style(menu_button)
-                            .width(Fill)
-                    },
-                    button(text("Delete").size(15))
-                        .on_press(Message::RemoveContact(contact.email.clone()))
-                        .style(menu_button)
-                        .width(Fill)
-                ])
-                .style(|theme: &Theme| container::Style {
-                    border: Border {
-                        color: Color::TRANSPARENT,
-                        width: 0.0,
-                        radius: radius(2.0),
-                    },
-                    background: Some(Background::Color(
-                        theme.extended_palette().secondary.base.color,
-                    )),
-                    ..container::Style::default()
-                })
-                .width(150)
-                .into()
-            },
-        )
         .into()
     }
 

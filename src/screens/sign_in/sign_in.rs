@@ -1,11 +1,12 @@
 use crate::enums::sign_in_status::SignInStatus;
+use crate::screens::sign_in::bordered_container::bordered_container;
+use crate::screens::sign_in::transparent_button::transparent_button;
 use crate::sqlite::Sqlite;
-use iced::border::radius;
+use iced::widget;
 use iced::widget::{
     button, checkbox, column, combo_box, container, pick_list, row, svg, text, text_input,
 };
-use iced::{Border, Center, Element, Fill, Theme};
-use iced::{Color, widget};
+use iced::{Center, Element, Fill};
 use keyring::Entry;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -86,31 +87,11 @@ impl SignIn {
         container(
             column![
                 if let Some(picture) = self.display_picture.clone() {
-                    container(widget::image(widget::image::Handle::from_bytes(Box::from(
+                    bordered_container(widget::image(widget::image::Handle::from_bytes(Box::from(
                         picture,
                     ))))
-                    .width(120)
-                    .style(|theme: &Theme| container::Style {
-                        border: Border {
-                            color: theme.palette().text,
-                            width: 1.0,
-                            radius: radius(10.0),
-                        },
-                        ..container::Style::default()
-                    })
-                    .padding(3)
                 } else {
-                    container(svg(crate::svg::default_display_picture()))
-                        .width(120)
-                        .style(|theme: &Theme| container::Style {
-                            border: Border {
-                                color: theme.palette().text,
-                                width: 1.0,
-                                radius: radius(10.0),
-                            },
-                            ..container::Style::default()
-                        })
-                        .padding(3)
+                    bordered_container(svg(crate::svg::default_display_picture()))
                 },
                 column![
                     column![
@@ -151,19 +132,7 @@ impl SignIn {
                         checkbox("Remember Me", self.remember_me)
                             .on_toggle(Message::RememberMeToggled)
                             .size(12),
-                        button(text("(Forget Me)").size(14))
-                            .style(|theme: &Theme, status| {
-                                match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                }
-                            })
+                        transparent_button(text("(Forget Me)").size(14))
                             .on_press(Message::ForgetMe)
                     ]
                     .spacing(15)

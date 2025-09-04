@@ -2,14 +2,15 @@ use crate::contact_repository::ContactRepository;
 use crate::models::contact::Contact;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
+use crate::screens::conversation::bordered_container::bordered_container;
+use crate::screens::conversation::toggle_button::toggle_button;
 use crate::sqlite::Sqlite;
-use iced::border::radius;
 use iced::font::{Family, Style, Weight};
 use iced::widget::{
     button, column, container, horizontal_space, rich_text, row, scrollable, span, svg, text,
     text_editor, vertical_space,
 };
-use iced::{Border, Center, Color, Element, Fill, Font, Task, Theme, widget};
+use iced::{Center, Element, Fill, Font, Task, Theme, widget};
 use msnp11_sdk::{Event, PlainText, Switchboard};
 use notify_rust::Notification;
 use std::borrow::Cow;
@@ -134,15 +135,6 @@ impl Conversation {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let picture_border = |theme: &Theme| container::Style {
-            border: Border {
-                color: theme.palette().text,
-                width: 1.0,
-                radius: radius(10.0),
-            },
-            ..Default::default()
-        };
-
         container(
             row![
                 column![
@@ -255,93 +247,41 @@ impl Conversation {
                         text("").size(14)
                     },
                     row![
-                        button(text("B").align_x(Center).font(Font {
-                            family: Family::Serif,
-                            ..Font::default()
-                        }))
+                        toggle_button(
+                            text("B").align_x(Center).font(Font {
+                                family: Family::Serif,
+                                ..Font::default()
+                            }),
+                            self.bold
+                        )
                         .width(30)
-                        .style(|theme: &Theme, status| {
-                            if self.bold {
-                                button::primary(theme, status)
-                            } else {
-                                match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                }
-                            }
-                        })
                         .on_press(Message::BoldPressed),
-                        button(text("I").align_x(Center).font(Font {
-                            family: Family::Serif,
-                            ..Font::default()
-                        }))
+                        toggle_button(
+                            text("I").align_x(Center).font(Font {
+                                family: Family::Serif,
+                                ..Font::default()
+                            }),
+                            self.italic
+                        )
                         .width(30)
-                        .style(|theme: &Theme, status| {
-                            if self.italic {
-                                button::primary(theme, status)
-                            } else {
-                                match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                }
-                            }
-                        })
                         .on_press(Message::ItalicPressed),
-                        button(text("U").align_x(Center).font(Font {
-                            family: Family::Serif,
-                            ..Font::default()
-                        }))
+                        toggle_button(
+                            text("U").align_x(Center).font(Font {
+                                family: Family::Serif,
+                                ..Font::default()
+                            }),
+                            self.underline
+                        )
                         .width(30)
-                        .style(|theme: &Theme, status| {
-                            if self.underline {
-                                button::primary(theme, status)
-                            } else {
-                                match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                }
-                            }
-                        })
                         .on_press(Message::UnderlinePressed),
-                        button(text("S").align_x(Center).font(Font {
-                            family: Family::Serif,
-                            ..Font::default()
-                        }))
+                        toggle_button(
+                            text("S").align_x(Center).font(Font {
+                                family: Family::Serif,
+                                ..Font::default()
+                            }),
+                            self.strikethrough
+                        )
                         .width(30)
-                        .style(|theme: &Theme, status| {
-                            if self.strikethrough {
-                                button::primary(theme, status)
-                            } else {
-                                match status {
-                                    button::Status::Hovered | button::Status::Pressed => {
-                                        button::primary(theme, status)
-                                    }
-
-                                    button::Status::Active | button::Status::Disabled => {
-                                        button::secondary(theme, status)
-                                            .with_background(Color::TRANSPARENT)
-                                    }
-                                }
-                            }
-                        })
                         .on_press(Message::StrikethroughPressed),
                         button("Nudge").on_press(Message::SendNudge)
                     ]
@@ -356,42 +296,29 @@ impl Conversation {
                         && let Some(contact) = &self.participants.values().next()
                         && let Some(picture) = contact.display_picture.clone()
                     {
-                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            picture,
-                        ))))
+                        bordered_container(
+                            widget::image(widget::image::Handle::from_bytes(Box::from(picture))),
+                            10.0,
+                        )
                         .width(100)
-                        .style(picture_border)
-                        .padding(3)
                     } else if self.participants.len() > 1 {
                         container(
                             column(self.participants.values().map(|participant| {
                                 row![
                                     if let Some(picture) = participant.display_picture.clone() {
-                                        container(widget::image(widget::image::Handle::from_bytes(
-                                            Box::from(picture),
-                                        )))
+                                        bordered_container(
+                                            widget::image(widget::image::Handle::from_bytes(
+                                                Box::from(picture),
+                                            )),
+                                            5.0,
+                                        )
                                         .width(40)
-                                        .style(|theme: &Theme| container::Style {
-                                            border: Border {
-                                                color: theme.palette().text,
-                                                width: 1.0,
-                                                radius: radius(5.0),
-                                            },
-                                            ..Default::default()
-                                        })
-                                        .padding(3)
                                     } else {
-                                        container(svg(crate::svg::default_display_picture()))
-                                            .width(40)
-                                            .style(|theme: &Theme| container::Style {
-                                                border: Border {
-                                                    color: theme.palette().text,
-                                                    width: 1.0,
-                                                    radius: radius(5.0),
-                                                },
-                                                ..Default::default()
-                                            })
-                                            .padding(3)
+                                        bordered_container(
+                                            svg(crate::svg::default_display_picture()),
+                                            5.0,
+                                        )
+                                        .width(40)
                                     },
                                     text(&*participant.display_name).size(14)
                                 ]
@@ -405,31 +332,27 @@ impl Conversation {
                     } else if let Some(last_participant) = &self.last_participant
                         && let Some(picture) = &last_participant.display_picture
                     {
-                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            picture.clone(),
-                        ))))
+                        bordered_container(
+                            widget::image(widget::image::Handle::from_bytes(Box::from(
+                                picture.clone(),
+                            ))),
+                            10.0,
+                        )
                         .width(100)
-                        .style(picture_border)
-                        .padding(3)
                     } else {
-                        container(svg(crate::svg::default_display_picture()))
+                        bordered_container(svg(crate::svg::default_display_picture()), 10.0)
                             .width(100)
-                            .style(picture_border)
-                            .padding(3)
                     },
                     vertical_space().height(Fill),
                     if let Some(picture) = self.user_display_picture.clone() {
-                        container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                            picture,
-                        ))))
+                        bordered_container(
+                            widget::image(widget::image::Handle::from_bytes(Box::from(picture))),
+                            10.0,
+                        )
                         .width(100)
-                        .style(picture_border)
-                        .padding(3)
                     } else {
-                        container(svg(crate::svg::default_display_picture()))
+                        bordered_container(svg(crate::svg::default_display_picture()), 10.0)
                             .width(100)
-                            .style(picture_border)
-                            .padding(3)
                     }
                 ]
             ]
