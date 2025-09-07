@@ -9,7 +9,6 @@ use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use dark_light::Mode;
-use enums::window_type::WindowType;
 use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
@@ -38,7 +37,7 @@ mod svg;
 
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
-    WindowOpened(window::Id, WindowType),
+    WindowOpened(window::Id, Screen),
     SignIn(window::Id, sign_in::sign_in::Message),
     SignedIn {
         id: window::Id,
@@ -127,10 +126,15 @@ impl IcedM {
                 main_window_id: id,
                 modal_id: None,
                 msnp_subscription_sender: None,
-                sqlite,
+                sqlite: sqlite.clone(),
             },
             Task::batch([
-                open.map(move |id| Message::WindowOpened(id, WindowType::MainWindow)),
+                open.map(move |id| {
+                    Message::WindowOpened(
+                        id,
+                        Screen::SignIn(sign_in::sign_in::SignIn::new(sqlite.clone())),
+                    )
+                }),
                 Task::perform(notify_new_version(), Message::UnitBoxedError),
             ]),
         )
@@ -138,41 +142,7 @@ impl IcedM {
 
     fn update(&mut self, mut message: Message) -> Task<Message> {
         match message {
-            Message::WindowOpened(id, window_type) => {
-                let screen = match window_type {
-                    WindowType::MainWindow => {
-                        Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()))
-                    }
-
-                    WindowType::PersonalSettings {
-                        client,
-                        display_name,
-                    } => Screen::PersonalSettings(personal_settings::PersonalSettings::new(
-                        client,
-                        display_name,
-                    )),
-
-                    WindowType::Conversation {
-                        contact_repository,
-                        session_id,
-                        switchboard,
-                        email,
-                        display_name,
-                    } => Screen::Conversation(conversation::conversation::Conversation::new(
-                        contact_repository,
-                        session_id,
-                        switchboard,
-                        email,
-                        display_name,
-                        self.sqlite.clone(),
-                    )),
-
-                    WindowType::Dialog(message) => Screen::Dialog(dialog::Dialog::new(message)),
-                    WindowType::AddContact(client) => {
-                        Screen::AddContact(add_contact::AddContact::new(client))
-                    }
-                };
-
+            Message::WindowOpened(id, screen) => {
                 let window = Window::new(
                     id,
                     screen,
@@ -284,10 +254,10 @@ impl IcedM {
                 open.map(move |id| {
                     Message::WindowOpened(
                         id,
-                        WindowType::PersonalSettings {
-                            client: client.take(),
-                            display_name: display_name.take(),
-                        },
+                        Screen::PersonalSettings(personal_settings::PersonalSettings::new(
+                            client.take(),
+                            display_name.take(),
+                        )),
                     )
                 })
             }
@@ -345,24 +315,29 @@ impl IcedM {
                             let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
                         }
 
+                        let sqlite = self.sqlite.clone();
                         let (_, open) =
                             window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
 
                         open.map(move |id| {
                             Message::WindowOpened(
                                 id,
-                                WindowType::Conversation {
-                                    contact_repository: std::mem::take(&mut contact_repository),
-                                    session_id: Arc::new(
-                                        block_on(switchboard.get_session_id()).unwrap_or_default(),
+                                Screen::Conversation(
+                                    conversation::conversation::Conversation::new(
+                                        std::mem::take(&mut contact_repository),
+                                        Arc::new(
+                                            block_on(switchboard.get_session_id())
+                                                .unwrap_or_default(),
+                                        ),
+                                        SwitchboardAndParticipants {
+                                            switchboard: switchboard.clone(),
+                                            participants: vec![std::mem::take(&mut contact)],
+                                        },
+                                        std::mem::take(&mut email),
+                                        std::mem::take(&mut display_name),
+                                        sqlite.clone(),
                                     ),
-                                    switchboard: SwitchboardAndParticipants {
-                                        switchboard: switchboard.clone(),
-                                        participants: vec![std::mem::take(&mut contact)],
-                                    },
-                                    email: std::mem::take(&mut email),
-                                    display_name: std::mem::take(&mut display_name),
-                                },
+                                ),
                             )
                         })
                     }
@@ -388,17 +363,22 @@ impl IcedM {
 
                 {
                     let mut session_id = session_id.clone();
+                    let sqlite = self.sqlite.clone();
+
                     switchboard_task = open
                         .map(move |id| {
                             Message::WindowOpened(
                                 id,
-                                WindowType::Conversation {
-                                    contact_repository: std::mem::take(&mut contact_repository),
-                                    session_id: std::mem::take(&mut session_id),
-                                    switchboard: switchboard.clone(),
-                                    email: std::mem::take(&mut email),
-                                    display_name: std::mem::take(&mut display_name),
-                                },
+                                Screen::Conversation(
+                                    conversation::conversation::Conversation::new(
+                                        std::mem::take(&mut contact_repository),
+                                        std::mem::take(&mut session_id),
+                                        switchboard.clone(),
+                                        std::mem::take(&mut email),
+                                        std::mem::take(&mut display_name),
+                                        sqlite.clone(),
+                                    ),
+                                ),
                             )
                         })
                         .chain(window::minimize(id, minimized));
@@ -466,7 +446,10 @@ impl IcedM {
                 self.modal_id = Some(id);
 
                 open.map(move |id| {
-                    Message::WindowOpened(id, WindowType::Dialog(std::mem::take(&mut message)))
+                    Message::WindowOpened(
+                        id,
+                        Screen::Dialog(dialog::Dialog::new(std::mem::take(&mut message))),
+                    )
                 })
             }
 
@@ -485,7 +468,10 @@ impl IcedM {
 
                 let (_, open) = window::open(IcedM::window_settings(Size::new(400.0, 220.0)));
                 open.map(move |id| {
-                    Message::WindowOpened(id, WindowType::AddContact(client.clone()))
+                    Message::WindowOpened(
+                        id,
+                        Screen::AddContact(add_contact::AddContact::new(client.clone())),
+                    )
                 })
             }
 
