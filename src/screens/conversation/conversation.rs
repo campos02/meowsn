@@ -655,13 +655,9 @@ impl Conversation {
                 }
 
                 Event::ParticipantLeftSwitchboard { email } => {
-                    let email = Arc::new(email);
                     let removed = self.participants.remove(&email);
-
-                    if self.participants.is_empty()
-                        && let Some(contact) = removed
-                    {
-                        self.last_participant = Some(contact);
+                    if self.participants.is_empty() && removed.is_some() {
+                        self.last_participant = removed;
                     }
                 }
 
