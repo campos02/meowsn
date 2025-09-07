@@ -670,9 +670,13 @@ impl Conversation {
 
             Message::Focused => {
                 self.focused = true;
-                let mut tasks = Vec::new();
+                let mut tasks = Vec::with_capacity(self.participants.len());
 
                 for participant in self.participants.values() {
+                    tasks.push(Task::done(crate::Message::ContactFocused(
+                        participant.email.clone(),
+                    )));
+
                     if participant.display_picture.is_none()
                         && let Some(status) = &participant.status
                         && let Some(msn_object) = status.msn_object_string.clone()
@@ -693,13 +697,7 @@ impl Conversation {
                     }
                 }
 
-                if self.participants.len() == 1
-                    && let Some(participant) = self.participants.values().next()
-                {
-                    tasks.push(Task::done(crate::Message::ContactFocused(
-                        participant.email.clone(),
-                    )));
-                } else if self.participants.is_empty()
+                if self.participants.is_empty()
                     && let Some(participant) = &self.last_participant
                 {
                     tasks.push(Task::done(crate::Message::ContactFocused(

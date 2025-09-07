@@ -363,6 +363,7 @@ impl Contacts {
 
                 if let Some(contact) = contact {
                     contact.new_messages = false;
+                    contact.opening_conversation = false;
                 }
             }
 
@@ -379,8 +380,14 @@ impl Contacts {
             }
 
             Message::Conversation(contact) => {
-                if contact.status.is_some() && self.status != Some(ContactListStatus::AppearOffline)
+                if contact.status.is_some()
+                    && self.status != Some(ContactListStatus::AppearOffline)
+                    && !contact.opening_conversation
                 {
+                    if let Some(contact) = self.online_contacts.get_mut(&contact.email) {
+                        contact.opening_conversation = true;
+                    }
+
                     if let Some((session_id, switchboard)) = self
                         .orphan_switchboards
                         .iter()
@@ -407,17 +414,6 @@ impl Contacts {
                             },
                         )));
                     }
-
-                    let contact =
-                        if let Some(contact) = self.online_contacts.get_mut(&contact.email) {
-                            Some(contact)
-                        } else {
-                            self.offline_contacts.get_mut(&contact.email)
-                        };
-
-                    if let Some(contact) = contact {
-                        contact.new_messages = false;
-                    }
                 }
             }
 
@@ -441,10 +437,7 @@ impl Contacts {
                         display_name: Arc::new(display_name),
                         guid: Arc::new(guid),
                         lists,
-                        status: None,
-                        personal_message: None,
-                        display_picture: None,
-                        new_messages: false,
+                        ..Contact::default()
                     };
 
                     self.offline_contacts
