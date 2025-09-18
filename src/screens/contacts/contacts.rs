@@ -608,6 +608,7 @@ impl Contacts {
                             session_id: Some(session_id.clone()),
                             color: "0".to_string(),
                             is_history: true,
+                            errored: false,
                         };
 
                         let _ = self.sqlite.insert_message(&message);
@@ -664,6 +665,7 @@ impl Contacts {
                             session_id: Some(session_id.clone()),
                             color: message.color,
                             is_history: true,
+                            errored: false,
                         };
 
                         let _ = self.sqlite.insert_message(&message);

@@ -29,7 +29,7 @@ mod helpers;
 mod icedm_window;
 mod keyboard_listener;
 mod models;
-pub mod msnp_listener;
+mod msnp_listener;
 mod screens;
 mod settings;
 mod sqlite;

@@ -129,6 +129,7 @@ impl Sqlite {
                     session_id: row.get(8).ok().map(Arc::new),
                     color: "0".to_string(),
                     is_history: true,
+                    errored: false,
                 })
             });
 
@@ -161,6 +162,7 @@ impl Sqlite {
                     session_id: row.get(8).ok().map(Arc::new),
                     color: "0".to_string(),
                     is_history: true,
+                    errored: false,
                 })
             });
 

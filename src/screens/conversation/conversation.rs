@@ -11,7 +11,7 @@ use iced::widget::{
     text_editor, vertical_space,
 };
 use iced::{Center, Element, Fill, Font, Task, Theme, widget};
-use msnp11_sdk::{Event, PlainText, Switchboard};
+use msnp11_sdk::{Event, PlainText, SdkError, Switchboard};
 use notify_rust::Notification;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -22,11 +22,14 @@ pub enum Action {
     UserTypingTimeout(Task<crate::Message>),
     RunTask(Task<crate::Message>),
     NewMessage(Arc<String>),
+    SendMessage(Arc<Switchboard>, message::Message),
 }
 
 #[derive(Clone)]
 pub enum Message {
     Edit(text_editor::Action),
+    SendNudge,
+    SendMessageResult(message::Message, Result<(), SdkError>),
     ContactUpdated(Arc<String>),
     UserDisplayNameUpdated(Arc<String>),
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
@@ -40,7 +43,6 @@ pub enum Message {
     ItalicPressed,
     UnderlinePressed,
     StrikethroughPressed,
-    SendNudge,
 }
 
 pub struct Conversation {
@@ -186,7 +188,11 @@ impl Conversation {
                         };
 
                         column![
-                            if !message.is_nudge {
+                            if message.errored {
+                                row![
+                                    text("The following message could not be sent:").style(history)
+                                ]
+                            } else if !message.is_nudge {
                                 row![
                                     text(if message.sender == self.user_email {
                                         &self.user_display_name
@@ -211,7 +217,7 @@ impl Conversation {
                             } else {
                                 row![text(format!("⸺⸺\n{}\n⸺⸺", message.text)).style(history)]
                             },
-                            if !message.is_nudge {
+                            if !message.is_nudge || message.errored {
                                 container(
                                     rich_text([span(message.text.replace("\r\n", "\n"))
                                         .underline(message.underline)
@@ -229,7 +235,15 @@ impl Conversation {
                                             },
                                             ..Font::default()
                                         })])
-                                    .style(history),
+                                    .style(
+                                        |theme: &Theme| text::Style {
+                                            color: if !message.is_history && !message.errored {
+                                                Some(theme.palette().text)
+                                            } else {
+                                                Some(theme.extended_palette().secondary.weak.color)
+                                            },
+                                        },
+                                    ),
                                 )
                                 .padding(10)
                             } else {
@@ -395,29 +409,14 @@ impl Conversation {
                         session_id: None,
                         color: "0".to_string(),
                         is_history: false,
+                        errored: false,
                     };
 
                     self.new_message = text_editor::Content::new();
                     if !self.participants.is_empty() {
-                        let plain_text = PlainText {
-                            bold: message.bold,
-                            italic: message.italic,
-                            underline: message.underline,
-                            strikethrough: message.strikethrough,
-                            color: message.color.clone(),
-                            text: message.text.clone(),
-                        };
-
-                        let _ = self.sqlite.insert_message(&message);
-                        self.messages.push(message);
-
-                        action = Some(Action::RunTask(Task::perform(
-                            async move { switchboard.send_text_message(&plain_text).await },
-                            crate::Message::UnitResult,
-                        )));
+                        action = Some(Action::SendMessage(switchboard, message));
                     } else {
                         self.message_buffer.push(message);
-
                         if let Some(last_participant) = self.last_participant.clone() {
                             action = Some(Action::RunTask(Task::perform(
                                 async move { switchboard.invite(&last_participant.email).await },
@@ -467,17 +466,12 @@ impl Conversation {
                     session_id: None,
                     color: "0".to_string(),
                     is_history: false,
+                    errored: false,
                 };
 
                 self.new_message = text_editor::Content::new();
                 if !self.participants.is_empty() {
-                    let _ = self.sqlite.insert_message(&message);
-                    self.messages.push(message);
-
-                    action = Some(Action::RunTask(Task::perform(
-                        async move { switchboard.send_nudge().await },
-                        crate::Message::UnitResult,
-                    )));
+                    action = Some(Action::SendMessage(switchboard, message));
                 } else {
                     self.message_buffer.push(message);
                     if let Some(last_participant) = self.last_participant.clone() {
@@ -487,6 +481,16 @@ impl Conversation {
                         )));
                     }
                 }
+            }
+
+            Message::SendMessageResult(mut message, result) => {
+                if result.is_err() {
+                    message.errored = true;
+                } else {
+                    let _ = self.sqlite.insert_message(&message);
+                }
+
+                self.messages.push(message);
             }
 
             Message::ContactUpdated(contact) => {
@@ -534,6 +538,7 @@ impl Conversation {
                         session_id: None,
                         color: message.color,
                         is_history: false,
+                        errored: false,
                     };
 
                     let _ = self.sqlite.insert_message(&message);
@@ -591,6 +596,7 @@ impl Conversation {
                         session_id: None,
                         color: "0".to_string(),
                         is_history: false,
+                        errored: false,
                     };
 
                     let _ = self.sqlite.insert_message(&message);

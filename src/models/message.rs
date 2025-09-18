@@ -13,4 +13,5 @@ pub struct Message {
     pub session_id: Option<Arc<String>>,
     pub color: String,
     pub is_history: bool,
+    pub errored: bool,
 }

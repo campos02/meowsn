@@ -7,6 +7,7 @@ use crate::{Message, msnp_listener};
 use iced::futures::channel::mpsc::Sender;
 use iced::window::UserAttention;
 use iced::{Element, Task, window};
+use msnp11_sdk::PlainText;
 use std::time::Duration;
 
 pub struct Window {
@@ -100,19 +101,7 @@ impl Window {
                 if let Screen::Contacts(contacts) = &mut self.screen
                     && let Some(action) = contacts.update(message)
                 {
-                    return match action {
-                        contacts::contacts::Action::SignOut(task) => {
-                            self.screen =
-                                Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()));
-                            task
-                        }
-
-                        contacts::contacts::Action::RunTask(task) => task,
-                        contacts::contacts::Action::NewMessage => window::request_user_attention(
-                            self.id,
-                            Some(UserAttention::Informational),
-                        ),
-                    };
+                    return self.match_contacts_action(action);
                 }
 
                 Task::none()
@@ -137,41 +126,7 @@ impl Window {
                 if let Screen::Conversation(conversation) = &mut self.screen
                     && let Some(action) = conversation.update(message)
                 {
-                    return match action {
-                        conversation::conversation::Action::ParticipantTypingTimeout => {
-                            Task::perform(tokio::time::sleep(Duration::from_secs(5)), move |_| {
-                                Message::Conversation(
-                                    id,
-                                    conversation::conversation::Message::ParticipantTypingTimeout,
-                                )
-                            })
-                        }
-
-                        conversation::conversation::Action::UserTypingTimeout(task) => {
-                            let id = self.id;
-                            Task::batch([
-                                task,
-                                Task::perform(
-                                    tokio::time::sleep(Duration::from_secs(5)),
-                                    move |_| {
-                                        Message::Conversation(
-                                            id,
-                                            conversation::conversation::Message::UserTypingTimeout,
-                                        )
-                                    },
-                                ),
-                            ])
-                        }
-
-                        conversation::conversation::Action::RunTask(task) => task,
-                        conversation::conversation::Action::NewMessage(email) => Task::batch([
-                            window::request_user_attention(
-                                self.id,
-                                Some(UserAttention::Informational),
-                            ),
-                            Task::done(Message::NewMessageFromContact(email)),
-                        ]),
-                    };
+                    return Self::match_conversation_action(id, action);
                 }
 
                 Task::none()
@@ -243,45 +198,7 @@ impl Window {
                                     )),
                                 )
                             {
-                                return match action {
-                                    conversation::conversation::Action::ParticipantTypingTimeout => {
-                                        let id = self.id;
-                                        Task::perform(
-                                            tokio::time::sleep(Duration::from_secs(5)),
-                                            move |_| {
-                                                Message::Conversation(
-                                                    id,
-                                                    conversation::conversation::Message::ParticipantTypingTimeout,
-                                                )
-                                            },
-                                        )
-                                    }
-
-                                    conversation::conversation::Action::UserTypingTimeout(task) => {
-                                        let id = self.id;
-                                        Task::batch([
-                                            task,
-                                            Task::perform(
-                                                tokio::time::sleep(Duration::from_secs(5)),
-                                                move |_| {
-                                                    Message::Conversation(
-                                                        id,
-                                                        conversation::conversation::Message::UserTypingTimeout,
-                                                    )
-                                                },
-                                            ),
-                                        ])
-                                    }
-
-                                    conversation::conversation::Action::RunTask(task) => task,
-                                    conversation::conversation::Action::NewMessage(email) => Task::batch([
-                                        window::request_user_attention(
-                                            self.id,
-                                            Some(UserAttention::Informational),
-                                        ),
-                                        Task::done(Message::NewMessageFromContact(email)),
-                                    ])
-                                };
+                                return Self::match_conversation_action(self.id, action);
                             }
                         }
 
@@ -289,22 +206,7 @@ impl Window {
                             if let Some(action) = contacts.update(
                                 contacts::contacts::Message::SwitchboardEvent(session_id, event),
                             ) {
-                                return match action {
-                                    contacts::contacts::Action::SignOut(task) => {
-                                        self.screen = Screen::SignIn(
-                                            sign_in::sign_in::SignIn::new(self.sqlite.clone()),
-                                        );
-                                        task
-                                    }
-
-                                    contacts::contacts::Action::RunTask(task) => task,
-                                    contacts::contacts::Action::NewMessage => {
-                                        window::request_user_attention(
-                                            self.id,
-                                            Some(UserAttention::Informational),
-                                        )
-                                    }
-                                };
+                                return self.match_contacts_action(action);
                             }
                         }
 
@@ -316,6 +218,91 @@ impl Window {
             }
 
             _ => Task::none(),
+        }
+    }
+
+    fn match_contacts_action(&mut self, action: contacts::contacts::Action) -> Task<Message> {
+        match action {
+            contacts::contacts::Action::SignOut(task) => {
+                self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(self.sqlite.clone()));
+                task
+            }
+
+            contacts::contacts::Action::RunTask(task) => task,
+            contacts::contacts::Action::NewMessage => {
+                window::request_user_attention(self.id, Some(UserAttention::Informational))
+            }
+        }
+    }
+
+    fn match_conversation_action(
+        id: window::Id,
+        action: conversation::conversation::Action,
+    ) -> Task<Message> {
+        match action {
+            conversation::conversation::Action::ParticipantTypingTimeout => {
+                Task::perform(tokio::time::sleep(Duration::from_secs(5)), move |_| {
+                    Message::Conversation(
+                        id,
+                        conversation::conversation::Message::ParticipantTypingTimeout,
+                    )
+                })
+            }
+
+            conversation::conversation::Action::UserTypingTimeout(task) => Task::batch([
+                task,
+                Task::perform(tokio::time::sleep(Duration::from_secs(5)), move |_| {
+                    Message::Conversation(
+                        id,
+                        conversation::conversation::Message::UserTypingTimeout,
+                    )
+                }),
+            ]),
+
+            conversation::conversation::Action::RunTask(task) => task,
+            conversation::conversation::Action::NewMessage(email) => Task::batch([
+                window::request_user_attention(id, Some(UserAttention::Informational)),
+                Task::done(Message::NewMessageFromContact(email)),
+            ]),
+
+            conversation::conversation::Action::SendMessage(switchboard, message) => {
+                if message.is_nudge {
+                    Task::perform(
+                        async move { switchboard.send_nudge().await },
+                        move |result| {
+                            Message::Conversation(
+                                id,
+                                conversation::conversation::Message::SendMessageResult(
+                                    message.clone(),
+                                    result,
+                                ),
+                            )
+                        },
+                    )
+                } else {
+                    let plain_text = PlainText {
+                        bold: message.bold,
+                        italic: message.italic,
+                        underline: message.underline,
+                        strikethrough: message.strikethrough,
+                        color: message.color.clone(),
+                        text: message.text.clone(),
+                    };
+
+                    Task::perform(
+                        async move { switchboard.send_text_message(&plain_text).await },
+                        move |result| {
+                            Message::Conversation(
+                                id,
+                                conversation::conversation::Message::SendMessageResult(
+                                    message.clone(),
+                                    result,
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
         }
     }
 
