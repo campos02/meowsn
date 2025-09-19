@@ -21,7 +21,7 @@ pub enum Action {
     ParticipantTypingTimeout,
     UserTypingTimeout(Task<crate::Message>),
     RunTask(Task<crate::Message>),
-    NewMessage(Arc<String>),
+    NewMessage,
     SendMessage(Arc<Switchboard>, message::Message),
 }
 
@@ -35,6 +35,7 @@ pub enum Message {
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     MsnpEvent(Box<Event>),
     NewSwitchboard(Arc<String>, Arc<Switchboard>),
+    WindowOpened,
     Focused,
     Unfocused,
     ParticipantTypingTimeout,
@@ -125,7 +126,7 @@ impl Conversation {
             user_display_picture,
             message_buffer: Vec::new(),
             sqlite,
-            focused: true,
+            focused: false,
             participant_typing: None,
             user_typing: false,
             bold: false,
@@ -564,7 +565,7 @@ impl Conversation {
                             .body(&message.text)
                             .show();
 
-                        action = Some(Action::NewMessage(message.sender.clone()));
+                        action = Some(Action::NewMessage);
                     }
 
                     self.messages.push(message);
@@ -606,7 +607,7 @@ impl Conversation {
                             .body(&message.text)
                             .show();
 
-                        action = Some(Action::NewMessage(message.sender.clone()));
+                        action = Some(Action::NewMessage);
                     }
 
                     self.messages.push(message);
@@ -670,44 +671,10 @@ impl Conversation {
                 _ => (),
             },
 
+            Message::WindowOpened => action = self.focused_action(),
             Message::Focused => {
                 self.focused = true;
-                let mut tasks = Vec::with_capacity(self.participants.len());
-
-                for participant in self.participants.values() {
-                    tasks.push(Task::done(crate::Message::ContactFocused(
-                        participant.email.clone(),
-                    )));
-
-                    if participant.display_picture.is_none()
-                        && let Some(status) = &participant.status
-                        && let Some(msn_object) = status.msn_object_string.clone()
-                    {
-                        let Some(switchboard) = self.switchboards.values().next().cloned() else {
-                            return action;
-                        };
-
-                        let email = participant.email.clone();
-                        tasks.push(Task::perform(
-                            async move {
-                                switchboard
-                                    .request_contact_display_picture(&email, &msn_object)
-                                    .await
-                            },
-                            crate::Message::UnitResult,
-                        ));
-                    }
-                }
-
-                if self.participants.is_empty()
-                    && let Some(participant) = &self.last_participant
-                {
-                    tasks.push(Task::done(crate::Message::ContactFocused(
-                        participant.email.clone(),
-                    )));
-                }
-
-                action = Some(Action::RunTask(Task::batch(tasks)));
+                action = self.focused_action()
             }
 
             Message::Unfocused => self.focused = false,
@@ -720,6 +687,41 @@ impl Conversation {
         }
 
         action
+    }
+
+    fn focused_action(&self) -> Option<Action> {
+        let mut tasks = Vec::with_capacity(self.participants.len());
+        for participant in self.participants.values() {
+            tasks.push(Task::done(crate::Message::ContactFocused(
+                participant.email.clone(),
+            )));
+
+            if participant.display_picture.is_none()
+                && let Some(status) = &participant.status
+                && let Some(msn_object) = status.msn_object_string.clone()
+            {
+                let switchboard = self.switchboards.values().next().cloned()?;
+                let email = participant.email.clone();
+                tasks.push(Task::perform(
+                    async move {
+                        switchboard
+                            .request_contact_display_picture(&email, &msn_object)
+                            .await
+                    },
+                    crate::Message::UnitResult,
+                ));
+            }
+        }
+
+        if self.participants.is_empty()
+            && let Some(participant) = &self.last_participant
+        {
+            tasks.push(Task::done(crate::Message::ContactFocused(
+                participant.email.clone(),
+            )));
+        }
+
+        Some(Action::RunTask(Task::batch(tasks)))
     }
 
     pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {

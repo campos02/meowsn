@@ -2,9 +2,8 @@ use crate::models::contact::Contact;
 use crate::screens::contacts::contacts::Message;
 use crate::screens::contacts::transparent_button::transparent_button;
 use iced::border::radius;
-use iced::font::Weight;
 use iced::widget::{button, container, row, svg, text};
-use iced::{Background, Border, Center, Color, Element, Fill, Font, Theme};
+use iced::{Background, Border, Center, Color, Element, Fill, Theme};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{MsnpList, MsnpStatus};
 
@@ -40,14 +39,7 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                 })
                 .width(30),
                 button(row![
-                    if contact.new_messages {
-                        text(&*contact.display_name).font(Font {
-                            weight: Weight::Bold,
-                            ..Font::default()
-                        })
-                    } else {
-                        text(&*contact.display_name)
-                    },
+                    text(&*contact.display_name),
                     if let Some(personal_message) = &contact.personal_message
                         && !personal_message.is_empty()
                     {

@@ -2,7 +2,6 @@ use crate::contact_repository::ContactRepository;
 use crate::enums::contact_list_status::ContactListStatus;
 use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::models::contact::Contact;
-use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
 use crate::screens::contacts::bordered_container::bordered_container;
@@ -14,7 +13,6 @@ use iced::futures::executor::block_on;
 use iced::widget::{column, container, pick_list, row, scrollable, svg, text, text_input};
 use iced::{Background, Center, Color, Element, Padding, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
-use notify_rust::Notification;
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -45,7 +43,6 @@ pub enum Message {
     Conversation(Contact),
     NotificationServerEvent(Event),
     SwitchboardEvent(Arc<String>, Event),
-    RemoveSwitchboard(Arc<String>),
     BlockContact(Arc<String>),
     BlockResult(Arc<String>, Result<(), SdkError>),
     UnblockContact(Arc<String>),
@@ -57,7 +54,6 @@ pub enum Message {
 
     RemoveResult(Arc<String>, Result<(), SdkError>),
     ContactFocused(Arc<String>),
-    NewMessageFromContact(Arc<String>),
     AddContact,
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
 }
@@ -300,10 +296,6 @@ impl Contacts {
                 }
             }
 
-            Message::RemoveSwitchboard(session_id) => {
-                self.orphan_switchboards.remove(&session_id);
-            }
-
             Message::BlockContact(contact) => {
                 let client = self.client.clone();
                 action = Some(Action::BlockContact(client, contact));
@@ -386,20 +378,7 @@ impl Contacts {
                 };
 
                 if let Some(contact) = contact {
-                    contact.new_messages = false;
                     contact.opening_conversation = false;
-                }
-            }
-
-            Message::NewMessageFromContact(email) => {
-                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
-                } else {
-                    self.offline_contacts.get_mut(&email)
-                };
-
-                if let Some(contact) = contact {
-                    contact.new_messages = true;
                 }
             }
 
@@ -412,32 +391,15 @@ impl Contacts {
                         contact.opening_conversation = true;
                     }
 
-                    if let Some((session_id, switchboard)) = self
-                        .orphan_switchboards
-                        .iter()
-                        .find(|(_, switchboard)| switchboard.participants.contains(&contact.email))
-                    {
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::CreateConversationWithSwitchboard {
-                                contact_repository: self.contact_repository.clone(),
-                                email: self.email.clone(),
-                                display_name: self.display_name.clone(),
-                                session_id: session_id.clone(),
-                                switchboard: switchboard.clone(),
-                                minimized: false,
-                            },
-                        )));
-                    } else {
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::OpenConversation {
-                                contact_repository: self.contact_repository.clone(),
-                                email: self.email.clone(),
-                                display_name: self.display_name.clone(),
-                                contact_email: contact.email.clone(),
-                                client: self.client.clone(),
-                            },
-                        )));
-                    }
+                    action = Some(Action::RunTask(Task::done(
+                        crate::Message::OpenConversation {
+                            contact_repository: self.contact_repository.clone(),
+                            email: self.email.clone(),
+                            display_name: self.display_name.clone(),
+                            contact_email: contact.email.clone(),
+                            client: self.client.clone(),
+                        },
+                    )));
                 }
             }
 
@@ -578,147 +540,9 @@ impl Contacts {
 
             Message::SwitchboardEvent(session_id, event) => match event {
                 Event::ParticipantInSwitchboard { email } => {
-                    if let Some(switchboard) = self.orphan_switchboards.get_mut(&*session_id) {
+                    if let Some(mut switchboard) = self.orphan_switchboards.remove(&*session_id) {
                         switchboard.participants.push(Arc::new(email));
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::AddSwitchboardToConversation {
-                                session_id: session_id.clone(),
-                                switchboard: switchboard.clone(),
-                            },
-                        )));
-                    }
-                }
 
-                Event::ParticipantLeftSwitchboard { email } => {
-                    if let Some(switchboard) = self.orphan_switchboards.get_mut(&*session_id) {
-                        switchboard
-                            .participants
-                            .retain(|participant| **participant != email);
-
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::AddSwitchboardToConversation {
-                                session_id: session_id.clone(),
-                                switchboard: switchboard.clone(),
-                            },
-                        )));
-                    }
-                }
-
-                Event::Nudge { email } => {
-                    let sender = Arc::new(email);
-                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&sender) {
-                        Some(contact)
-                    } else {
-                        self.offline_contacts.get_mut(&sender)
-                    };
-
-                    if self.orphan_switchboards.contains_key(&*session_id) {
-                        let message = message::Message {
-                            sender: sender.clone(),
-                            receiver: Some(self.email.clone()),
-                            is_nudge: true,
-                            text: format!(
-                                "{} just sent you a nudge!",
-                                if let Some(ref contact) = contact {
-                                    &contact.display_name
-                                } else {
-                                    &sender
-                                }
-                            ),
-                            bold: false,
-                            italic: false,
-                            underline: false,
-                            strikethrough: false,
-                            session_id: Some(session_id.clone()),
-                            color: "0".to_string(),
-                            is_history: true,
-                            errored: false,
-                        };
-
-                        let _ = self.sqlite.insert_message(&message);
-                        let _ = Notification::new()
-                            .summary("New message")
-                            .body(&message.text)
-                            .show();
-
-                        action = Some(Action::NewMessage);
-                        if let Some(contact) = &mut contact {
-                            contact.new_messages = true;
-                        }
-                    }
-
-                    if let Some((session_id, switchboard)) = self
-                        .orphan_switchboards
-                        .extract_if(|sess_id, switchboard| {
-                            **sess_id == *session_id
-                                && (switchboard.participants.len() > 1 || contact.is_none())
-                        })
-                        .next()
-                    {
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::CreateConversationWithSwitchboard {
-                                contact_repository: self.contact_repository.clone(),
-                                email: self.email.clone(),
-                                display_name: self.display_name.clone(),
-                                session_id,
-                                switchboard: switchboard.clone(),
-                                minimized: true,
-                            },
-                        )));
-                    }
-                }
-
-                Event::TextMessage { email, message } => {
-                    let sender = Arc::new(email);
-                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&sender) {
-                        Some(contact)
-                    } else {
-                        self.offline_contacts.get_mut(&sender)
-                    };
-
-                    if self.orphan_switchboards.contains_key(&*session_id) {
-                        let message = message::Message {
-                            sender: sender.clone(),
-                            receiver: Some(self.email.clone()),
-                            is_nudge: false,
-                            text: message.text,
-                            bold: message.bold,
-                            italic: message.italic,
-                            underline: message.underline,
-                            strikethrough: message.strikethrough,
-                            session_id: Some(session_id.clone()),
-                            color: message.color,
-                            is_history: true,
-                            errored: false,
-                        };
-
-                        let _ = self.sqlite.insert_message(&message);
-                        let _ = Notification::new()
-                            .summary(&format!(
-                                "{} said:",
-                                if let Some(ref contact) = contact {
-                                    &contact.display_name
-                                } else {
-                                    &sender
-                                }
-                            ))
-                            .body(&message.text)
-                            .show();
-
-                        action = Some(Action::NewMessage);
-                        if let Some(contact) = &mut contact {
-                            contact.new_messages = true;
-                        }
-                    }
-
-                    if let Some((session_id, switchboard)) = self
-                        .orphan_switchboards
-                        .extract_if(|sess_id, switchboard| {
-                            **sess_id == *session_id
-                                && (switchboard.participants.len() > 1 || contact.is_none())
-                        })
-                        .next()
-                    {
                         action = Some(Action::RunTask(Task::done(
                             crate::Message::CreateConversationWithSwitchboard {
                                 contact_repository: self.contact_repository.clone(),

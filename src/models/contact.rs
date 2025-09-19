@@ -11,6 +11,5 @@ pub struct Contact {
     pub status: Option<Arc<Presence>>,
     pub personal_message: Option<Arc<String>>,
     pub display_picture: Option<Cow<'static, [u8]>>,
-    pub new_messages: bool,
     pub opening_conversation: bool,
 }

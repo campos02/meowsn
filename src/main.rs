@@ -56,7 +56,6 @@ pub enum Message {
     Dialog(window::Id, dialog::Message),
     AddContact(window::Id, add_contact::Message),
     ContactFocused(Arc<String>),
-    NewMessageFromContact(Arc<String>),
     OpenPersonalSettings {
         client: Option<Arc<Client>>,
         display_name: Option<String>,
@@ -85,11 +84,6 @@ pub enum Message {
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         minimized: bool,
-    },
-
-    AddSwitchboardToConversation {
-        session_id: Arc<String>,
-        switchboard: SwitchboardAndParticipants,
     },
 
     OpenDialog(String),
@@ -152,8 +146,16 @@ impl IcedM {
                 mut screen,
                 minimized,
             } => {
-                let task = if !minimized
-                    && let Screen::Conversation(conversation) = &mut screen
+                let task = if minimized {
+                    if let Screen::Conversation(conversation) = &mut screen
+                        && let Some(conversation::conversation::Action::RunTask(task)) =
+                            conversation.update(conversation::conversation::Message::WindowOpened)
+                    {
+                        task
+                    } else {
+                        Task::none()
+                    }
+                } else if let Screen::Conversation(conversation) = &mut screen
                     && let Some(conversation::conversation::Action::RunTask(task)) =
                         conversation.update(conversation::conversation::Message::Focused)
                 {
@@ -374,47 +376,6 @@ impl IcedM {
                     return Task::none();
                 };
 
-                let (id, open) = window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
-                let switchboard_task;
-
-                {
-                    let mut session_id = session_id.clone();
-                    let sqlite = self.sqlite.clone();
-
-                    switchboard_task = open
-                        .map(move |id| Message::WindowOpened {
-                            id,
-                            screen: Screen::Conversation(
-                                conversation::conversation::Conversation::new(
-                                    std::mem::take(&mut contact_repository),
-                                    std::mem::take(&mut session_id),
-                                    switchboard.clone(),
-                                    std::mem::take(&mut email),
-                                    std::mem::take(&mut display_name),
-                                    sqlite.clone(),
-                                ),
-                            ),
-                            minimized,
-                        })
-                        .chain(window::minimize(id, minimized));
-                }
-
-                if let Some(window) = self.windows.get_mut(&self.main_window_id) {
-                    let remove_task = window.update(Message::Contacts(
-                        self.main_window_id,
-                        contacts::contacts::Message::RemoveSwitchboard(session_id),
-                    ));
-
-                    return Task::batch([switchboard_task, remove_task]);
-                }
-
-                switchboard_task
-            }
-
-            Message::AddSwitchboardToConversation {
-                session_id,
-                switchboard,
-            } => {
                 if let Some((id, window)) = self.windows.iter_mut().find(|(_, window)| {
                     let Screen::Conversation(conversation) = window.get_screen() else {
                         return false;
@@ -425,27 +386,37 @@ impl IcedM {
                             conversation.get_participants().contains_key(participant)
                         })
                 }) {
-                    let switchboard_task = window.update(Message::Conversation(
+                    window.update(Message::Conversation(
                         *id,
                         conversation::conversation::Message::NewSwitchboard(
                             session_id.clone(),
                             switchboard.switchboard,
                         ),
-                    ));
+                    ))
+                } else {
+                    let mut settings = IcedM::window_settings(Size::new(1000.0, 600.0));
+                    settings.visible = false;
 
-                    if let Some(window) = self.windows.get_mut(&self.main_window_id) {
-                        let remove_task = window.update(Message::Contacts(
-                            self.main_window_id,
-                            contacts::contacts::Message::RemoveSwitchboard(session_id.clone()),
-                        ));
+                    let (id, open) = window::open(settings);
+                    let mut session_id = session_id.clone();
+                    let sqlite = self.sqlite.clone();
 
-                        return Task::batch([switchboard_task, remove_task]);
-                    }
-
-                    return switchboard_task;
+                    open.map(move |id| Message::WindowOpened {
+                        id,
+                        screen: Screen::Conversation(
+                            conversation::conversation::Conversation::new(
+                                std::mem::take(&mut contact_repository),
+                                std::mem::take(&mut session_id),
+                                switchboard.clone(),
+                                std::mem::take(&mut email),
+                                std::mem::take(&mut display_name),
+                                sqlite.clone(),
+                            ),
+                        ),
+                        minimized,
+                    })
+                    .chain(window::minimize(id, minimized))
                 }
-
-                Task::none()
             }
 
             Message::OpenDialog(mut message) => {
@@ -679,17 +650,6 @@ impl IcedM {
                     return window.update(Message::Contacts(
                         self.main_window_id,
                         contacts::contacts::Message::ContactFocused(email),
-                    ));
-                }
-
-                Task::none()
-            }
-
-            Message::NewMessageFromContact(email) => {
-                if let Some(window) = self.windows.get_mut(&self.main_window_id) {
-                    return window.update(Message::Contacts(
-                        self.main_window_id,
-                        contacts::contacts::Message::NewMessageFromContact(email),
                     ));
                 }
 
