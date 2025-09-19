@@ -1,3 +1,4 @@
+use crate::enums::contact_list_status::ContactListStatus;
 use crate::helpers::sign_in_async;
 use crate::msnp_listener::Input;
 use crate::screens::screen::Screen;
@@ -6,8 +7,8 @@ use crate::sqlite::Sqlite;
 use crate::{Message, msnp_listener};
 use iced::futures::channel::mpsc::Sender;
 use iced::window::UserAttention;
-use iced::{Element, Task, window};
-use msnp11_sdk::PlainText;
+use iced::{Element, Task, widget, window};
+use msnp11_sdk::{MsnpStatus, PlainText};
 use std::time::Duration;
 
 pub struct Window {
@@ -231,6 +232,90 @@ impl Window {
             contacts::contacts::Action::RunTask(task) => task,
             contacts::contacts::Action::NewMessage => {
                 window::request_user_attention(self.id, Some(UserAttention::Informational))
+            }
+
+            contacts::contacts::Action::SetPersonalMessage(client, personal_message) => {
+                let id = self.id;
+                Task::batch([
+                    Task::perform(
+                        async move { client.set_personal_message(&personal_message).await },
+                        move |result| {
+                            Message::Contacts(
+                                id,
+                                contacts::contacts::Message::PersonalMessageResult(result),
+                            )
+                        },
+                    ),
+                    widget::focus_next(),
+                ])
+            }
+
+            contacts::contacts::Action::SetPresence(client, status) => {
+                let presence = match status {
+                    ContactListStatus::Busy => MsnpStatus::Busy,
+                    ContactListStatus::Away => MsnpStatus::Away,
+                    ContactListStatus::AppearOffline => MsnpStatus::AppearOffline,
+                    _ => MsnpStatus::Online,
+                };
+
+                let id = self.id;
+                Task::perform(
+                    async move { client.set_presence(presence).await },
+                    move |result| {
+                        Message::Contacts(
+                            id,
+                            contacts::contacts::Message::StatusResult(status.clone(), result),
+                        )
+                    },
+                )
+            }
+
+            contacts::contacts::Action::BlockContact(client, contact) => {
+                let email = contact.clone();
+                let id = self.id;
+
+                Task::perform(
+                    async move { client.block_contact(&email).await },
+                    move |result| {
+                        Message::Contacts(
+                            id,
+                            contacts::contacts::Message::BlockResult(contact.clone(), result),
+                        )
+                    },
+                )
+            }
+
+            contacts::contacts::Action::UnblockContact(client, contact) => {
+                let email = contact.clone();
+                let id = self.id;
+
+                Task::perform(
+                    async move { client.unblock_contact(&email).await },
+                    move |result| {
+                        Message::Contacts(
+                            id,
+                            contacts::contacts::Message::UnblockResult(contact.clone(), result),
+                        )
+                    },
+                )
+            }
+
+            contacts::contacts::Action::RemoveContact {
+                client,
+                contact,
+                guid,
+            } => {
+                let id = self.id;
+
+                Task::perform(
+                    async move { client.remove_contact_from_forward_list(&guid).await },
+                    move |result| {
+                        Message::Contacts(
+                            id,
+                            contacts::contacts::Message::RemoveResult(contact.clone(), result),
+                        )
+                    },
+                )
             }
         }
     }

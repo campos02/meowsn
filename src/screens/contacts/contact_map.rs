@@ -89,7 +89,10 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                 },
                 transparent_button(text("Delete").size(15))
                     .width(Fill)
-                    .on_press(Message::RemoveContact(contact.email.clone()))
+                    .on_press(Message::RemoveContact {
+                        contact: contact.email.clone(),
+                        guid: contact.guid.clone(),
+                    })
             ])
             .style(|theme: &Theme| container::Style {
                 border: Border {

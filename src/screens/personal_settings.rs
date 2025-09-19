@@ -1,4 +1,3 @@
-use crate::msnp_listener;
 use crate::settings;
 use crate::settings::Settings;
 use iced::widget::{button, checkbox, column, container, text, text_input, vertical_space};
@@ -118,17 +117,12 @@ impl PersonalSettings {
                     let display_name = self.display_name.clone();
                     let new_display_name = display_name.clone();
 
-                    action = Some(Action::SavePressed(Task::batch([
-                        Task::perform(
-                            async move { client.set_display_name(&display_name).await },
-                            crate::Message::UnitResult,
-                        ),
-                        Task::done(crate::Message::MsnpEvent(
-                            msnp_listener::Event::NotificationServer(
-                                msnp11_sdk::Event::DisplayName(new_display_name),
-                            ),
-                        )),
-                    ])));
+                    action = Some(Action::SavePressed(Task::perform(
+                        async move { client.set_display_name(&display_name).await },
+                        move |result| {
+                            crate::Message::DisplayNameResult(new_display_name.clone(), result)
+                        },
+                    )));
                 } else {
                     action = Some(Action::SavePressed(Task::none()))
                 }

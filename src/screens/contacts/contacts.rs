@@ -13,7 +13,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
 use iced::widget::{column, container, pick_list, row, scrollable, svg, text, text_input};
 use iced::{Background, Center, Color, Element, Padding, Task, Theme, widget};
-use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage};
+use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use notify_rust::Notification;
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
@@ -24,20 +24,38 @@ pub enum Action {
     SignOut(Task<crate::Message>),
     RunTask(Task<crate::Message>),
     NewMessage,
+    SetPersonalMessage(Arc<Client>, PersonalMessage),
+    SetPresence(Arc<Client>, ContactListStatus),
+    BlockContact(Arc<Client>, Arc<String>),
+    UnblockContact(Arc<Client>, Arc<String>),
+    RemoveContact {
+        client: Arc<Client>,
+        contact: Arc<String>,
+        guid: Arc<String>,
+    },
 }
 
 #[derive(Clone)]
 pub enum Message {
     PersonalMessageChanged(String),
     PersonalMessageSubmit,
+    PersonalMessageResult(Result<(), SdkError>),
     StatusSelected(ContactListStatus),
+    StatusResult(ContactListStatus, Result<(), SdkError>),
     Conversation(Contact),
     NotificationServerEvent(Event),
     SwitchboardEvent(Arc<String>, Event),
     RemoveSwitchboard(Arc<String>),
     BlockContact(Arc<String>),
+    BlockResult(Arc<String>, Result<(), SdkError>),
     UnblockContact(Arc<String>),
-    RemoveContact(Arc<String>),
+    UnblockResult(Arc<String>, Result<(), SdkError>),
+    RemoveContact {
+        contact: Arc<String>,
+        guid: Arc<String>,
+    },
+
+    RemoveResult(Arc<String>, Result<(), SdkError>),
     ContactFocused(Arc<String>),
     NewMessageFromContact(Arc<String>),
     AddContact,
@@ -215,17 +233,19 @@ impl Contacts {
                     current_media: "".to_string(),
                 };
 
-                let _ = self
-                    .sqlite
-                    .update_personal_message(&self.email, &personal_message.psm);
+                action = Some(Action::SetPersonalMessage(client, personal_message));
+            }
 
-                action = Some(Action::RunTask(Task::batch([
-                    Task::perform(
-                        async move { client.set_personal_message(&personal_message).await },
-                        crate::Message::UnitResult,
-                    ),
-                    widget::focus_next(),
-                ])));
+            Message::PersonalMessageResult(result) => {
+                if let Err(error) = result {
+                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
+                        error.to_string(),
+                    ))))
+                } else {
+                    let _ = self
+                        .sqlite
+                        .update_personal_message(&self.email, &self.personal_message);
+                }
             }
 
             Message::StatusSelected(status) => match status {
@@ -266,85 +286,89 @@ impl Contacts {
 
                 _ => {
                     let client = self.client.clone();
-                    let presence = match status {
-                        ContactListStatus::Busy => MsnpStatus::Busy,
-                        ContactListStatus::Away => MsnpStatus::Away,
-                        ContactListStatus::AppearOffline => MsnpStatus::AppearOffline,
-                        _ => MsnpStatus::Online,
-                    };
-
-                    action = Some(Action::RunTask(Task::perform(
-                        async move { client.set_presence(presence).await },
-                        crate::Message::UnitResult,
-                    )));
-
-                    self.status = Some(status);
+                    action = Some(Action::SetPresence(client, status));
                 }
             },
+
+            Message::StatusResult(status, result) => {
+                if let Err(error) = result {
+                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
+                        error.to_string(),
+                    ))))
+                } else {
+                    self.status = Some(status);
+                }
+            }
 
             Message::RemoveSwitchboard(session_id) => {
                 self.orphan_switchboards.remove(&session_id);
             }
 
-            Message::BlockContact(email) => {
-                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
+            Message::BlockContact(contact) => {
+                let client = self.client.clone();
+                action = Some(Action::BlockContact(client, contact));
+            }
+
+            Message::BlockResult(contact, result) => {
+                if let Err(error) = result {
+                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
+                        error.to_string(),
+                    ))))
                 } else {
-                    self.offline_contacts.get_mut(&email)
-                };
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&contact) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&contact)
+                    };
 
-                if let Some(contact) = contact {
-                    contact.lists.push(MsnpList::BlockList);
-                    contact.lists.retain(|list| list != &MsnpList::AllowList);
-
-                    let client = self.client.clone();
-                    let email = contact.email.clone();
-
-                    action = Some(Action::RunTask(Task::perform(
-                        async move { client.block_contact(&email).await },
-                        crate::Message::UnitResult,
-                    )));
+                    if let Some(contact) = contact {
+                        contact.lists.push(MsnpList::BlockList);
+                        contact.lists.retain(|list| list != &MsnpList::AllowList);
+                    }
                 }
             }
 
-            Message::UnblockContact(email) => {
-                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
+            Message::UnblockContact(contact) => {
+                let client = self.client.clone();
+                action = Some(Action::UnblockContact(client, contact));
+            }
+
+            Message::UnblockResult(contact, result) => {
+                if let Err(error) = result {
+                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
+                        error.to_string(),
+                    ))))
                 } else {
-                    self.offline_contacts.get_mut(&email)
-                };
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&contact) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&contact)
+                    };
 
-                if let Some(contact) = contact {
-                    contact.lists.retain(|list| list != &MsnpList::BlockList);
-                    contact.lists.push(MsnpList::AllowList);
-
-                    let client = self.client.clone();
-                    let email = contact.email.clone();
-
-                    action = Some(Action::RunTask(Task::perform(
-                        async move { client.unblock_contact(&email).await },
-                        crate::Message::UnitResult,
-                    )));
+                    if let Some(contact) = contact {
+                        contact.lists.retain(|list| list != &MsnpList::BlockList);
+                        contact.lists.push(MsnpList::AllowList);
+                    }
                 }
             }
 
-            Message::RemoveContact(email) => {
-                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
+            Message::RemoveContact { contact, guid } => {
+                let client = self.client.clone();
+                action = Some(Action::RemoveContact {
+                    client,
+                    contact,
+                    guid,
+                });
+            }
+
+            Message::RemoveResult(contact, result) => {
+                if let Err(error) = result {
+                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
+                        error.to_string(),
+                    ))))
                 } else {
-                    self.offline_contacts.get_mut(&email)
-                };
-
-                if let Some(contact) = contact {
-                    let guid = contact.guid.clone();
-                    self.online_contacts.remove(&email);
-                    self.offline_contacts.remove(&email);
-
-                    let client = self.client.clone();
-                    action = Some(Action::RunTask(Task::perform(
-                        async move { client.remove_contact_from_forward_list(&guid).await },
-                        crate::Message::UnitResult,
-                    )));
+                    self.online_contacts.remove(&contact);
+                    self.offline_contacts.remove(&contact);
                 }
             }
 

@@ -95,6 +95,7 @@ pub enum Message {
     OpenDialog(String),
     OpenAddContact(Arc<Client>),
     MsnpEvent(msnp_listener::Event),
+    DisplayNameResult(String, Result<(), SdkError>),
     UnitResult(Result<(), SdkError>),
     Unit(()),
     EventResult(Result<msnp11_sdk::Event, SdkError>),
@@ -560,6 +561,18 @@ impl IcedM {
                     Task::batch(tasks)
                 }
             },
+
+            Message::DisplayNameResult(display_name, result) => {
+                if let Err(error) = result {
+                    Task::done(Message::OpenDialog(error.to_string()))
+                } else {
+                    Task::done(Message::MsnpEvent(
+                        msnp_listener::Event::NotificationServer(msnp11_sdk::Event::DisplayName(
+                            display_name,
+                        )),
+                    ))
+                }
+            }
 
             Message::ContactUpdated(contact) => {
                 if self.windows.keys().last().is_none() {
