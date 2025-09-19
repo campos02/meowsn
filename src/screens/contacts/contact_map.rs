@@ -2,7 +2,7 @@ use crate::models::contact::Contact;
 use crate::screens::contacts::contacts::Message;
 use crate::screens::contacts::transparent_button::transparent_button;
 use iced::border::radius;
-use iced::widget::{button, container, row, svg, text};
+use iced::widget::{button, container, horizontal_rule, row, svg, text};
 use iced::{Background, Border, Center, Color, Element, Fill, Theme};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{MsnpList, MsnpStatus};
@@ -70,6 +70,10 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
         .width(Fill),
         || {
             container(iced::widget::column![
+                transparent_button(text("Send an Instant Message").size(15))
+                    .width(Fill)
+                    .on_press(Message::Conversation(contact.clone())),
+                horizontal_rule(10),
                 if !contact.lists.contains(&MsnpList::BlockList) {
                     transparent_button(text("Block").size(15))
                         .width(Fill)
@@ -79,7 +83,7 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                         .width(Fill)
                         .on_press(Message::UnblockContact(contact.email.clone()))
                 },
-                transparent_button(text("Delete").size(15))
+                transparent_button(text("Delete Contact").size(15))
                     .width(Fill)
                     .on_press(Message::RemoveContact {
                         contact: contact.email.clone(),
@@ -97,7 +101,7 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                 )),
                 ..container::Style::default()
             })
-            .width(150)
+            .width(160)
             .into()
         },
     )
