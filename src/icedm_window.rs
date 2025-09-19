@@ -159,34 +159,28 @@ impl Window {
                 Task::none()
             }
 
-            Message::SignedIn {
-                id: _,
-                email,
-                result,
-            } => {
-                match result {
-                    Ok((personal_message, initial_status, client)) => {
-                        self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
-                            email,
-                            personal_message,
-                            initial_status,
-                            client,
-                            self.sqlite.clone(),
-                            self.msnp_subscription_sender.clone(),
-                        ));
-                    }
+            Message::SignedIn { id, email, result } => match result {
+                Ok((personal_message, initial_status, client)) => {
+                    self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
+                        email,
+                        personal_message,
+                        initial_status,
+                        client,
+                        self.sqlite.clone(),
+                        self.msnp_subscription_sender.clone(),
+                    ));
 
-                    Err(error) => {
-                        if let Screen::SignIn(sign_in) = &mut self.screen {
-                            sign_in.update(sign_in::sign_in::Message::SignInFailed);
-                        }
-
-                        return Task::done(Message::OpenDialog(error.to_string()));
-                    }
+                    window::request_user_attention(id, Some(UserAttention::Informational))
                 }
 
-                Task::none()
-            }
+                Err(error) => {
+                    if let Screen::SignIn(sign_in) = &mut self.screen {
+                        sign_in.update(sign_in::sign_in::Message::SignInFailed);
+                    }
+
+                    Task::done(Message::OpenDialog(error.to_string()))
+                }
+            },
 
             Message::MsnpEvent(event) => {
                 if let msnp_listener::Event::Switchboard { session_id, event } = event {

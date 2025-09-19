@@ -13,7 +13,7 @@ use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
 use iced::widget::horizontal_space;
-use iced::window::{Position, Settings, icon};
+use iced::window::{Position, Settings, UserAttention, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp_listener::Input;
@@ -431,11 +431,17 @@ impl IcedM {
                 let (id, open) = window::open(IcedM::window_settings(Size::new(400.0, 150.0)));
                 self.modal_id = Some(id);
 
-                open.map(move |id| Message::WindowOpened {
-                    id,
-                    screen: Screen::Dialog(dialog::Dialog::new(std::mem::take(&mut message))),
-                    minimized: false,
-                })
+                Task::batch([
+                    open.map(move |id| Message::WindowOpened {
+                        id,
+                        screen: Screen::Dialog(dialog::Dialog::new(std::mem::take(&mut message))),
+                        minimized: false,
+                    }),
+                    window::request_user_attention(
+                        self.main_window_id,
+                        Some(UserAttention::Critical),
+                    ),
+                ])
             }
 
             Message::OpenAddContact(client) => {
