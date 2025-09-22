@@ -19,7 +19,7 @@ pub async fn sign_in_async(
             (*email).clone(),
             &password,
             &settings.nexus_url,
-            "icedm",
+            "meowsn",
             version,
         )
         .await?
@@ -30,7 +30,7 @@ pub async fn sign_in_async(
                 (*email).clone(),
                 &password,
                 &settings.nexus_url,
-                "icedm",
+                "meowsn",
                 version,
             )
             .await?;

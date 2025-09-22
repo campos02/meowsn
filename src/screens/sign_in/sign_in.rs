@@ -55,7 +55,7 @@ impl SignIn {
             email = Some(last_email.to_owned());
             remember_me = true;
 
-            if let Ok(entry) = Entry::new("icedm", last_email)
+            if let Ok(entry) = Entry::new("meowsn", last_email)
                 && let Ok(passwd) = entry.get_password()
             {
                 password = passwd;
@@ -164,7 +164,7 @@ impl SignIn {
             }
 
             Message::EmailSelected(email) => {
-                if let Ok(entry) = Entry::new("icedm", &email)
+                if let Ok(entry) = Entry::new("meowsn", &email)
                     && let Ok(passwd) = entry.get_password()
                 {
                     self.password = passwd;
@@ -218,7 +218,7 @@ impl SignIn {
 
                         if self.remember_my_password
                             && let Some(ref email) = self.email
-                            && let Ok(entry) = Entry::new("icedm", email)
+                            && let Ok(entry) = Entry::new("meowsn", email)
                         {
                             let _ = entry.set_password(&self.password);
                         }
@@ -231,7 +231,7 @@ impl SignIn {
             Message::ForgetMe => {
                 if let Some(ref email) = self.email {
                     let _ = self.sqlite.delete_user(email);
-                    if let Ok(entry) = Entry::new("icedm", email) {
+                    if let Ok(entry) = Entry::new("meowsn", email) {
                         let _ = entry.delete_credential();
                     }
                 }

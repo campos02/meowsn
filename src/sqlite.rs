@@ -15,10 +15,10 @@ pub struct Sqlite {
 impl Sqlite {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         let mut data_local = dirs::data_local_dir().expect("Could not find local data directory");
-        data_local.push("icedm");
+        data_local.push("meowsn");
         std::fs::create_dir_all(&data_local)?;
 
-        data_local.push("icedm");
+        data_local.push("meowsn");
         data_local.set_extension("db");
 
         let manager = SqliteConnectionManager::file(data_local);

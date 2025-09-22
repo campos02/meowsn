@@ -15,10 +15,10 @@ pub async fn notify_new_version() -> Result<(), Box<dyn std::error::Error + Send
     }
 
     let cargo_version = env!("CARGO_PKG_VERSION");
-    let client = reqwest::Client::builder().user_agent("icedm").build()?;
+    let client = reqwest::Client::builder().user_agent("meowsn").build()?;
 
     let response = client
-        .get("https://api.github.com/repos/campos02/icedm/releases/latest")
+        .get("https://api.github.com/repos/campos02/meowsn/releases/latest")
         .send()
         .await?
         .json::<Release>()
@@ -27,7 +27,7 @@ pub async fn notify_new_version() -> Result<(), Box<dyn std::error::Error + Send
     if Version::parse(&response.tag_name.replace("v", ""))? > Version::parse(cargo_version)? {
         Notification::new()
             .summary("New release")
-            .body("A new version of icedm is available at GitHub!")
+            .body("A new version of meowsn is available at GitHub!")
             .show()?;
     }
 

@@ -2442,29 +2442,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "icedm"
-version = "0.7.0"
-dependencies = [
- "dark-light 2.0.0",
- "dirs 6.0.0",
- "iced",
- "iced_aw",
- "image 0.25.6",
- "keyring",
- "msnp11-sdk",
- "notify-rust",
- "r2d2",
- "r2d2_sqlite",
- "reqwest",
- "rfd",
- "semver",
- "serde",
- "tokio",
- "toml 0.9.2",
- "winresource",
-]
-
-[[package]]
 name = "icu_collections"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3022,6 +2999,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "meowsn"
+version = "0.7.0"
+dependencies = [
+ "dark-light 2.0.0",
+ "dirs 6.0.0",
+ "iced",
+ "iced_aw",
+ "image 0.25.6",
+ "keyring",
+ "msnp11-sdk",
+ "notify-rust",
+ "r2d2",
+ "r2d2_sqlite",
+ "reqwest",
+ "rfd",
+ "semver",
+ "serde",
+ "tokio",
+ "toml 0.9.2",
+ "winresource",
 ]
 
 [[package]]

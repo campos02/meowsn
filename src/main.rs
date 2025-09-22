@@ -4,7 +4,7 @@
 )]
 
 use crate::contact_repository::ContactRepository;
-use crate::icedm_window::Window;
+use crate::meowsn_window::Window;
 use crate::screens::screen::Screen;
 use crate::screens::{add_contact, contacts, conversation, dialog, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
@@ -26,7 +26,7 @@ use std::sync::Arc;
 mod contact_repository;
 mod enums;
 mod helpers;
-mod icedm_window;
+mod meowsn_window;
 mod keyboard_listener;
 mod models;
 mod msnp_listener;
@@ -107,7 +107,7 @@ impl Debug for Message {
     }
 }
 
-struct IcedM {
+struct MeowSN {
     windows: BTreeMap<window::Id, Window>,
     main_window_id: window::Id,
     modal_id: Option<window::Id>,
@@ -115,10 +115,10 @@ struct IcedM {
     sqlite: Sqlite,
 }
 
-impl IcedM {
+impl MeowSN {
     fn new() -> (Self, Task<Message>) {
         let sqlite = Sqlite::new().expect("Could not create database");
-        let (id, open) = window::open(IcedM::window_settings(Size::new(450.0, 600.0)));
+        let (id, open) = window::open(MeowSN::window_settings(Size::new(450.0, 600.0)));
 
         (
             Self {
@@ -271,7 +271,7 @@ impl IcedM {
                     return window::gain_focus(*id);
                 }
 
-                let (_, open) = window::open(IcedM::window_settings(Size::new(500.0, 500.0)));
+                let (_, open) = window::open(MeowSN::window_settings(Size::new(500.0, 500.0)));
                 open.map(move |id| Message::WindowOpened {
                     id,
                     screen: Screen::PersonalSettings(personal_settings::PersonalSettings::new(
@@ -337,7 +337,7 @@ impl IcedM {
 
                         let sqlite = self.sqlite.clone();
                         let (_, open) =
-                            window::open(IcedM::window_settings(Size::new(1000.0, 600.0)));
+                            window::open(MeowSN::window_settings(Size::new(1000.0, 600.0)));
 
                         open.map(move |id| Message::WindowOpened {
                             id,
@@ -394,7 +394,7 @@ impl IcedM {
                         ),
                     ))
                 } else {
-                    let mut settings = IcedM::window_settings(Size::new(1000.0, 600.0));
+                    let mut settings = MeowSN::window_settings(Size::new(1000.0, 600.0));
                     settings.visible = false;
 
                     let (id, open) = window::open(settings);
@@ -428,7 +428,7 @@ impl IcedM {
                     return window::gain_focus(id);
                 }
 
-                let (id, open) = window::open(IcedM::window_settings(Size::new(400.0, 150.0)));
+                let (id, open) = window::open(MeowSN::window_settings(Size::new(400.0, 150.0)));
                 self.modal_id = Some(id);
 
                 Task::batch([
@@ -457,7 +457,7 @@ impl IcedM {
                     return window::gain_focus(*id);
                 }
 
-                let (_, open) = window::open(IcedM::window_settings(Size::new(400.0, 220.0)));
+                let (_, open) = window::open(MeowSN::window_settings(Size::new(400.0, 220.0)));
                 open.map(move |id| Message::WindowOpened {
                     id,
                     screen: Screen::AddContact(add_contact::AddContact::new(client.clone())),
@@ -672,10 +672,10 @@ impl IcedM {
                 Screen::Conversation(conversation) => conversation.get_title(),
                 Screen::AddContact(..) => "Add new contact".to_string(),
                 Screen::PersonalSettings(..) => "Personal settings".to_string(),
-                _ => "icedm".to_string(),
+                _ => "meowsn".to_string(),
             }
         } else {
-            "icedm".to_string()
+            "meowsn".to_string()
         }
     }
 
@@ -700,20 +700,20 @@ impl IcedM {
             size,
             min_size: Some(size),
             position: Position::Centered,
-            icon: icon::from_file_data(include_bytes!("../assets/icedm.ico"), None).ok(),
+            icon: icon::from_file_data(include_bytes!("../assets/meowsn.ico"), None).ok(),
             ..Settings::default()
         }
     }
 }
 
 pub fn main() -> iced::Result {
-    iced::daemon(IcedM::title, IcedM::update, IcedM::view)
-        .subscription(IcedM::subscription)
+    iced::daemon(MeowSN::title, MeowSN::update, MeowSN::view)
+        .subscription(MeowSN::subscription)
         .theme(
             |_, _| match dark_light::detect().unwrap_or(Mode::Unspecified) {
                 Mode::Dark => Theme::CatppuccinMocha,
                 _ => Theme::CatppuccinLatte,
             },
         )
-        .run_with(IcedM::new)
+        .run_with(MeowSN::new)
 }

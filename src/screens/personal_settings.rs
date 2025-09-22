@@ -76,7 +76,7 @@ impl PersonalSettings {
                 vertical_space().height(5),
                 button("Save").on_press(Message::Save),
                 vertical_space().height(Fill),
-                text(format!("icedm v{}", env!("CARGO_PKG_VERSION"))).style(|theme: &Theme| {
+                text(format!("meowsn v{}", env!("CARGO_PKG_VERSION"))).style(|theme: &Theme| {
                     text::Style {
                         color: Some(theme.extended_palette().secondary.weak.color),
                     }
