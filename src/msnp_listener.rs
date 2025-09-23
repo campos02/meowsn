@@ -1,7 +1,7 @@
+use iced::futures::StreamExt;
 use iced::futures::channel::mpsc;
 use iced::futures::executor::block_on;
-use iced::futures::{SinkExt, Stream, StreamExt};
-use iced::stream;
+use iced::task::{Never, Sipper, sipper};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -19,8 +19,8 @@ pub enum Input {
     NewSwitchboard(Arc<msnp11_sdk::Switchboard>),
 }
 
-pub fn listen() -> impl Stream<Item = Event> {
-    stream::channel(256, |mut output| async move {
+pub fn listen() -> impl Sipper<Never, Event> {
+    sipper(async |mut output| {
         let (sender, mut receiver) = mpsc::channel::<Input>(32);
         let _ = output.send(Event::Ready(sender)).await;
 

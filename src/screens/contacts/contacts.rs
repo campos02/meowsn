@@ -151,6 +151,7 @@ impl Contacts {
                         .align_y(Center)
                         .spacing(20),
                         text_input("<Type a personal message>", &self.personal_message)
+                            .width(250)
                             .size(14)
                             .on_input(Message::PersonalMessageChanged)
                             .on_submit(Message::PersonalMessageSubmit)
@@ -274,10 +275,9 @@ impl Contacts {
 
                 ContactListStatus::SignOut => {
                     let client = self.client.clone();
-                    action = Some(Action::SignOut(Task::perform(
-                        async move { client.disconnect().await },
-                        crate::Message::UnitResult,
-                    )));
+                    action = Some(Action::SignOut(
+                        Task::future(async move { client.disconnect().await }).discard(),
+                    ));
                 }
 
                 _ => {

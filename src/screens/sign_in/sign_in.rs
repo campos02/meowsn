@@ -1,6 +1,5 @@
 use crate::enums::sign_in_status::SignInStatus;
 use crate::screens::sign_in::bordered_container::bordered_container;
-use crate::screens::sign_in::transparent_button::transparent_button;
 use crate::sqlite::Sqlite;
 use iced::widget;
 use iced::widget::{
@@ -132,7 +131,8 @@ impl SignIn {
                         checkbox("Remember Me", self.remember_me)
                             .on_toggle(Message::RememberMeToggled)
                             .size(12),
-                        transparent_button(text("(Forget Me)").size(14))
+                        button("(Forget Me)")
+                            .style(button::text)
                             .on_press(Message::ForgetMe)
                     ]
                     .spacing(15)

@@ -240,7 +240,7 @@ impl Window {
                             )
                         },
                     ),
-                    widget::focus_next(),
+                    widget::operation::focus_next(),
                 ])
             }
 
@@ -341,7 +341,7 @@ impl Window {
             conversation::conversation::Action::RunTask(task) => task,
             conversation::conversation::Action::NewMessage => {
                 window::request_user_attention(id, Some(UserAttention::Informational))
-                    .chain(window::change_mode(id, Mode::Windowed))
+                    .chain(window::set_mode(id, Mode::Windowed))
             }
 
             conversation::conversation::Action::SendMessage(switchboard, message) => {

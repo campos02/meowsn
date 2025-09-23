@@ -7,10 +7,9 @@ use crate::screens::conversation::toggle_button::toggle_button;
 use crate::sqlite::Sqlite;
 use iced::font::{Family, Style, Weight};
 use iced::widget::{
-    button, column, container, horizontal_space, rich_text, row, scrollable, span, svg, text,
-    text_editor, vertical_space,
+    button, column, container, rich_text, row, scrollable, space, span, svg, text, text_editor,
 };
-use iced::{Center, Element, Fill, Font, Task, Theme, widget};
+use iced::{Center, Element, Fill, Font, Task, Theme, never, widget};
 use msnp11_sdk::{Event, PlainText, SdkError, Switchboard};
 use notify_rust::Notification;
 use std::borrow::Cow;
@@ -179,6 +178,7 @@ impl Conversation {
                         },
                     ]
                     .width(Fill),
+                    text("⸺⸺"),
                     scrollable(column(self.messages.iter().map(|message| {
                         let history = |theme: &Theme| text::Style {
                             color: if !message.is_history {
@@ -191,7 +191,7 @@ impl Conversation {
                         column![
                             if message.errored {
                                 row![
-                                    text("The following message could not be sent:").style(history)
+                                    text("The following message could not be delivered to all recipients:").style(history)
                                 ]
                             } else if !message.is_nudge {
                                 row![
@@ -236,19 +236,18 @@ impl Conversation {
                                             },
                                             ..Font::default()
                                         })])
-                                    .style(
-                                        |theme: &Theme| text::Style {
-                                            color: if !message.is_history && !message.errored {
-                                                Some(theme.palette().text)
-                                            } else {
-                                                Some(theme.extended_palette().secondary.weak.color)
-                                            },
+                                    .style(|theme: &Theme| text::Style {
+                                        color: if !message.is_history && !message.errored {
+                                            Some(theme.palette().text)
+                                        } else {
+                                            Some(theme.extended_palette().secondary.weak.color)
                                         },
-                                    ),
+                                    })
+                                    .on_link_click(never),
                                 )
                                 .padding(10)
                             } else {
-                                container(horizontal_space().height(7))
+                                container(space().height(7))
                             }
                         ]
                         .into()
@@ -357,7 +356,7 @@ impl Conversation {
                         bordered_container(svg(crate::svg::default_display_picture()), 10.0)
                             .width(100)
                     },
-                    vertical_space().height(Fill),
+                    space().height(Fill),
                     if let Some(picture) = self.user_display_picture.clone() {
                         bordered_container(
                             widget::image(widget::image::Handle::from_bytes(Box::from(picture))),
@@ -419,10 +418,12 @@ impl Conversation {
                     } else {
                         self.message_buffer.push(message);
                         if let Some(last_participant) = self.last_participant.clone() {
-                            action = Some(Action::RunTask(Task::perform(
-                                async move { switchboard.invite(&last_participant.email).await },
-                                crate::Message::UnitResult,
-                            )));
+                            action = Some(Action::RunTask(
+                                Task::future(async move {
+                                    switchboard.invite(&last_participant.email).await
+                                })
+                                .discard(),
+                            ));
                         }
                     }
                 } else {
@@ -431,10 +432,10 @@ impl Conversation {
 
                     if !self.user_typing {
                         self.user_typing = true;
-                        action = Some(Action::UserTypingTimeout(Task::perform(
-                            async move { switchboard.send_typing_user(&email).await },
-                            crate::Message::UnitResult,
-                        )));
+                        action = Some(Action::UserTypingTimeout(
+                            Task::future(async move { switchboard.send_typing_user(&email).await })
+                                .discard(),
+                        ));
                     }
                 };
             }
@@ -476,10 +477,12 @@ impl Conversation {
                 } else {
                     self.message_buffer.push(message);
                     if let Some(last_participant) = self.last_participant.clone() {
-                        action = Some(Action::RunTask(Task::perform(
-                            async move { switchboard.invite(&last_participant.email).await },
-                            crate::Message::UnitResult,
-                        )));
+                        action = Some(Action::RunTask(
+                            Task::future(async move {
+                                switchboard.invite(&last_participant.email).await
+                            })
+                            .discard(),
+                        ));
                     }
                 }
             }
@@ -641,8 +644,8 @@ impl Conversation {
                             self.messages.push(message);
                         }
 
-                        action = Some(Action::RunTask(Task::perform(
-                            async move {
+                        action = Some(Action::RunTask(
+                            Task::future(async move {
                                 for message in messages {
                                     let message = PlainText {
                                         bold: message.bold,
@@ -655,9 +658,9 @@ impl Conversation {
 
                                     let _ = switchboard.send_text_message(&message).await;
                                 }
-                            },
-                            crate::Message::Unit,
-                        )));
+                            })
+                            .discard(),
+                        ));
                     }
                 }
 
@@ -702,14 +705,14 @@ impl Conversation {
             {
                 let switchboard = self.switchboards.values().next().cloned()?;
                 let email = participant.email.clone();
-                tasks.push(Task::perform(
-                    async move {
+                tasks.push(
+                    Task::future(async move {
                         switchboard
                             .request_contact_display_picture(&email, &msn_object)
                             .await
-                    },
-                    crate::Message::UnitResult,
-                ));
+                    })
+                    .discard(),
+                );
             }
         }
 
@@ -757,10 +760,7 @@ impl Conversation {
         let mut tasks = Vec::with_capacity(self.switchboards.len());
         for switchboard in self.switchboards.values() {
             let switchboard = switchboard.clone();
-            tasks.push(Task::perform(
-                async move { switchboard.disconnect().await },
-                crate::Message::UnitResult,
-            ));
+            tasks.push(Task::future(async move { switchboard.disconnect().await }).discard());
         }
 
         Task::batch(tasks)

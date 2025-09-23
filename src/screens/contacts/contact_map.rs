@@ -2,7 +2,8 @@ use crate::models::contact::Contact;
 use crate::screens::contacts::contacts::Message;
 use crate::screens::contacts::transparent_button::transparent_button;
 use iced::border::radius;
-use iced::widget::{button, container, horizontal_rule, row, svg, text};
+use iced::widget::column;
+use iced::widget::{container, row, rule, svg, text};
 use iced::{Background, Border, Center, Color, Element, Fill, Theme};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{MsnpList, MsnpStatus};
@@ -38,7 +39,7 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                     crate::svg::default_display_picture_offline()
                 })
                 .width(30),
-                button(row![
+                transparent_button(row![
                     text(&*contact.display_name),
                     if let Some(personal_message) = &contact.personal_message
                         && !personal_message.is_empty()
@@ -51,17 +52,8 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                         row![]
                     }
                 ])
-                .on_press(Message::Conversation(contact.clone()))
-                .style(|theme: &Theme, status| match status {
-                    button::Status::Hovered | button::Status::Pressed => {
-                        button::secondary(theme, status)
-                    }
-
-                    button::Status::Active | button::Status::Disabled => {
-                        button::secondary(theme, status).with_background(Color::TRANSPARENT)
-                    }
-                })
                 .width(Fill)
+                .on_press(Message::Conversation(contact.clone()))
             ]
             .align_y(Center)
         ]
@@ -69,11 +61,11 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
         .spacing(10)
         .width(Fill),
         || {
-            container(iced::widget::column![
+            container(column![
                 transparent_button(text("Send an Instant Message").size(15))
                     .width(Fill)
                     .on_press(Message::Conversation(contact.clone())),
-                horizontal_rule(10),
+                rule::horizontal(10),
                 if !contact.lists.contains(&MsnpList::BlockList) {
                     transparent_button(text("Block").size(15))
                         .width(Fill)
@@ -97,7 +89,7 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                     radius: radius(2.0),
                 },
                 background: Some(Background::Color(
-                    theme.extended_palette().secondary.base.color,
+                    theme.extended_palette().secondary.strong.color,
                 )),
                 ..container::Style::default()
             })

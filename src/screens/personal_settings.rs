@@ -1,6 +1,6 @@
 use crate::settings;
 use crate::settings::Settings;
-use iced::widget::{button, checkbox, column, container, text, text_input, vertical_space};
+use iced::widget::{button, checkbox, column, container, space, text, text_input};
 use iced::{Center, Element, Fill, Task, Theme};
 use msnp11_sdk::Client;
 use std::sync::Arc;
@@ -73,9 +73,9 @@ impl PersonalSettings {
                         .on_toggle(Message::CheckForUpdatesToggled)
                 )
                 .width(Fill),
-                vertical_space().height(5),
+                space().height(5),
                 button("Save").on_press(Message::Save),
-                vertical_space().height(Fill),
+                space().height(Fill),
                 text(format!("meowsn v{}", env!("CARGO_PKG_VERSION"))).style(|theme: &Theme| {
                     text::Style {
                         color: Some(theme.extended_palette().secondary.weak.color),

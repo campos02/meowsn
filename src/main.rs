@@ -12,7 +12,7 @@ use dark_light::Mode;
 use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
-use iced::widget::horizontal_space;
+use iced::widget::space;
 use iced::window::{Position, Settings, UserAttention, icon};
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
@@ -26,8 +26,8 @@ use std::sync::Arc;
 mod contact_repository;
 mod enums;
 mod helpers;
-mod meowsn_window;
 mod keyboard_listener;
+mod meowsn_window;
 mod models;
 mod msnp_listener;
 mod screens;
@@ -90,10 +90,7 @@ pub enum Message {
     OpenAddContact(Arc<Client>),
     MsnpEvent(msnp_listener::Event),
     DisplayNameResult(String, Result<(), SdkError>),
-    UnitResult(Result<(), SdkError>),
-    Unit(()),
     EventResult(Result<msnp11_sdk::Event, SdkError>),
-    UnitBoxedError(Result<(), Box<dyn std::error::Error + Send + Sync>>),
     ContactUpdated(Arc<String>),
     UserDisplayPictureUpdated(Option<Cow<'static, [u8]>>),
     UserDisplayNameUpdated(Arc<String>),
@@ -134,7 +131,7 @@ impl MeowSN {
                     screen: Screen::SignIn(sign_in::sign_in::SignIn::new(sqlite.clone())),
                     minimized: false,
                 }),
-                Task::perform(notify_new_version(), Message::UnitBoxedError),
+                Task::future(notify_new_version()).discard(),
             ]),
         )
     }
@@ -626,8 +623,8 @@ impl MeowSN {
                 Task::batch(tasks)
             }
 
-            Message::FocusNext => widget::focus_next(),
-            Message::FocusPrevious => widget::focus_previous(),
+            Message::FocusNext => widget::operation::focus_next(),
+            Message::FocusPrevious => widget::operation::focus_previous(),
             Message::EventResult(result) => {
                 match result {
                     Ok(event) => {
@@ -661,8 +658,6 @@ impl MeowSN {
 
                 Task::none()
             }
-
-            _ => Task::none(),
         }
     }
 
@@ -683,7 +678,7 @@ impl MeowSN {
         if let Some(window) = self.windows.get(&window_id) {
             window.view(window_id)
         } else {
-            horizontal_space().into()
+            space().into()
         }
     }
 
@@ -704,16 +699,19 @@ impl MeowSN {
             ..Settings::default()
         }
     }
+
+    fn theme(&self, _: window::Id) -> Theme {
+        match dark_light::detect().unwrap_or(Mode::Unspecified) {
+            Mode::Dark => Theme::CatppuccinMocha,
+            _ => Theme::CatppuccinLatte,
+        }
+    }
 }
 
 pub fn main() -> iced::Result {
-    iced::daemon(MeowSN::title, MeowSN::update, MeowSN::view)
+    iced::daemon(MeowSN::new, MeowSN::update, MeowSN::view)
         .subscription(MeowSN::subscription)
-        .theme(
-            |_, _| match dark_light::detect().unwrap_or(Mode::Unspecified) {
-                Mode::Dark => Theme::CatppuccinMocha,
-                _ => Theme::CatppuccinLatte,
-            },
-        )
-        .run_with(MeowSN::new)
+        .title(MeowSN::title)
+        .theme(MeowSN::theme)
+        .run()
 }

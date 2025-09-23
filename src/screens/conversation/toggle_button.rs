@@ -13,7 +13,7 @@ pub fn toggle_button<'a>(
             match status {
                 button::Status::Hovered | button::Status::Pressed => button::primary(theme, status),
                 button::Status::Active | button::Status::Disabled => {
-                    button::secondary(theme, status).with_background(Color::TRANSPARENT)
+                    button::background(theme, status).with_background(Color::TRANSPARENT)
                 }
             }
         }
