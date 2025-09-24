@@ -11,7 +11,7 @@ use crate::sqlite::Sqlite;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
 use iced::widget::{column, container, pick_list, row, scrollable, svg, text, text_input};
-use iced::{Background, Center, Color, Element, Padding, Task, Theme, widget};
+use iced::{Background, Center, Color, Element, Fill, Padding, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use rfd::AsyncFileDialog;
 use std::borrow::Cow;
@@ -205,6 +205,8 @@ impl Contacts {
                     .spacing(10)
                     .padding(10)
                 ])
+                .height(Fill)
+                .width(Fill)
             ]
             .spacing(10),
         )

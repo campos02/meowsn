@@ -253,7 +253,8 @@ impl Conversation {
                         .into()
                     })))
                     .anchor_bottom()
-                    .height(Fill),
+                    .height(Fill)
+                    .width(Fill),
                     if let Some(participant) = &self.participant_typing {
                         text(format!("{participant} is writing a message...")).size(14)
                     } else {
