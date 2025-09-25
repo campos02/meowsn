@@ -1,16 +1,22 @@
 #![cfg_attr(
-    all(target_os = "windows", not(debug_assertions),),
+    all(target_os = "windows", not(debug_assertions)),
     windows_subsystem = "windows"
 )]
 
+mod contact_repository;
 mod main_window;
-mod sign_in;
+mod models;
+mod screens;
+mod settings;
+mod sqlite;
+mod svg;
 mod widgets;
 
 use crate::main_window::MainWindow;
 use eframe::egui;
+use eframe::egui::CornerRadius;
 
-pub fn main() -> eframe::Result {
+fn common_main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([450., 600.])
@@ -29,12 +35,25 @@ pub fn main() -> eframe::Result {
             egui_extras::install_image_loaders(&cc.egui_ctx);
             catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
 
-            cc.egui_ctx.set_pixels_per_point(1.2);
+            cc.egui_ctx.set_pixels_per_point(1.1);
             cc.egui_ctx.style_mut(|style| {
                 style.spacing.button_padding = egui::Vec2::splat(5.);
+                style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
             });
 
             Ok(Box::<MainWindow>::default())
         }),
     )
+}
+
+#[cfg(target_os = "macos")]
+pub fn main() -> eframe::Result {
+    let id = notify_rust::get_bundle_identifier_or_default("meowsn");
+    notify_rust::set_application(&id).expect("Could not set application name");
+    common_main()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn main() -> eframe::Result {
+    common_main()
 }

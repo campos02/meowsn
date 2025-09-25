@@ -1,7 +1,9 @@
+use crate::svg;
 use crate::widgets::left_label_combo_box::LeftLabelComboBox;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum Status {
@@ -12,6 +14,18 @@ enum Status {
     PersonalSettings,
 }
 
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Online => "Online",
+            Self::Busy => "Busy",
+            Self::Away => "Away",
+            Self::AppearOffline => "Appear Offline",
+            Self::PersonalSettings => "Personal Settings...",
+        })
+    }
+}
+
 pub struct SignIn {
     email: String,
     password: String,
@@ -19,10 +33,11 @@ pub struct SignIn {
     remember_my_password: bool,
     selected_status: Status,
     signing_in: bool,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
 }
 
-impl Default for SignIn {
-    fn default() -> Self {
+impl SignIn {
+    pub fn new(main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>) -> Self {
         Self {
             email: String::default(),
             password: String::default(),
@@ -30,6 +45,7 @@ impl Default for SignIn {
             remember_my_password: false,
             selected_status: Status::Online,
             signing_in: false,
+            main_window_sender,
         }
     }
 }
@@ -63,10 +79,8 @@ impl eframe::App for SignIn {
                         tui.add_with_border(|tui| {
                             tui.ui(|ui| {
                                 ui.add(
-                                    egui::Image::new(egui::include_image!(
-                                        "../assets/default_display_picture.svg"
-                                    ))
-                                    .fit_to_exact_size(egui::Vec2::splat(105.)),
+                                    egui::Image::new(svg::default_display_picture())
+                                        .fit_to_exact_size(egui::Vec2::splat(100.)),
                                 )
                             })
                         });
@@ -109,33 +123,37 @@ impl eframe::App for SignIn {
                         let old_status = self.selected_status;
                         tui.ui(|ui| {
                             LeftLabelComboBox::from_label("Status:")
-                                .selected_text(format!("{:?}", self.selected_status))
+                                .selected_text(self.selected_status.to_string())
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
                                         &mut self.selected_status,
                                         Status::Online,
-                                        "Online",
+                                        Status::Online.to_string(),
                                     );
+
                                     ui.selectable_value(
                                         &mut self.selected_status,
                                         Status::Busy,
-                                        "Busy",
+                                        Status::Busy.to_string(),
                                     );
+
                                     ui.selectable_value(
                                         &mut self.selected_status,
                                         Status::Away,
-                                        "Away",
+                                        Status::Away.to_string(),
                                     );
+
                                     ui.selectable_value(
                                         &mut self.selected_status,
                                         Status::AppearOffline,
-                                        "Appear Offline",
+                                        Status::AppearOffline.to_string(),
                                     );
+
                                     ui.separator();
                                     ui.selectable_value(
                                         &mut self.selected_status,
                                         Status::PersonalSettings,
-                                        "Personal Settings",
+                                        Status::PersonalSettings.to_string(),
                                     );
                                 });
                         });
@@ -171,6 +189,9 @@ impl eframe::App for SignIn {
                                 .clicked()
                             {
                                 self.signing_in = true;
+                                let _ = self
+                                    .main_window_sender
+                                    .send(crate::main_window::Message::SignIn);
                             }
                         });
                     })
