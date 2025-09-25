@@ -3,7 +3,7 @@ use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum Status {
     Online,
     Busy,
@@ -12,7 +12,7 @@ enum Status {
     PersonalSettings,
 }
 
-pub struct MeowSN {
+pub struct SignIn {
     email: String,
     password: String,
     remember_me: bool,
@@ -21,7 +21,7 @@ pub struct MeowSN {
     signing_in: bool,
 }
 
-impl Default for MeowSN {
+impl Default for SignIn {
     fn default() -> Self {
         Self {
             email: String::default(),
@@ -34,7 +34,7 @@ impl Default for MeowSN {
     }
 }
 
-impl eframe::App for MeowSN {
+impl eframe::App for SignIn {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(
@@ -106,6 +106,7 @@ impl eframe::App for MeowSN {
                             .labelled_by(label.id);
                         });
 
+                        let old_status = self.selected_status;
                         tui.ui(|ui| {
                             LeftLabelComboBox::from_label("Status:")
                                 .selected_text(format!("{:?}", self.selected_status))
@@ -138,6 +139,10 @@ impl eframe::App for MeowSN {
                                     );
                                 });
                         });
+
+                        if self.selected_status == Status::PersonalSettings {
+                            self.selected_status = old_status;
+                        }
 
                         tui.ui(|ui| {
                             ui.horizontal(|ui| {
