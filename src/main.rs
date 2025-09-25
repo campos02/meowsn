@@ -708,6 +708,19 @@ impl MeowSN {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub fn main() -> iced::Result {
+    let id = notify_rust::get_bundle_identifier_or_default("meowsn");
+    notify_rust::set_application(&id).expect("Could not set application name");
+
+    iced::daemon(MeowSN::new, MeowSN::update, MeowSN::view)
+        .subscription(MeowSN::subscription)
+        .title(MeowSN::title)
+        .theme(MeowSN::theme)
+        .run()
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn main() -> iced::Result {
     iced::daemon(MeowSN::new, MeowSN::update, MeowSN::view)
         .subscription(MeowSN::subscription)
