@@ -22,10 +22,10 @@ reqwest = { version = "0.12.23", features = ["json"] }
 semver = "1.0.26"
 
 [patch.crates-io]
-iced = { git = "https://github.com/campos02/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
-iced_core = { git = "https://github.com/campos02/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
-iced_widget = { git = "https://github.com/campos02/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
-iced_aw = { git = "https://github.com/campos02/iced_aw", rev = "4ce2b07fab58a926567e485f0bdf7fb686cba6bf" }
+iced = { git = "https://github.com/iced-rs/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
+iced_core = { git = "https://github.com/iced-rs/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
+iced_widget = { git = "https://github.com/iced-rs/iced", rev = "0a34496c793fd87c235e764317351a0aacd4f6d1" }
+iced_aw = { git = "https://github.com/iced-rs/iced_aw", rev = "4ce2b07fab58a926567e485f0bdf7fb686cba6bf" }
 
 [profile.release]
 codegen-units = 1
