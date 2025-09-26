@@ -1,9 +1,12 @@
+use crate::models::contact::Contact;
 use crate::screens::contacts;
+use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::status_selector;
 use crate::svg;
 use eframe::egui;
 use egui_taffy::taffy::prelude::length;
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct Contacts {
@@ -12,6 +15,9 @@ pub struct Contacts {
     selected_status: contacts::status_selector::Status,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
+    online_contacts: HashMap<Arc<String>, Contact>,
+    offline_contacts: HashMap<Arc<String>, Contact>,
+    selected_contact: Option<Arc<String>>,
 }
 
 impl Contacts {
@@ -22,6 +28,9 @@ impl Contacts {
             main_window_sender,
             selected_status: contacts::status_selector::Status::Online,
             show_personal_message_frame: false,
+            online_contacts: HashMap::new(),
+            offline_contacts: HashMap::new(),
+            selected_contact: None,
         }
     }
 }
@@ -100,31 +109,19 @@ impl eframe::App for Contacts {
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            egui::CollapsingHeader::new("Online")
-                                .default_open(true)
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.add(
-                                            egui::Image::new(svg::default_display_picture())
-                                                .fit_to_exact_size(egui::Vec2::splat(25.))
-                                                .alt_text("Contact display picture"),
-                                        );
-                                        ui.label("Contact");
-                                    })
-                                });
+                            category_collapsing_header(
+                                ui,
+                                "Online",
+                                &mut self.selected_contact,
+                                &self.online_contacts,
+                            );
 
-                            egui::CollapsingHeader::new("Offline")
-                                .default_open(true)
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.add(
-                                            egui::Image::new(svg::default_display_picture_offline())
-                                                .fit_to_exact_size(egui::Vec2::splat(25.))
-                                                .alt_text("Contact display picture"),
-                                        );
-                                        ui.label("Contact");
-                                    })
-                                });
+                            category_collapsing_header(
+                                ui,
+                                "Offline",
+                                &mut self.selected_contact,
+                                &self.offline_contacts,
+                            );
                         });
                     })
             });

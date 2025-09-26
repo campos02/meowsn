@@ -119,20 +119,25 @@ impl eframe::App for SignIn {
 
                         tui.style(taffy::Style {
                             size: taffy::Size {
-                                width: length(50.),
+                                width: if !self.signing_in {
+                                    length(50.)
+                                } else {
+                                    auto()
+                                },
                                 height: auto(),
                             },
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            if ui
-                                .add_enabled(!self.signing_in, egui::Button::new("Sign In"))
-                                .clicked()
-                            {
-                                self.signing_in = true;
-                                let _ = self
-                                    .main_window_sender
-                                    .send(crate::main_window::Message::SignIn);
+                            if !self.signing_in {
+                                if ui.button("Sign In").clicked() {
+                                    self.signing_in = true;
+                                    let _ = self
+                                        .main_window_sender
+                                        .send(crate::main_window::Message::SignIn);
+                                }
+                            } else {
+                                ui.spinner();
                             }
                         });
                     })
