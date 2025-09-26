@@ -1,30 +1,8 @@
+use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::svg;
-use crate::widgets::left_label_combo_box::LeftLabelComboBox;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use std::fmt::Display;
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-enum Status {
-    Online,
-    Busy,
-    Away,
-    AppearOffline,
-    PersonalSettings,
-}
-
-impl Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Online => "Online",
-            Self::Busy => "Busy",
-            Self::Away => "Away",
-            Self::AppearOffline => "Appear Offline",
-            Self::PersonalSettings => "Personal Settings...",
-        })
-    }
-}
 
 pub struct SignIn {
     email: String,
@@ -61,7 +39,7 @@ impl eframe::App for SignIn {
                 .inner_margin(30.),
             )
             .show(ctx, |ui| {
-                tui(ui, ui.id().with("meowsn"))
+                tui(ui, ui.id().with("sign in screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,
@@ -80,7 +58,8 @@ impl eframe::App for SignIn {
                             tui.ui(|ui| {
                                 ui.add(
                                     egui::Image::new(svg::default_display_picture())
-                                        .fit_to_exact_size(egui::Vec2::splat(100.)),
+                                        .fit_to_exact_size(egui::Vec2::splat(100.))
+                                        .alt_text("Display picture"),
                                 )
                             })
                         });
@@ -120,47 +99,9 @@ impl eframe::App for SignIn {
                             .labelled_by(label.id);
                         });
 
-                        let old_status = self.selected_status;
                         tui.ui(|ui| {
-                            LeftLabelComboBox::from_label("Status:")
-                                .selected_text(self.selected_status.to_string())
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.selected_status,
-                                        Status::Online,
-                                        Status::Online.to_string(),
-                                    );
-
-                                    ui.selectable_value(
-                                        &mut self.selected_status,
-                                        Status::Busy,
-                                        Status::Busy.to_string(),
-                                    );
-
-                                    ui.selectable_value(
-                                        &mut self.selected_status,
-                                        Status::Away,
-                                        Status::Away.to_string(),
-                                    );
-
-                                    ui.selectable_value(
-                                        &mut self.selected_status,
-                                        Status::AppearOffline,
-                                        Status::AppearOffline.to_string(),
-                                    );
-
-                                    ui.separator();
-                                    ui.selectable_value(
-                                        &mut self.selected_status,
-                                        Status::PersonalSettings,
-                                        Status::PersonalSettings.to_string(),
-                                    );
-                                });
+                            status_selector(ui, &mut self.selected_status);
                         });
-
-                        if self.selected_status == Status::PersonalSettings {
-                            self.selected_status = old_status;
-                        }
 
                         tui.ui(|ui| {
                             ui.horizontal(|ui| {

@@ -6,7 +6,7 @@ use eframe::egui::{
     WidgetText, WidgetType, vec2,
 };
 
-/// A function that paints the [`LeftLabelComboBox`] icon
+/// A function that paints the [`WindowFillComboBox`] icon
 pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 
 /// A drop-down selection menu with a descriptive label.
@@ -32,7 +32,7 @@ pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
-pub struct LeftLabelComboBox {
+pub struct WindowFillComboBox {
     id_salt: Id,
     label: Option<WidgetText>,
     selected_text: WidgetText,
@@ -45,8 +45,8 @@ pub struct LeftLabelComboBox {
 }
 
 #[allow(dead_code)]
-impl LeftLabelComboBox {
-    /// Create new [`LeftLabelComboBox`] with id and label
+impl WindowFillComboBox {
+    /// Create new [`WindowFillComboBox`] with id and label
     pub fn new(id_salt: impl std::hash::Hash, label: impl Into<WidgetText>) -> Self {
         Self {
             id_salt: Id::new(id_salt),
@@ -102,8 +102,8 @@ impl LeftLabelComboBox {
         self
     }
 
-    /// Use the provided function to render a different [`LeftLabelComboBox`] icon.
-    /// Defaults to a triangle that expands when the cursor is hovering over the [`LeftLabelComboBox`].
+    /// Use the provided function to render a different [`WindowFillComboBox`] icon.
+    /// Defaults to a triangle that expands when the cursor is hovering over the [`WindowFillComboBox`].
     ///
     /// For example:
     /// ```
@@ -212,7 +212,7 @@ impl LeftLabelComboBox {
 
         let button_id = ui.make_persistent_id(id_salt);
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.horizontal(|ui| {
             let mut ir = combo_box_dyn(
                 ui,
                 button_id,
@@ -284,12 +284,12 @@ impl LeftLabelComboBox {
         response
     }
 
-    /// Check if the [`LeftLabelComboBox`] with the given id has its popup menu currently opened.
+    /// Check if the [`WindowFillComboBox`] with the given id has its popup menu currently opened.
     pub fn is_open(ctx: &Context, id: Id) -> bool {
         Popup::is_id_open(ctx, Self::widget_to_popup_id(id))
     }
 
-    /// Convert a [`LeftLabelComboBox`] id to the id used to store it's popup state.
+    /// Convert a [`WindowFillComboBox`] id to the id used to store it's popup state.
     fn widget_to_popup_id(widget_id: Id) -> Id {
         widget_id.with("popup")
     }
@@ -307,7 +307,7 @@ fn combo_box_dyn<'c, R>(
     popup_style: StyleModifier,
     (width, height): (Option<f32>, Option<f32>),
 ) -> InnerResponse<Option<R>> {
-    let popup_id = LeftLabelComboBox::widget_to_popup_id(button_id);
+    let popup_id = WindowFillComboBox::widget_to_popup_id(button_id);
 
     let is_popup_open = Popup::is_id_open(ui.ctx(), popup_id);
 

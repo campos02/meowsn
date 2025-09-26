@@ -19,8 +19,8 @@ use eframe::egui::CornerRadius;
 fn common_main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([450., 600.])
-            .with_min_inner_size([450., 600.])
+            .with_inner_size([350., 600.])
+            .with_min_inner_size([350., 500.])
             .with_icon(
                 eframe::icon_data::from_png_bytes(include_bytes!("../assets/meowsn.ico"))
                     .expect("Failed to load icon"),

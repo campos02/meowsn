@@ -2,8 +2,8 @@ use crate::screens::{contacts, sign_in};
 use eframe::egui;
 
 enum Screen {
-    SignIn(sign_in::SignIn),
-    Contacts(contacts::Contacts),
+    SignIn(sign_in::sign_in::SignIn),
+    Contacts(contacts::contacts::Contacts),
 }
 
 pub enum Message {
@@ -21,7 +21,7 @@ impl Default for MainWindow {
     fn default() -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         Self {
-            screen: Screen::SignIn(sign_in::SignIn::new(sender.clone())),
+            screen: Screen::SignIn(sign_in::sign_in::SignIn::new(sender.clone())),
             sender,
             receiver,
         }
@@ -33,11 +33,12 @@ impl eframe::App for MainWindow {
         if let Ok(message) = self.receiver.try_recv() {
             match message {
                 Message::SignIn => {
-                    self.screen = Screen::Contacts(contacts::Contacts::new(self.sender.clone()))
+                    self.screen =
+                        Screen::Contacts(contacts::contacts::Contacts::new(self.sender.clone()))
                 }
 
                 Message::SignOut => {
-                    self.screen = Screen::SignIn(sign_in::SignIn::new(self.sender.clone()))
+                    self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(self.sender.clone()))
                 }
             }
         }
