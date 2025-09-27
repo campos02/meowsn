@@ -1,10 +1,14 @@
 use crate::screens::sign_in::status_selector::{Status, status_selector};
+use crate::sqlite::Sqlite;
 use crate::svg;
+use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
 use eframe::egui;
+use eframe::egui::{FontFamily, FontId};
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 
 pub struct SignIn {
+    emails: Vec<String>,
     email: String,
     password: String,
     remember_me: bool,
@@ -12,11 +16,18 @@ pub struct SignIn {
     selected_status: Status,
     signing_in: bool,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    sqlite: Sqlite,
 }
 
 impl SignIn {
-    pub fn new(main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>) -> Self {
+    pub fn new(
+        sqlite: Sqlite,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    ) -> Self {
+        let emails = sqlite.select_user_emails().unwrap_or_default();
+
         Self {
+            emails,
             email: String::default(),
             password: String::default(),
             remember_me: false,
@@ -24,6 +35,7 @@ impl SignIn {
             selected_status: Status::Online,
             signing_in: false,
             main_window_sender,
+            sqlite,
         }
     }
 }
@@ -39,12 +51,11 @@ impl eframe::App for SignIn {
                 .inner_margin(30.),
             )
             .show(ctx, |ui| {
-                tui(ui, ui.id().with("sign in screen"))
+                tui(ui, ui.id().with("sign-in-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,
                         align_items: Some(taffy::AlignItems::Center),
-                        justify_content: Some(taffy::AlignContent::Center),
                         size: taffy::Size {
                             width: percent(1.),
                             height: auto(),
@@ -74,11 +85,37 @@ impl eframe::App for SignIn {
                         .ui(|ui| {
                             let label = ui.label("E-mail address:");
                             ui.add_space(3.);
-                            ui.add(
-                                egui::text_edit::TextEdit::singleline(&mut self.email)
-                                    .hint_text("E-mail address"),
-                            )
-                            .labelled_by(label.id);
+                            ui.horizontal(|ui| {
+                                ui.style_mut().spacing.item_spacing.x = 1.;
+                                ui.style_mut().spacing.button_padding = egui::Vec2::splat(2.);
+
+                                ui.add(
+                                    egui::text_edit::TextEdit::singleline(&mut self.email)
+                                        .hint_text("E-mail address")
+                                        .min_size(egui::vec2(227., 5.))
+                                        .desired_width(219.),
+                                )
+                                .labelled_by(label.id);
+
+                                CustomFillComboBox::from_label("")
+                                    .selected_text("")
+                                    .width(3.)
+                                    .fill_color(ui.visuals().text_edit_bg_color())
+                                    .show_ui(ui, |ui| {
+                                        for email in &self.emails {
+                                            ui.selectable_value(
+                                                &mut self.email,
+                                                email.clone(),
+                                                email,
+                                            );
+                                            ui.selectable_value(
+                                                &mut self.email,
+                                                "".to_string(),
+                                                "Sign in with a different e-mail address",
+                                            );
+                                        }
+                                    });
+                            });
                         });
 
                         tui.style(taffy::Style {
@@ -100,7 +137,11 @@ impl eframe::App for SignIn {
                         });
 
                         tui.ui(|ui| {
-                            status_selector(ui, &mut self.selected_status);
+                            status_selector(
+                                ui,
+                                &mut self.selected_status,
+                                self.main_window_sender.clone(),
+                            );
                         });
 
                         tui.ui(|ui| {
@@ -109,7 +150,7 @@ impl eframe::App for SignIn {
                                 ui.scope(|ui| {
                                     ui.style_mut().text_styles.insert(
                                         egui::TextStyle::Body,
-                                        egui::FontId::new(12., egui::FontFamily::Proportional),
+                                        FontId::new(12., FontFamily::Proportional),
                                     );
                                     ui.link("(Forget Me)")
                                 })

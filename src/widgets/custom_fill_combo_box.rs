@@ -5,8 +5,9 @@ use eframe::egui::{
     ScrollArea, Sense, Shape, Stroke, TextStyle, TextWrapMode, Ui, UiBuilder, Vec2, WidgetInfo,
     WidgetText, WidgetType, vec2,
 };
+use eframe::epaint::Color32;
 
-/// A function that paints the [`WindowFillComboBox`] icon
+/// A function that paints the [`CustomFillComboBox`] icon
 pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 
 /// A drop-down selection menu with a descriptive label.
@@ -32,7 +33,7 @@ pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
-pub struct WindowFillComboBox {
+pub struct CustomFillComboBox {
     id_salt: Id,
     label: Option<WidgetText>,
     selected_text: WidgetText,
@@ -42,11 +43,12 @@ pub struct WindowFillComboBox {
     wrap_mode: Option<TextWrapMode>,
     close_behavior: Option<PopupCloseBehavior>,
     popup_style: StyleModifier,
+    fill_color: Option<Color32>,
 }
 
 #[allow(dead_code)]
-impl WindowFillComboBox {
-    /// Create new [`WindowFillComboBox`] with id and label
+impl CustomFillComboBox {
+    /// Create new [`CustomFillComboBox`] with id and label
     pub fn new(id_salt: impl std::hash::Hash, label: impl Into<WidgetText>) -> Self {
         Self {
             id_salt: Id::new(id_salt),
@@ -58,6 +60,7 @@ impl WindowFillComboBox {
             wrap_mode: None,
             close_behavior: None,
             popup_style: StyleModifier::default(),
+            fill_color: None,
         }
     }
 
@@ -74,6 +77,7 @@ impl WindowFillComboBox {
             wrap_mode: None,
             close_behavior: None,
             popup_style: StyleModifier::default(),
+            fill_color: None,
         }
     }
 
@@ -102,8 +106,8 @@ impl WindowFillComboBox {
         self
     }
 
-    /// Use the provided function to render a different [`WindowFillComboBox`] icon.
-    /// Defaults to a triangle that expands when the cursor is hovering over the [`WindowFillComboBox`].
+    /// Use the provided function to render a different [`CustomFillComboBox`] icon.
+    /// Defaults to a triangle that expands when the cursor is hovering over the [`CustomFillComboBox`].
     ///
     /// For example:
     /// ```
@@ -182,6 +186,13 @@ impl WindowFillComboBox {
         self
     }
 
+    /// Sets the background fill of the frame.
+    #[inline]
+    pub fn fill_color(mut self, fill_color: Color32) -> Self {
+        self.fill_color = Some(fill_color);
+        self
+    }
+
     /// Show the combo box, with the given ui code for the menu contents.
     ///
     /// Returns `InnerResponse { inner: None }` if the combo box is closed.
@@ -208,6 +219,7 @@ impl WindowFillComboBox {
             wrap_mode,
             close_behavior,
             popup_style,
+            fill_color,
         } = self;
 
         let button_id = ui.make_persistent_id(id_salt);
@@ -222,6 +234,7 @@ impl WindowFillComboBox {
                 wrap_mode,
                 close_behavior,
                 popup_style,
+                fill_color,
                 (width, height),
             );
             if let Some(label) = label {
@@ -284,12 +297,12 @@ impl WindowFillComboBox {
         response
     }
 
-    /// Check if the [`WindowFillComboBox`] with the given id has its popup menu currently opened.
+    /// Check if the [`CustomFillComboBox`] with the given id has its popup menu currently opened.
     pub fn is_open(ctx: &Context, id: Id) -> bool {
         Popup::is_id_open(ctx, Self::widget_to_popup_id(id))
     }
 
-    /// Convert a [`WindowFillComboBox`] id to the id used to store it's popup state.
+    /// Convert a [`CustomFillComboBox`] id to the id used to store it's popup state.
     fn widget_to_popup_id(widget_id: Id) -> Id {
         widget_id.with("popup")
     }
@@ -305,9 +318,10 @@ fn combo_box_dyn<'c, R>(
     wrap_mode: Option<TextWrapMode>,
     close_behavior: Option<PopupCloseBehavior>,
     popup_style: StyleModifier,
+    fill_color: Option<Color32>,
     (width, height): (Option<f32>, Option<f32>),
 ) -> InnerResponse<Option<R>> {
-    let popup_id = WindowFillComboBox::widget_to_popup_id(button_id);
+    let popup_id = CustomFillComboBox::widget_to_popup_id(button_id);
 
     let is_popup_open = Popup::is_id_open(ui.ctx(), popup_id);
 
@@ -316,58 +330,67 @@ fn combo_box_dyn<'c, R>(
     let close_behavior = close_behavior.unwrap_or(PopupCloseBehavior::CloseOnClick);
 
     let margin = ui.spacing().button_padding;
-    let button_response = button_frame(ui, button_id, is_popup_open, Sense::click(), |ui| {
-        let icon_spacing = ui.spacing().icon_spacing;
-        let icon_size = Vec2::splat(ui.spacing().icon_width);
+    let button_response = button_frame(
+        ui,
+        button_id,
+        is_popup_open,
+        Sense::click(),
+        fill_color,
+        |ui| {
+            let icon_spacing = ui.spacing().icon_spacing;
+            let icon_size = Vec2::splat(ui.spacing().icon_width);
 
-        // The combo box selected text will always have this minimum width.
-        // Note: the `ComboBox::width()` if set or `Spacing::combo_width` are considered as the
-        // minimum overall width, regardless of the wrap mode.
-        let minimum_width = width.unwrap_or_else(|| ui.spacing().combo_width) - 2.0 * margin.x;
+            // The combo box selected text will always have this minimum width.
+            // Note: the `ComboBox::width()` if set or `Spacing::combo_width` are considered as the
+            // minimum overall width, regardless of the wrap mode.
+            let minimum_width = width.unwrap_or_else(|| ui.spacing().combo_width) - 2.0 * margin.x;
 
-        // width against which to lay out the selected text
-        let wrap_width = if wrap_mode == TextWrapMode::Extend {
-            // Use all the width necessary to display the currently selected value's text.
-            f32::INFINITY
-        } else {
-            // Use the available width, currently selected value's text will be wrapped if exceeds this value.
-            ui.available_width() - icon_spacing - icon_size.x
-        };
-
-        let galley = selected_text.into_galley(ui, Some(wrap_mode), wrap_width, TextStyle::Button);
-
-        let actual_width = (galley.size().x + icon_spacing + icon_size.x).at_least(minimum_width);
-        let actual_height = galley.size().y.max(icon_size.y);
-
-        let (_, rect) = ui.allocate_space(Vec2::new(actual_width, actual_height));
-        let button_rect = ui.min_rect().expand2(ui.spacing().button_padding);
-        let response = ui.interact(button_rect, button_id, Sense::click());
-        // response.active |= is_popup_open;
-
-        if ui.is_rect_visible(rect) {
-            let icon_rect = Align2::RIGHT_CENTER.align_size_within_rect(icon_size, rect);
-            let visuals = if is_popup_open {
-                &ui.visuals().widgets.open
+            // width against which to lay out the selected text
+            let wrap_width = if wrap_mode == TextWrapMode::Extend {
+                // Use all the width necessary to display the currently selected value's text.
+                f32::INFINITY
             } else {
-                ui.style().interact(&response)
+                // Use the available width, currently selected value's text will be wrapped if exceeds this value.
+                ui.available_width() - icon_spacing - icon_size.x
             };
 
-            if let Some(icon) = icon {
-                icon(
-                    ui,
-                    icon_rect.expand(visuals.expansion),
-                    visuals,
-                    is_popup_open,
-                );
-            } else {
-                paint_default_icon(ui.painter(), icon_rect.expand(visuals.expansion), visuals);
-            }
+            let galley =
+                selected_text.into_galley(ui, Some(wrap_mode), wrap_width, TextStyle::Button);
 
-            let text_rect = Align2::LEFT_CENTER.align_size_within_rect(galley.size(), rect);
-            ui.painter()
-                .galley(text_rect.min, galley, visuals.text_color());
-        }
-    });
+            let actual_width =
+                (galley.size().x + icon_spacing + icon_size.x).at_least(minimum_width);
+            let actual_height = galley.size().y.max(icon_size.y);
+
+            let (_, rect) = ui.allocate_space(Vec2::new(actual_width, actual_height));
+            let button_rect = ui.min_rect().expand2(ui.spacing().button_padding);
+            let response = ui.interact(button_rect, button_id, Sense::click());
+            // response.active |= is_popup_open;
+
+            if ui.is_rect_visible(rect) {
+                let icon_rect = Align2::RIGHT_CENTER.align_size_within_rect(icon_size, rect);
+                let visuals = if is_popup_open {
+                    &ui.visuals().widgets.open
+                } else {
+                    ui.style().interact(&response)
+                };
+
+                if let Some(icon) = icon {
+                    icon(
+                        ui,
+                        icon_rect.expand(visuals.expansion),
+                        visuals,
+                        is_popup_open,
+                    );
+                } else {
+                    paint_default_icon(ui.painter(), icon_rect.expand(visuals.expansion), visuals);
+                }
+
+                let text_rect = Align2::LEFT_CENTER.align_size_within_rect(galley.size(), rect);
+                ui.painter()
+                    .galley(text_rect.min, galley, visuals.text_color());
+            }
+        },
+    );
 
     let height = height.unwrap_or_else(|| ui.spacing().combo_height);
 
@@ -405,6 +428,7 @@ fn button_frame(
     id: Id,
     is_popup_open: bool,
     sense: Sense,
+    fill_color: Option<Color32>,
     add_contents: impl FnOnce(&mut Ui),
 ) -> Response {
     let where_to_put_background = ui.painter().add(Shape::Noop);
@@ -436,7 +460,7 @@ fn button_frame(
             egui::epaint::RectShape::new(
                 outer_rect.expand(visuals.expansion),
                 visuals.corner_radius,
-                ui.style().visuals.window_fill,
+                fill_color.unwrap_or(visuals.weak_bg_fill),
                 visuals.bg_stroke,
                 egui::epaint::StrokeKind::Inside,
             ),

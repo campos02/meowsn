@@ -1,4 +1,4 @@
-use crate::widgets::window_fill_combo_box::WindowFillComboBox;
+use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
 use eframe::egui::Ui;
 use std::fmt::Display;
 
@@ -34,11 +34,12 @@ pub fn status_selector(
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
 ) {
     let old_status = *selected_status;
-    WindowFillComboBox::from_label("")
+    CustomFillComboBox::from_label("")
         .selected_text(format!(
             "{display_name}   ({})",
             selected_status.to_string()
         ))
+        .fill_color(ui.style().visuals.window_fill)
         .show_ui(ui, |ui| {
             ui.selectable_value(selected_status, Status::Online, Status::Online.to_string());
             ui.selectable_value(selected_status, Status::Busy, Status::Busy.to_string());
@@ -71,7 +72,13 @@ pub fn status_selector(
         });
 
     match selected_status {
-        Status::PersonalSettings | Status::ChangeDisplayPicture => *selected_status = old_status,
+        Status::ChangeDisplayPicture => *selected_status = old_status,
+        Status::PersonalSettings => {
+            *selected_status = old_status;
+            let _ =
+                main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(None));
+        }
+
         Status::SignOut => {
             *selected_status = old_status;
             let _ = main_window_sender.send(crate::main_window::Message::SignOut);

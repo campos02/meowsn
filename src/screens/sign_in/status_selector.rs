@@ -23,7 +23,11 @@ impl Display for Status {
     }
 }
 
-pub fn status_selector(ui: &mut Ui, selected_status: &mut Status) {
+pub fn status_selector(
+    ui: &mut Ui,
+    selected_status: &mut Status,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+) {
     let old_status = *selected_status;
     LeftLabelComboBox::from_label("Status:")
         .selected_text(selected_status.to_string())
@@ -47,5 +51,6 @@ pub fn status_selector(ui: &mut Ui, selected_status: &mut Status) {
 
     if *selected_status == Status::PersonalSettings {
         *selected_status = old_status;
+        let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(None));
     }
 }

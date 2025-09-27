@@ -43,7 +43,7 @@ impl eframe::App for Contacts {
                 ..Default::default()
             })
             .show(ctx, |ui| {
-                tui(ui, ui.id().with("contacts screen"))
+                tui(ui, ui.id().with("contacts-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,

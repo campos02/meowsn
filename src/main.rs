@@ -39,6 +39,8 @@ fn common_main() -> eframe::Result {
             cc.egui_ctx.style_mut(|style| {
                 style.spacing.button_padding = egui::Vec2::splat(5.);
                 style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
+                style.visuals.indent_has_left_vline = false;
+                style.spacing.combo_height = 250.;
             });
 
             Ok(Box::<MainWindow>::default())
