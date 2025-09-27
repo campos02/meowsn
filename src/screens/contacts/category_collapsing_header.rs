@@ -1,7 +1,8 @@
 use crate::models::contact::Contact;
 use crate::svg;
 use eframe::egui;
-use eframe::egui::Ui;
+use eframe::egui::text::LayoutJob;
+use eframe::egui::{TextFormat, Ui};
 use msnp11_sdk::{MsnpList, MsnpStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,6 +58,21 @@ pub fn category_collapsing_header(
                             .alt_text(alt_text),
                         );
 
+                        let mut contact_job = LayoutJob::default();
+                        contact_job.append(contact.display_name.as_str(), 0., TextFormat::default());
+                        contact_job.append(" - ", 0., TextFormat::default());
+
+                        if let Some(personal_message) = contact.personal_message.as_ref() {
+                            contact_job.append(
+                                personal_message,
+                                0.,
+                                TextFormat {
+                                    color: ui.visuals().weak_text_color(),
+                                    ..Default::default()
+                                },
+                            );
+                        }
+
                         if ui
                             .selectable_label(
                                 if let Some(selected_contact) = selected_contact {
@@ -64,7 +80,7 @@ pub fn category_collapsing_header(
                                 } else {
                                     false
                                 },
-                                contact.display_name.as_str(),
+                                contact_job,
                             )
                             .clicked()
                         {
