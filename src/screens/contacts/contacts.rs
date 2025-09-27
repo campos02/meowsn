@@ -1,36 +1,52 @@
 use crate::models::contact::Contact;
-use crate::screens::contacts;
+use crate::models::sign_in_return::SignInReturn;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
-use crate::screens::contacts::status_selector::status_selector;
+use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::svg;
 use eframe::egui;
 use egui_taffy::taffy::prelude::length;
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use msnp11_sdk::{Client, MsnpStatus};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct Contacts {
     display_name: Arc<String>,
     personal_message: String,
-    selected_status: contacts::status_selector::Status,
+    display_picture: Option<Cow<'static, [u8]>>,
+    selected_status: Status,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
     online_contacts: HashMap<Arc<String>, Contact>,
     offline_contacts: HashMap<Arc<String>, Contact>,
     selected_contact: Option<Arc<String>>,
+    client: Arc<Client>,
 }
 
 impl Contacts {
-    pub fn new(main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>) -> Self {
+    pub fn new(
+        sign_in_return: SignInReturn,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    ) -> Self {
+        let selected_status = match sign_in_return.status {
+            MsnpStatus::Busy => Status::Busy,
+            MsnpStatus::Away => Status::Away,
+            MsnpStatus::AppearOffline => Status::AppearOffline,
+            _ => Status::Online,
+        };
+
         Self {
             display_name: Arc::new(String::from("Testing 2")),
-            personal_message: String::new(),
+            personal_message: sign_in_return.personal_message,
+            display_picture: sign_in_return.display_picture,
             main_window_sender,
-            selected_status: contacts::status_selector::Status::Online,
+            selected_status,
             show_personal_message_frame: false,
             online_contacts: HashMap::new(),
             offline_contacts: HashMap::new(),
             selected_contact: None,
+            client: sign_in_return.client,
         }
     }
 }

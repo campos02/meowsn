@@ -1,3 +1,4 @@
+use crate::models::sign_in_return::SignInReturn;
 use crate::screens;
 use crate::screens::{contacts, sign_in};
 use crate::sqlite::Sqlite;
@@ -10,7 +11,7 @@ enum Screen {
 }
 
 pub enum Message {
-    SignIn,
+    SignIn(SignInReturn),
     SignOut,
     OpenPersonalSettings(Option<String>),
     ClosePersonalSettings,
@@ -46,9 +47,11 @@ impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Ok(message) = self.receiver.try_recv() {
             match message {
-                Message::SignIn => {
-                    self.screen =
-                        Screen::Contacts(contacts::contacts::Contacts::new(self.sender.clone()))
+                Message::SignIn(sign_in_return) => {
+                    self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
+                        sign_in_return,
+                        self.sender.clone(),
+                    ))
                 }
 
                 Message::SignOut => {

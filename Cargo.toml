@@ -8,19 +8,19 @@ eframe = "0.32.3"
 egui_extras = { version = "0.32.3", features = ["svg"] }
 egui_taffy = "0.9.0"
 catppuccin-egui = { version = "5.6.0", default-features = false, features = ["egui32"] }
-tokio = { version = "1.47.0", default-features = false, features = ["time"] }
+tokio = { version = "1.47.1", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
 msnp11-sdk = "0.8.2"
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 dirs = "6.0.0"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.31.0", features = ["bundled"] }
 toml = { version = "0.9.2", features = ["serde"] }
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.227", features = ["derive"] }
 rfd = "0.15.4"
-image = "0.25.6"
+image = "0.25.8"
 notify-rust = "4.11.7"
 reqwest = { version = "0.12.23", features = ["json"] }
-semver = "1.0.26"
+semver = "1.0.27"
 
 [profile.release]
 codegen-units = 1

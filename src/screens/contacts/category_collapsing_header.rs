@@ -23,23 +23,28 @@ pub fn category_collapsing_header(
                         let mut alt_text = "Contact is offline";
                         ui.add(
                             egui::Image::new(if let Some(status) = &contact.status {
-                                match status.status {
-                                    MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                        alt_text = "Contact is busy";
-                                        svg::default_display_picture_busy()
-                                    }
+                                if contact.lists.contains(&MsnpList::BlockList) {
+                                    alt_text = "Contact is blocked";
+                                    svg::default_display_picture_blocked()
+                                } else {
+                                    match status.status {
+                                        MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                            alt_text = "Contact is busy";
+                                            svg::default_display_picture_busy()
+                                        }
 
-                                    MsnpStatus::Away
-                                    | MsnpStatus::Idle
-                                    | MsnpStatus::BeRightBack
-                                    | MsnpStatus::OutToLunch => {
-                                        alt_text = "Contact is away";
-                                        svg::default_display_picture_away()
-                                    }
+                                        MsnpStatus::Away
+                                        | MsnpStatus::Idle
+                                        | MsnpStatus::BeRightBack
+                                        | MsnpStatus::OutToLunch => {
+                                            alt_text = "Contact is away";
+                                            svg::default_display_picture_away()
+                                        }
 
-                                    _ => {
-                                        alt_text = "Contact is offline";
-                                        svg::default_display_picture()
+                                        _ => {
+                                            alt_text = "Contact is online";
+                                            svg::default_display_picture()
+                                        }
                                     }
                                 }
                             } else if contact.lists.contains(&MsnpList::BlockList) {

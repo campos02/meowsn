@@ -4,6 +4,7 @@
 )]
 
 mod contact_repository;
+mod helpers;
 mod main_window;
 mod models;
 mod screens;
@@ -49,13 +50,15 @@ fn common_main() -> eframe::Result {
 }
 
 #[cfg(target_os = "macos")]
-pub fn main() -> eframe::Result {
+#[tokio::main]
+pub async fn main() -> eframe::Result {
     let id = notify_rust::get_bundle_identifier_or_default("meowsn");
     notify_rust::set_application(&id).expect("Could not set application name");
     common_main()
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn main() -> eframe::Result {
+#[tokio::main]
+pub async fn main() -> eframe::Result {
     common_main()
 }

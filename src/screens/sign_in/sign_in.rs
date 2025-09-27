@@ -1,3 +1,6 @@
+use crate::helpers::run_future::run_future;
+use crate::helpers::sign_in_async::sign_in_async;
+use crate::models::sign_in_return::SignInReturn;
 use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
 use crate::svg;
@@ -7,6 +10,12 @@ use eframe::egui::{FontFamily, FontId};
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
+use msnp11_sdk::{MsnpStatus, SdkError};
+use std::sync::Arc;
+
+pub enum Message {
+    SignInResult(Result<SignInReturn, SdkError>),
+}
 
 pub struct SignIn {
     emails: Vec<String>,
@@ -18,6 +27,8 @@ pub struct SignIn {
     signing_in: bool,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     sqlite: Sqlite,
+    sender: std::sync::mpsc::Sender<Message>,
+    receiver: std::sync::mpsc::Receiver<Message>,
 }
 
 impl SignIn {
@@ -43,6 +54,7 @@ impl SignIn {
             }
         }
 
+        let (sender, receiver) = std::sync::mpsc::channel();
         Self {
             emails,
             email,
@@ -53,12 +65,27 @@ impl SignIn {
             signing_in: false,
             main_window_sender,
             sqlite,
+            sender,
+            receiver,
         }
     }
 }
 
 impl eframe::App for SignIn {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if let Ok(message) = self.receiver.try_recv() {
+            let Message::SignInResult(result) = message;
+            match result {
+                Ok(sign_in_return) => {
+                    let _ = self
+                        .main_window_sender
+                        .send(crate::main_window::Message::SignIn(sign_in_return));
+                }
+
+                Err(_) => todo!(),
+            }
+        }
+
         egui::CentralPanel::default()
             .frame(
                 egui::Frame {
@@ -78,7 +105,7 @@ impl eframe::App for SignIn {
                             height: auto(),
                         },
                         padding: length(8.),
-                        gap: length(20.),
+                        gap: length(15.),
                         ..Default::default()
                     })
                     .show(|tui| {
@@ -227,9 +254,25 @@ impl eframe::App for SignIn {
                             if !self.signing_in {
                                 if ui.button("Sign In").clicked() {
                                     self.signing_in = true;
-                                    let _ = self
-                                        .main_window_sender
-                                        .send(crate::main_window::Message::SignIn);
+
+                                    let email = Arc::new(self.email.clone());
+                                    let password = Arc::new(self.password.clone());
+                                    let sqlite = self.sqlite.clone();
+
+                                    let status = match self.selected_status {
+                                        Status::Busy => MsnpStatus::Busy,
+                                        Status::Away => MsnpStatus::Away,
+                                        Status::AppearOffline => MsnpStatus::AppearOffline,
+                                        _ => MsnpStatus::Online,
+                                    };
+
+                                    run_future(
+                                        async move {
+                                            sign_in_async(email, password, status, sqlite).await
+                                        },
+                                        self.sender.clone(),
+                                        Message::SignInResult,
+                                    );
                                 }
                             } else {
                                 ui.spinner();
