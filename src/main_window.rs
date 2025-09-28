@@ -51,6 +51,7 @@ impl eframe::App for MainWindow {
                     self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
                         sign_in_return,
                         self.sender.clone(),
+                        self.sqlite.clone(),
                     ))
                 }
 

@@ -1,6 +1,12 @@
+use crate::helpers::pick_display_picture::pick_display_picture;
+use crate::helpers::run_future::run_future;
+use crate::sqlite::Sqlite;
 use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
 use eframe::egui::Ui;
+use msnp11_sdk::{Client, MsnpStatus};
+use rfd::AsyncFileDialog;
 use std::fmt::Display;
+use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Status {
@@ -29,9 +35,13 @@ impl Display for Status {
 
 pub fn status_selector(
     ui: &mut Ui,
+    email: Arc<String>,
     display_name: &str,
     selected_status: &mut Status,
+    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    sqlite: Sqlite,
+    client: Arc<Client>,
 ) {
     let old_status = *selected_status;
     CustomFillComboBox::from_label("")
@@ -72,7 +82,21 @@ pub fn status_selector(
         });
 
     match selected_status {
-        Status::ChangeDisplayPicture => *selected_status = old_status,
+        Status::ChangeDisplayPicture => {
+            *selected_status = old_status;
+            let picture = AsyncFileDialog::new()
+                .add_filter("Images", &["png", "jpeg", "jpg"])
+                .set_directory("/")
+                .set_title("Select a display picture")
+                .pick_file();
+
+            run_future(
+                pick_display_picture(picture, email, client, sqlite),
+                contacts_sender,
+                crate::screens::contacts::contacts::Message::DisplayPictureResult,
+            );
+        }
+
         Status::PersonalSettings => {
             *selected_status = old_status;
             let _ =
@@ -81,9 +105,26 @@ pub fn status_selector(
 
         Status::SignOut => {
             *selected_status = old_status;
+            let client = client.clone();
+
+            tokio::spawn(async move { client.disconnect().await });
             let _ = main_window_sender.send(crate::main_window::Message::SignOut);
         }
 
-        _ => (),
+        _ => {
+            let status = match selected_status {
+                Status::Busy => MsnpStatus::Busy,
+                Status::Away => MsnpStatus::Away,
+                Status::AppearOffline => MsnpStatus::AppearOffline,
+                _ => MsnpStatus::Online,
+            };
+
+            let client = client.clone();
+            run_future(
+                async move { client.set_presence(status).await },
+                contacts_sender,
+                crate::screens::contacts::contacts::Message::StatusResult,
+            )
+        }
     }
 }
