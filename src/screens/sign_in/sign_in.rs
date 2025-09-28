@@ -18,6 +18,7 @@ pub enum Message {
 }
 
 pub struct SignIn {
+    display_picture: Option<Arc<[u8]>>,
     emails: Vec<String>,
     email: String,
     password: String,
@@ -36,6 +37,7 @@ impl SignIn {
         sqlite: Sqlite,
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     ) -> Self {
+        let mut display_picture: Option<Arc<[u8]>> = None;
         let mut email = String::default();
         let mut password = String::default();
         let mut remember_me = false;
@@ -52,10 +54,17 @@ impl SignIn {
                 password = passwd;
                 remember_my_password = true;
             }
+
+            if let Ok(user) = sqlite.select_user(&email)
+                && let Some(picture) = user.display_picture
+            {
+                display_picture = Some(picture)
+            }
         }
 
         let (sender, receiver) = std::sync::mpsc::channel();
         Self {
+            display_picture,
             emails,
             email,
             password,
@@ -111,11 +120,18 @@ impl eframe::App for SignIn {
                     .show(|tui| {
                         tui.add_with_border(|tui| {
                             tui.ui(|ui| {
-                                ui.add(
+                                ui.add(if let Some(picture) = self.display_picture.clone() {
+                                    egui::Image::from_bytes("bytes://picture.png", picture)
+                                        .fit_to_exact_size(egui::Vec2::splat(100.))
+                                        .corner_radius(
+                                            ui.visuals().widgets.noninteractive.corner_radius,
+                                        )
+                                        .alt_text("User display picture")
+                                } else {
                                     egui::Image::new(svg::default_display_picture())
                                         .fit_to_exact_size(egui::Vec2::splat(100.))
-                                        .alt_text("Display picture"),
-                                )
+                                        .alt_text("Default display picture")
+                                })
                             })
                         });
 
@@ -156,12 +172,17 @@ impl eframe::App for SignIn {
                                                 .clicked()
                                             {
                                                 self.remember_me = true;
-
                                                 if let Ok(entry) = Entry::new("meowsn", email)
                                                     && let Ok(passwd) = entry.get_password()
                                                 {
                                                     self.password = passwd;
                                                     self.remember_my_password = true;
+                                                }
+
+                                                if let Ok(user) = self.sqlite.select_user(&email)
+                                                    && let Some(picture) = user.display_picture
+                                                {
+                                                    self.display_picture = Some(picture);
                                                 }
                                             }
                                         }
@@ -174,6 +195,7 @@ impl eframe::App for SignIn {
                                             )
                                             .clicked()
                                         {
+                                            self.display_picture = None;
                                             self.email.clear();
                                             self.password.clear();
 
@@ -228,6 +250,7 @@ impl eframe::App for SignIn {
                                         self.emails =
                                             self.sqlite.select_user_emails().unwrap_or_default();
 
+                                        self.display_picture = None;
                                         self.email.clear();
                                         self.password.clear();
 

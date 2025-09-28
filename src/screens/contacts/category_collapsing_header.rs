@@ -59,7 +59,11 @@ pub fn category_collapsing_header(
                         );
 
                         let mut contact_job = LayoutJob::default();
-                        contact_job.append(contact.display_name.as_str(), 0., TextFormat::default());
+                        contact_job.append(
+                            contact.display_name.as_str(),
+                            0.,
+                            TextFormat::default(),
+                        );
                         contact_job.append(" - ", 0., TextFormat::default());
 
                         if let Some(personal_message) = contact.personal_message.as_ref() {

@@ -2,7 +2,6 @@ use crate::models::sign_in_return::SignInReturn;
 use crate::settings;
 use crate::sqlite::Sqlite;
 use msnp11_sdk::{Client, MsnpStatus, PersonalMessage, SdkError};
-use std::borrow::Cow;
 use std::sync::Arc;
 
 pub async fn sign_in_async(
@@ -45,7 +44,7 @@ pub async fn sign_in_async(
         display_picture = user.display_picture;
 
         if let Some(display_picture) = &display_picture {
-            client.set_display_picture(display_picture.clone()).await?;
+            client.set_display_picture(display_picture.to_vec()).await?;
         }
     }
 
@@ -60,7 +59,7 @@ pub async fn sign_in_async(
     Ok(SignInReturn {
         status,
         personal_message: personal_message.psm,
-        display_picture: display_picture.map(Cow::Owned),
+        display_picture,
         client: Arc::new(client),
     })
 }

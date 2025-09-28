@@ -7,14 +7,13 @@ use eframe::egui;
 use egui_taffy::taffy::prelude::length;
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpStatus};
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct Contacts {
     display_name: Arc<String>,
     personal_message: String,
-    display_picture: Option<Cow<'static, [u8]>>,
+    display_picture: Option<Arc<[u8]>>,
     selected_status: Status,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
@@ -75,11 +74,18 @@ impl eframe::App for Contacts {
                         .add(|tui| {
                             tui.add_with_border(|tui| {
                                 tui.ui(|ui| {
-                                    ui.add(
+                                    ui.add(if let Some(picture) = self.display_picture.clone() {
+                                        egui::Image::from_bytes("bytes://picture.png", picture)
+                                            .fit_to_exact_size(egui::Vec2::splat(60.))
+                                            .corner_radius(
+                                                ui.visuals().widgets.noninteractive.corner_radius,
+                                            )
+                                            .alt_text("User display picture")
+                                    } else {
                                         egui::Image::new(svg::default_display_picture())
                                             .fit_to_exact_size(egui::Vec2::splat(60.))
-                                            .alt_text("Display picture"),
-                                    )
+                                            .alt_text("Default display picture")
+                                    })
                                 })
                             });
 

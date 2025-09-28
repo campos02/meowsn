@@ -2,7 +2,6 @@ use crate::sqlite::Sqlite;
 use image::imageops::FilterType;
 use msnp11_sdk::Client;
 use rfd::FileHandle;
-use std::borrow::Cow;
 use std::io::{Cursor, ErrorKind};
 use std::sync::Arc;
 
@@ -11,7 +10,7 @@ pub async fn pick_display_picture(
     email: Arc<String>,
     client: Arc<Client>,
     sqlite: Sqlite,
-) -> Result<Cow<'static, [u8]>, Box<dyn std::error::Error + Sync + Send>> {
+) -> Result<Arc<[u8]>, Box<dyn std::error::Error + Sync + Send>> {
     let picture = picture_future.await.ok_or(std::io::Error::new(
         ErrorKind::NotFound,
         "Display picture not found",
@@ -27,5 +26,6 @@ pub async fn pick_display_picture(
     let _ = sqlite.insert_display_picture(&bytes, &hash);
     let _ = sqlite.update_user_display_picture(&email, &hash);
 
-    Ok(Cow::from(bytes))
+    let bytes = bytes.into_boxed_slice();
+    Ok(Arc::from(bytes))
 }
