@@ -86,6 +86,7 @@ impl eframe::App for SignIn {
             let Message::SignInResult(result) = message;
             match result {
                 Ok(sign_in_return) => {
+                    let _ = self.sqlite.insert_user_if_not_in_db(&self.email);
                     let _ = self
                         .main_window_sender
                         .send(crate::main_window::Message::SignIn(sign_in_return));
@@ -149,67 +150,70 @@ impl eframe::App for SignIn {
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            let label = ui.label("E-mail address:");
-                            ui.add_space(3.);
-                            ui.horizontal(|ui| {
-                                ui.style_mut().spacing.item_spacing.x = 1.;
-                                ui.style_mut().spacing.button_padding = egui::Vec2::splat(2.);
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                let label = ui.label("E-mail address:");
+                                ui.add_space(3.);
+                                ui.horizontal(|ui| {
+                                    ui.style_mut().spacing.item_spacing.x = 1.;
+                                    ui.style_mut().spacing.button_padding = egui::Vec2::splat(2.);
 
-                                ui.add(
-                                    egui::text_edit::TextEdit::singleline(&mut self.email)
-                                        .hint_text("E-mail address")
-                                        .min_size(egui::vec2(227., 5.))
-                                        .desired_width(219.),
-                                )
-                                .labelled_by(label.id);
+                                    ui.add(
+                                        egui::text_edit::TextEdit::singleline(&mut self.email)
+                                            .hint_text("E-mail address")
+                                            .min_size(egui::vec2(227., 5.))
+                                            .desired_width(219.),
+                                    )
+                                    .labelled_by(label.id);
 
-                                CustomFillComboBox::from_label("")
-                                    .selected_text("")
-                                    .width(3.)
-                                    .fill_color(ui.visuals().text_edit_bg_color())
-                                    .show_ui(ui, |ui| {
-                                        for email in &self.emails {
+                                    CustomFillComboBox::from_label("")
+                                        .selected_text("")
+                                        .width(3.)
+                                        .fill_color(ui.visuals().text_edit_bg_color())
+                                        .show_ui(ui, |ui| {
+                                            for email in &self.emails {
+                                                if ui
+                                                    .selectable_value(
+                                                        &mut self.email,
+                                                        email.clone(),
+                                                        email,
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    self.remember_me = true;
+                                                    if let Ok(entry) = Entry::new("meowsn", email)
+                                                        && let Ok(passwd) = entry.get_password()
+                                                    {
+                                                        self.password = passwd;
+                                                        self.remember_my_password = true;
+                                                    }
+
+                                                    if let Ok(user) =
+                                                        self.sqlite.select_user(&email)
+                                                        && let Some(picture) = user.display_picture
+                                                    {
+                                                        self.display_picture = Some(picture);
+                                                    }
+                                                }
+                                            }
+
                                             if ui
                                                 .selectable_value(
                                                     &mut self.email,
-                                                    email.clone(),
-                                                    email,
+                                                    "".to_string(),
+                                                    "Sign in with a different e-mail address",
                                                 )
                                                 .clicked()
                                             {
-                                                self.remember_me = true;
-                                                if let Ok(entry) = Entry::new("meowsn", email)
-                                                    && let Ok(passwd) = entry.get_password()
-                                                {
-                                                    self.password = passwd;
-                                                    self.remember_my_password = true;
-                                                }
+                                                self.display_picture = None;
+                                                self.email.clear();
+                                                self.password.clear();
 
-                                                if let Ok(user) = self.sqlite.select_user(&email)
-                                                    && let Some(picture) = user.display_picture
-                                                {
-                                                    self.display_picture = Some(picture);
-                                                }
-                                            }
-                                        }
-
-                                        if ui
-                                            .selectable_value(
-                                                &mut self.email,
-                                                "".to_string(),
-                                                "Sign in with a different e-mail address",
-                                            )
-                                            .clicked()
-                                        {
-                                            self.display_picture = None;
-                                            self.email.clear();
-                                            self.password.clear();
-
-                                            self.remember_me = false;
-                                            self.remember_my_password = false;
-                                        };
-                                    });
-                            });
+                                                self.remember_me = false;
+                                                self.remember_my_password = false;
+                                            };
+                                        });
+                                });
+                            })
                         });
 
                         tui.style(taffy::Style {
@@ -220,52 +224,61 @@ impl eframe::App for SignIn {
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            let label = ui.label("Password:");
-                            ui.add_space(3.);
-                            ui.add(
-                                egui::text_edit::TextEdit::singleline(&mut self.password)
-                                    .hint_text("Password")
-                                    .password(true),
-                            )
-                            .labelled_by(label.id);
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                let label = ui.label("Password:");
+                                ui.add_space(3.);
+                                ui.add(
+                                    egui::text_edit::TextEdit::singleline(&mut self.password)
+                                        .hint_text("Password")
+                                        .password(true),
+                                )
+                                .labelled_by(label.id);
+                            })
                         });
 
                         tui.ui(|ui| {
-                            status_selector(
-                                ui,
-                                &mut self.selected_status,
-                                self.main_window_sender.clone(),
-                            );
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                status_selector(
+                                    ui,
+                                    &mut self.selected_status,
+                                    self.main_window_sender.clone(),
+                                );
+                            })
                         });
 
                         tui.ui(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut self.remember_me, "Remember Me");
-                                ui.scope(|ui| {
-                                    ui.style_mut().text_styles.insert(
-                                        egui::TextStyle::Body,
-                                        FontId::new(12., FontFamily::Proportional),
-                                    );
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.checkbox(&mut self.remember_me, "Remember Me");
+                                    ui.scope(|ui| {
+                                        ui.style_mut().text_styles.insert(
+                                            egui::TextStyle::Body,
+                                            FontId::new(12., FontFamily::Proportional),
+                                        );
 
-                                    if ui.link("(Forget Me)").clicked() {
-                                        let _ = self.sqlite.delete_user(&self.email);
-                                        if let Ok(entry) = Entry::new("meowsn", &self.email) {
-                                            let _ = entry.delete_credential();
+                                        if ui.link("(Forget Me)").clicked() {
+                                            let _ = self.sqlite.delete_user(&self.email);
+                                            if let Ok(entry) = Entry::new("meowsn", &self.email) {
+                                                let _ = entry.delete_credential();
+                                            }
+
+                                            self.emails = self
+                                                .sqlite
+                                                .select_user_emails()
+                                                .unwrap_or_default();
+
+                                            self.display_picture = None;
+                                            self.email.clear();
+                                            self.password.clear();
+
+                                            self.remember_me = false;
+                                            self.remember_my_password = false;
                                         }
+                                    })
+                                });
 
-                                        self.emails =
-                                            self.sqlite.select_user_emails().unwrap_or_default();
-
-                                        self.display_picture = None;
-                                        self.email.clear();
-                                        self.password.clear();
-
-                                        self.remember_me = false;
-                                        self.remember_my_password = false;
-                                    }
-                                })
-                            });
-                            ui.checkbox(&mut self.remember_my_password, "Remember My Password");
+                                ui.checkbox(&mut self.remember_my_password, "Remember My Password");
+                            })
                         });
 
                         tui.style(taffy::Style {
