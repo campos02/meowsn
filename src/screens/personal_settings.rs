@@ -1,24 +1,35 @@
+use crate::helpers::run_future::run_future;
 use crate::settings;
 use crate::settings::Settings;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use msnp11_sdk::Client;
+use std::sync::Arc;
 
 pub struct PersonalSettings {
     display_name: Option<String>,
     server: String,
     nexus_url: String,
     check_for_updates: bool,
+    client: Option<Arc<Client>>,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
 }
 
 impl PersonalSettings {
-    pub fn new(display_name: Option<String>) -> Self {
+    pub fn new(
+        display_name: Option<String>,
+        client: Option<Arc<Client>>,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    ) -> Self {
         let settings = settings::get_settings().unwrap_or_default();
         Self {
             display_name,
             server: settings.server,
             nexus_url: settings.nexus_url,
             check_for_updates: settings.check_for_updates,
+            client,
+            main_window_sender,
         }
     }
 
@@ -121,8 +132,35 @@ impl PersonalSettings {
 
                                 let _ = settings::save_settings(&settings);
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+
+                                if let Some(display_name) = self.display_name.clone()
+                                    && let Some(client) = self.client.clone()
+                                {
+                                    let new_display_name = display_name.clone();
+                                    run_future(
+                                        async move { client.set_display_name(&display_name).await },
+                                        self.main_window_sender.clone(),
+                                        move |result| {
+                                            crate::main_window::Message::DisplayNameChangeResult(
+                                                new_display_name.clone(),
+                                                result,
+                                            )
+                                        },
+                                    );
+                                }
                             }
+                        });
+
+                        tui.style(taffy::Style {
+                            align_self: Some(taffy::AlignItems::Center),
+                            size: taffy::Size {
+                                width: length(150.),
+                                height: auto(),
+                            },
+                            padding: percent(0.1),
+                            ..Default::default()
                         })
+                        .label(format!("meowsn v{}", env!("CARGO_PKG_VERSION")));
                     });
             });
     }

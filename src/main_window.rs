@@ -3,6 +3,7 @@ use crate::screens;
 use crate::screens::{contacts, sign_in};
 use crate::sqlite::Sqlite;
 use eframe::egui;
+use msnp11_sdk::{Client, SdkError};
 use std::sync::{Arc, Mutex};
 
 enum Screen {
@@ -13,10 +14,11 @@ enum Screen {
 pub enum Message {
     SignIn(SignInReturn),
     SignOut,
-    OpenPersonalSettings(Option<String>),
+    OpenPersonalSettings(Option<String>, Option<Arc<Client>>),
     ClosePersonalSettings,
     OpenDialog(String),
     NotificationServerEvent(msnp11_sdk::Event),
+    DisplayNameChangeResult(String, Result<(), SdkError>),
 }
 
 pub struct MainWindow {
@@ -79,7 +81,7 @@ impl eframe::App for MainWindow {
                     ));
                 }
 
-                Message::OpenPersonalSettings(display_name) => {
+                Message::OpenPersonalSettings(display_name, client) => {
                     if self.personal_settings_window.is_some() {
                         ctx.send_viewport_cmd_to(
                             egui::ViewportId::from_hash_of("personal-settings"),
@@ -87,7 +89,11 @@ impl eframe::App for MainWindow {
                         );
                     } else {
                         self.personal_settings_window = Some(Arc::new(Mutex::new(
-                            screens::personal_settings::PersonalSettings::new(display_name),
+                            screens::personal_settings::PersonalSettings::new(
+                                display_name,
+                                client,
+                                self.sender.clone(),
+                            ),
                         )));
                     }
                 }
@@ -117,6 +123,16 @@ impl eframe::App for MainWindow {
                         ctx.request_repaint();
                     }
                 }
+
+                Message::DisplayNameChangeResult(display_name, result) => {
+                    if let Err(error) = result {
+                        self.dialog_window_text =
+                            Some(format!("Error setting display name: {error}"));
+                    } else if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(msnp11_sdk::Event::DisplayName(display_name));
+                        ctx.request_repaint();
+                    }
+                }
             }
         }
 
@@ -131,9 +147,10 @@ impl eframe::App for MainWindow {
                 egui::ViewportBuilder::default()
                     .with_title("meowsn")
                     .with_inner_size([300.0, 100.0])
-                    .with_min_inner_size([300.0, 100.0])
+                    .with_active(true)
                     .with_maximize_button(false)
-                    .with_minimize_button(false),
+                    .with_minimize_button(false)
+                    .with_resizable(false),
                 |ctx, _| {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                     egui::CentralPanel::default()
@@ -172,9 +189,9 @@ impl eframe::App for MainWindow {
                 egui::ViewportBuilder::default()
                     .with_title("Personal settings")
                     .with_inner_size([400., 350.])
-                    .with_min_inner_size([400., 350.])
                     .with_active(true)
-                    .with_maximize_button(false),
+                    .with_maximize_button(false)
+                    .with_resizable(false),
                 move |ctx, _| {
                     personal_settings_window
                         .lock()

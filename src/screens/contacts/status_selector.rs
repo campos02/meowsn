@@ -99,8 +99,10 @@ pub fn status_selector(
 
         Status::PersonalSettings => {
             *selected_status = old_status;
-            let _ =
-                main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(None));
+            let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(
+                Some(display_name.to_string()),
+                Some(client.clone()),
+            ));
         }
 
         Status::SignOut => {

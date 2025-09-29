@@ -18,6 +18,7 @@ use eframe::egui;
 use eframe::egui::CornerRadius;
 
 fn common_main() -> eframe::Result {
+    tokio::spawn(async move { helpers::notify_new_version::notify_new_version().await });
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([350., 600.])
