@@ -16,6 +16,7 @@ pub enum Message {
     OpenPersonalSettings(Option<String>),
     ClosePersonalSettings,
     OpenDialog(String),
+    NotificationServerEvent(msnp11_sdk::Event),
 }
 
 pub struct MainWindow {
@@ -51,11 +52,24 @@ impl eframe::App for MainWindow {
         if let Ok(message) = self.receiver.try_recv() {
             match message {
                 Message::SignIn(sign_in_return) => {
+                    let client = sign_in_return.client.clone();
                     self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
                         sign_in_return,
                         self.sender.clone(),
                         self.sqlite.clone(),
-                    ))
+                    ));
+
+                    let sender = self.sender.clone();
+                    client.add_event_handler_closure(move |event| {
+                        let sender = sender.clone();
+                        async move {
+                            let _ = sender.send(Message::NotificationServerEvent(event));
+                        }
+                    });
+
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        egui::UserAttentionType::Informational,
+                    ));
                 }
 
                 Message::SignOut => {
@@ -80,6 +94,29 @@ impl eframe::App for MainWindow {
 
                 Message::ClosePersonalSettings => self.personal_settings_window = None,
                 Message::OpenDialog(text) => self.dialog_window_text = Some(text),
+
+                Message::NotificationServerEvent(event) => {
+                    if let msnp11_sdk::Event::Disconnected = event {
+                        self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                            self.sqlite.clone(),
+                            self.sender.clone(),
+                        ));
+
+                        self.dialog_window_text = Some("Lost connection to the server".to_string());
+                    } else if let msnp11_sdk::Event::LoggedInAnotherDevice = event {
+                        self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                            self.sqlite.clone(),
+                            self.sender.clone(),
+                        ));
+
+                        self.dialog_window_text = Some(
+                            "Disconnected as you have signed in on another computer".to_string(),
+                        );
+                    } else if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(event);
+                        ctx.request_repaint();
+                    }
+                }
             }
         }
 

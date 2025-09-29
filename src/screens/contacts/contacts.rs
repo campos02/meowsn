@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::sign_in_return::SignInReturn;
@@ -8,7 +9,7 @@ use crate::svg;
 use eframe::egui;
 use egui_taffy::taffy::prelude::length;
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{Client, MsnpStatus, PersonalMessage, SdkError};
+use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,6 +17,9 @@ pub enum Message {
     DisplayPictureResult(Result<Arc<[u8]>, Box<dyn std::error::Error + Sync + Send>>),
     StatusResult(Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
+    BlockResult(Arc<String>, Result<(), SdkError>),
+    UnblockResult(Arc<String>, Result<(), SdkError>),
+    DeleteResult(Arc<String>, Result<(), SdkError>),
 }
 
 pub struct Contacts {
@@ -28,6 +32,7 @@ pub struct Contacts {
     show_personal_message_frame: bool,
     online_contacts: HashMap<Arc<String>, Contact>,
     offline_contacts: HashMap<Arc<String>, Contact>,
+    contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
     client: Arc<Client>,
     sender: std::sync::mpsc::Sender<Message>,
@@ -51,7 +56,7 @@ impl Contacts {
 
         Self {
             user_email: sign_in_return.email,
-            display_name: Arc::new(String::from("Testing 2")),
+            display_name: Arc::new(String::from("")),
             personal_message: sign_in_return.personal_message,
             display_picture: sign_in_return.display_picture,
             main_window_sender,
@@ -59,11 +64,123 @@ impl Contacts {
             show_personal_message_frame: false,
             online_contacts: HashMap::new(),
             offline_contacts: HashMap::new(),
+            contact_repository: ContactRepository::new(),
             selected_contact: None,
             client: sign_in_return.client,
             sender,
             receiver,
             sqlite,
+        }
+    }
+
+    pub fn handle_event(&mut self, event: msnp11_sdk::Event) {
+        match event {
+            msnp11_sdk::Event::DisplayName(display_name) => {
+                self.display_name = Arc::new(display_name);
+            }
+
+            msnp11_sdk::Event::ContactInForwardList {
+                email,
+                display_name,
+                guid,
+                lists,
+                ..
+            } => {
+                let email = Arc::new(email);
+                self.offline_contacts.insert(
+                    email.clone(),
+                    Contact {
+                        email,
+                        display_name: Arc::new(display_name),
+                        guid: Arc::new(guid),
+                        lists,
+                        ..Default::default()
+                    },
+                );
+            }
+
+            msnp11_sdk::Event::PresenceUpdate {
+                email,
+                display_name,
+                presence,
+            } => {
+                let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                let mut previous_status = None;
+                if let Some(contact) = &mut contact {
+                    if let Some(msn_object) = &presence.msn_object
+                        && msn_object.object_type == 3
+                    {
+                        contact.display_picture = self
+                            .sqlite
+                            .select_display_picture(&msn_object.sha1d)
+                            .ok()
+                            .map(|picture| {
+                                let picture = picture.into_boxed_slice();
+                                Arc::from(picture)
+                            });
+                    }
+
+                    if let Some(presence) = &contact.status {
+                        previous_status = Some(presence.status.clone());
+                    }
+
+                    contact.display_name = Arc::new(display_name);
+                    contact.status = Some(Arc::new(presence));
+
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(contact));
+                }
+
+                if let Some(contact) = contact.cloned()
+                    && previous_status.is_none()
+                {
+                    self.offline_contacts.remove(&email);
+                    self.online_contacts.insert(contact.email.clone(), contact);
+                }
+            }
+
+            msnp11_sdk::Event::PersonalMessageUpdate {
+                email,
+                personal_message,
+            } => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = contact {
+                    contact.personal_message = Some(Arc::new(personal_message.psm));
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(contact));
+                }
+            }
+
+            msnp11_sdk::Event::ContactOffline { email } => {
+                let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = &mut contact {
+                    contact.status = None;
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(contact));
+                }
+
+                if let Some(contact) = contact.cloned() {
+                    self.online_contacts.remove(&email);
+                    self.offline_contacts.insert(contact.email.clone(), contact);
+                }
+            }
+
+            _ => (),
         }
     }
 }
@@ -78,11 +195,74 @@ impl eframe::App for Contacts {
                     }
                 }
 
-                Message::StatusResult(result) | Message::PersonalMessageResult(result) => {
+                Message::StatusResult(result) => {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    }
+                }
+
+                Message::PersonalMessageResult(result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    } else {
+                        let _ = self
+                            .sqlite
+                            .update_personal_message(&self.user_email, &self.personal_message);
+                    }
+                }
+
+                Message::BlockResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    } else {
+                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
+                        {
+                            Some(contact)
+                        } else {
+                            self.offline_contacts.get_mut(&contact)
+                        };
+
+                        if let Some(contact) = contact {
+                            contact.lists.push(MsnpList::BlockList);
+                            contact.lists.retain(|list| list != &MsnpList::AllowList);
+                        }
+                    }
+                }
+
+                Message::UnblockResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    } else {
+                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
+                        {
+                            Some(contact)
+                        } else {
+                            self.offline_contacts.get_mut(&contact)
+                        };
+
+                        if let Some(contact) = contact {
+                            contact.lists.retain(|list| list != &MsnpList::BlockList);
+                            contact.lists.push(MsnpList::AllowList);
+                        }
+                    }
+                }
+
+                Message::DeleteResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    } else {
+                        self.online_contacts.remove(&contact);
+                        self.offline_contacts.remove(&contact);
                     }
                 }
             }
@@ -197,6 +377,8 @@ impl eframe::App for Contacts {
                                 "Online",
                                 &mut self.selected_contact,
                                 &self.online_contacts,
+                                self.sender.clone(),
+                                self.client.clone(),
                             );
 
                             category_collapsing_header(
@@ -204,6 +386,8 @@ impl eframe::App for Contacts {
                                 "Offline",
                                 &mut self.selected_contact,
                                 &self.offline_contacts,
+                                self.sender.clone(),
+                                self.client.clone(),
                             );
                         });
                     })

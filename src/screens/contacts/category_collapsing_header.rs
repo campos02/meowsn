@@ -1,9 +1,10 @@
+use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{TextFormat, Ui};
-use msnp11_sdk::{MsnpList, MsnpStatus};
+use msnp11_sdk::{Client, MsnpList, MsnpStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -12,6 +13,8 @@ pub fn category_collapsing_header(
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
     contacts: &HashMap<Arc<String>, Contact>,
+    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    client: Arc<Client>,
 ) {
     egui::CollapsingHeader::new(name)
         .default_open(true)
@@ -20,6 +23,7 @@ pub fn category_collapsing_header(
                 ui.label("No contacts in this category");
             } else {
                 for contact in contacts.values() {
+                    let client = client.clone();
                     ui.horizontal(|ui| {
                         let mut alt_text = "Contact is offline";
                         ui.add(
@@ -64,9 +68,11 @@ pub fn category_collapsing_header(
                             0.,
                             TextFormat::default(),
                         );
-                        contact_job.append(" - ", 0., TextFormat::default());
 
-                        if let Some(personal_message) = contact.personal_message.as_ref() {
+                        if let Some(personal_message) = contact.personal_message.as_ref()
+                            && !personal_message.is_empty()
+                        {
+                            contact_job.append(" - ", 0., TextFormat::default());
                             contact_job.append(
                                 personal_message,
                                 0.,
@@ -77,19 +83,65 @@ pub fn category_collapsing_header(
                             );
                         }
 
-                        if ui
-                            .selectable_label(
-                                if let Some(selected_contact) = selected_contact {
-                                    contact.email == *selected_contact
-                                } else {
-                                    false
-                                },
-                                contact_job,
-                            )
-                            .clicked()
-                        {
+                        let label = ui.selectable_label(
+                            if let Some(selected_contact) = selected_contact {
+                                contact.email == *selected_contact
+                            } else {
+                                false
+                            },
+                            contact_job,
+                        );
+
+                        if label.clicked() {
                             *selected_contact = Some(contact.email.clone());
                         }
+
+                        label.context_menu(|ui| {
+                            ui.with_layout(
+                                egui::Layout::top_down_justified(egui::Align::LEFT),
+                                |ui| {
+                                    ui.button("Send an Instant Message");
+                                    ui.separator();
+
+                                    if contact.lists.contains(&MsnpList::BlockList) {
+                                        let email = contact.email.clone();
+                                        let contact = contact.email.clone();
+                                        let client = client.clone();
+
+                                        if ui.button("Unblock").clicked() {
+                                            run_future(
+                                                async move { client.unblock_contact(&email).await },
+                                                contacts_sender.clone(),
+                                                move |result| crate::screens::contacts::contacts::Message::UnblockResult(contact.clone(), result),
+                                            );
+                                        }
+                                    } else {
+                                        let email = contact.email.clone();
+                                        let contact = contact.email.clone();
+                                        let client = client.clone();
+
+                                        if ui.button("Block").clicked() {
+                                            run_future(
+                                                async move { client.block_contact(&email).await },
+                                                contacts_sender.clone(),
+                                                move |result| crate::screens::contacts::contacts::Message::BlockResult(contact.clone(), result),
+                                            );
+                                        }
+                                    }
+
+                                    if ui.button("Delete Contact").clicked() {
+                                        let email = contact.email.clone();
+                                        let contact = contact.email.clone();
+
+                                        run_future(
+                                            async move { client.remove_contact(&email, MsnpList::ForwardList).await },
+                                            contacts_sender.clone(),
+                                            move |result| crate::screens::contacts::contacts::Message::DeleteResult(contact.clone(), result),
+                                        );
+                                    }
+                                },
+                            );
+                        });
                     });
                 }
             }
