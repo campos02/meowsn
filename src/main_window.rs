@@ -15,6 +15,7 @@ pub enum Message {
     SignOut,
     OpenPersonalSettings(Option<String>),
     ClosePersonalSettings,
+    OpenDialog(String),
 }
 
 pub struct MainWindow {
@@ -22,6 +23,7 @@ pub struct MainWindow {
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
     personal_settings_window: Option<Arc<Mutex<screens::personal_settings::PersonalSettings>>>,
+    dialog_window_text: Option<String>,
     sqlite: Sqlite,
 }
 
@@ -38,6 +40,7 @@ impl Default for MainWindow {
             sender,
             receiver,
             personal_settings_window: None,
+            dialog_window_text: None,
             sqlite,
         }
     }
@@ -76,12 +79,52 @@ impl eframe::App for MainWindow {
                 }
 
                 Message::ClosePersonalSettings => self.personal_settings_window = None,
+                Message::OpenDialog(text) => self.dialog_window_text = Some(text),
             }
         }
 
         match &mut self.screen {
             Screen::SignIn(sign_in) => sign_in.update(ctx, frame),
             Screen::Contacts(contacts) => contacts.update(ctx, frame),
+        }
+
+        if self.dialog_window_text.is_some() {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("dialog"),
+                egui::ViewportBuilder::default()
+                    .with_title("meowsn")
+                    .with_inner_size([300.0, 100.0])
+                    .with_min_inner_size([300.0, 100.0])
+                    .with_maximize_button(false)
+                    .with_minimize_button(false),
+                |ctx, _| {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    egui::CentralPanel::default()
+                        .frame(
+                            egui::Frame {
+                                fill: ctx.style().visuals.window_fill,
+                                ..Default::default()
+                            }
+                            .inner_margin(10.),
+                        )
+                        .show(ctx, |ui| {
+                            ui.vertical_centered(|ui| {
+                                ui.label(
+                                    self.dialog_window_text.as_ref().unwrap_or(&"".to_string()),
+                                );
+
+                                ui.add_space(10.);
+                                if ui.button("Ok").clicked() {
+                                    self.dialog_window_text = None;
+                                }
+                            })
+                        });
+
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        self.dialog_window_text = None;
+                    }
+                },
+            );
         }
 
         if let Some(personal_settings_window) = self.personal_settings_window.clone() {

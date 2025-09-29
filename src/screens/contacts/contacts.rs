@@ -79,8 +79,10 @@ impl eframe::App for Contacts {
                 }
 
                 Message::StatusResult(result) | Message::PersonalMessageResult(result) => {
-                    if let Err(_) = result {
-                        todo!()
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
                     }
                 }
             }

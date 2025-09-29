@@ -91,7 +91,13 @@ impl eframe::App for SignIn {
                         .send(crate::main_window::Message::SignIn(sign_in_return));
                 }
 
-                Err(_) => todo!(),
+                Err(error) => {
+                    let _ = self
+                        .main_window_sender
+                        .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                    self.signing_in = false;
+                }
             }
         }
 
@@ -276,26 +282,36 @@ impl eframe::App for SignIn {
                         .ui(|ui| {
                             if !self.signing_in {
                                 if ui.button("Sign In").clicked() {
-                                    self.signing_in = true;
+                                    if self.emails.is_empty() || self.password.is_empty() {
+                                        let _ = self.main_window_sender.send(
+                                            crate::main_window::Message::OpenDialog(
+                                                "Please type your e-mail address and \
+                                            password in their corresponding forms."
+                                                    .to_string(),
+                                            ),
+                                        );
+                                    } else {
+                                        self.signing_in = true;
 
-                                    let email = Arc::new(self.email.clone());
-                                    let password = Arc::new(self.password.clone());
-                                    let sqlite = self.sqlite.clone();
+                                        let email = Arc::new(self.email.clone());
+                                        let password = Arc::new(self.password.clone());
+                                        let sqlite = self.sqlite.clone();
 
-                                    let status = match self.selected_status {
-                                        Status::Busy => MsnpStatus::Busy,
-                                        Status::Away => MsnpStatus::Away,
-                                        Status::AppearOffline => MsnpStatus::AppearOffline,
-                                        _ => MsnpStatus::Online,
-                                    };
+                                        let status = match self.selected_status {
+                                            Status::Busy => MsnpStatus::Busy,
+                                            Status::Away => MsnpStatus::Away,
+                                            Status::AppearOffline => MsnpStatus::AppearOffline,
+                                            _ => MsnpStatus::Online,
+                                        };
 
-                                    run_future(
-                                        async move {
-                                            sign_in_async(email, password, status, sqlite).await
-                                        },
-                                        self.sender.clone(),
-                                        Message::SignInResult,
-                                    );
+                                        run_future(
+                                            async move {
+                                                sign_in_async(email, password, status, sqlite).await
+                                            },
+                                            self.sender.clone(),
+                                            Message::SignInResult,
+                                        );
+                                    }
                                 }
                             } else {
                                 ui.spinner();
