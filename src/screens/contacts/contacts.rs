@@ -20,6 +20,8 @@ pub enum Message {
     BlockResult(Arc<String>, Result<(), SdkError>),
     UnblockResult(Arc<String>, Result<(), SdkError>),
     DeleteResult(Arc<String>, Result<(), SdkError>),
+    AddContactResult(Result<msnp11_sdk::Event, SdkError>),
+    CloseAddContact,
 }
 
 pub struct Contacts {
@@ -38,6 +40,7 @@ pub struct Contacts {
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
     sqlite: Sqlite,
+    add_contact_window: Option<crate::screens::add_contact::AddContact>,
 }
 
 impl Contacts {
@@ -70,6 +73,7 @@ impl Contacts {
             sender,
             receiver,
             sqlite,
+            add_contact_window: None,
         }
     }
 
@@ -265,6 +269,42 @@ impl eframe::App for Contacts {
                         self.offline_contacts.remove(&contact);
                     }
                 }
+
+                Message::AddContactResult(result) => match result {
+                    Ok(event) => {
+                        if let msnp11_sdk::Event::ContactInForwardList {
+                            email,
+                            display_name,
+                            guid,
+                            lists,
+                            ..
+                        } = event
+                        {
+                            let email = Arc::new(email);
+                            let display_name = Arc::new(display_name);
+                            let guid = Arc::new(guid);
+
+                            self.offline_contacts.insert(
+                                email.clone(),
+                                Contact {
+                                    email,
+                                    display_name,
+                                    guid,
+                                    lists,
+                                    ..Default::default()
+                                },
+                            );
+                        }
+                    }
+
+                    Err(error) => {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                    }
+                },
+
+                Message::CloseAddContact => self.add_contact_window = None,
             }
         }
 
@@ -363,7 +403,21 @@ impl eframe::App for Contacts {
                                         .fit_to_exact_size(egui::Vec2::splat(20.))
                                         .alt_text("Add a contact"),
                                 );
-                                ui.link("Add a Contact")
+
+                                if ui.link("Add a Contact").clicked() {
+                                    if self.add_contact_window.is_some() {
+                                        ctx.send_viewport_cmd_to(
+                                            egui::ViewportId::from_hash_of("add-contact"),
+                                            egui::ViewportCommand::Focus,
+                                        );
+                                    } else {
+                                        self.add_contact_window =
+                                            Some(crate::screens::add_contact::AddContact::new(
+                                                self.client.clone(),
+                                                self.sender.clone(),
+                                            ));
+                                    }
+                                }
                             })
                         });
 
@@ -392,5 +446,20 @@ impl eframe::App for Contacts {
                         });
                     })
             });
+
+        if let Some(add_contact) = &mut self.add_contact_window {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("add-contact"),
+                egui::ViewportBuilder::default()
+                    .with_title("Add contact")
+                    .with_inner_size([390., 180.])
+                    .with_maximize_button(false)
+                    .with_minimize_button(false)
+                    .with_resizable(false),
+                |ctx, _| {
+                    add_contact.add_contact(ctx);
+                },
+            );
+        }
     }
 }

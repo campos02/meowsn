@@ -3,6 +3,8 @@ use crate::screens;
 use crate::screens::{contacts, sign_in};
 use crate::sqlite::Sqlite;
 use eframe::egui;
+use egui_taffy::taffy::prelude::{auto, length, percent};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, SdkError};
 use std::sync::{Arc, Mutex};
 
@@ -99,7 +101,12 @@ impl eframe::App for MainWindow {
                 }
 
                 Message::ClosePersonalSettings => self.personal_settings_window = None,
-                Message::OpenDialog(text) => self.dialog_window_text = Some(text),
+                Message::OpenDialog(text) => {
+                    self.dialog_window_text = Some(text);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        egui::UserAttentionType::Informational,
+                    ));
+                }
 
                 Message::NotificationServerEvent(event) => {
                     if let msnp11_sdk::Event::Disconnected = event {
@@ -109,6 +116,9 @@ impl eframe::App for MainWindow {
                         ));
 
                         self.dialog_window_text = Some("Lost connection to the server".to_string());
+                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                            egui::UserAttentionType::Informational,
+                        ));
                     } else if let msnp11_sdk::Event::LoggedInAnotherDevice = event {
                         self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
                             self.sqlite.clone(),
@@ -118,6 +128,10 @@ impl eframe::App for MainWindow {
                         self.dialog_window_text = Some(
                             "Disconnected as you have signed in on another computer".to_string(),
                         );
+
+                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                            egui::UserAttentionType::Informational,
+                        ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(event);
                         ctx.request_repaint();
@@ -128,6 +142,10 @@ impl eframe::App for MainWindow {
                     if let Err(error) = result {
                         self.dialog_window_text =
                             Some(format!("Error setting display name: {error}"));
+
+                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                            egui::UserAttentionType::Informational,
+                        ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(msnp11_sdk::Event::DisplayName(display_name));
                         ctx.request_repaint();
@@ -147,31 +165,57 @@ impl eframe::App for MainWindow {
                 egui::ViewportBuilder::default()
                     .with_title("meowsn")
                     .with_inner_size([300.0, 100.0])
-                    .with_active(true)
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),
                 |ctx, _| {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                     egui::CentralPanel::default()
-                        .frame(
-                            egui::Frame {
-                                fill: ctx.style().visuals.window_fill,
-                                ..Default::default()
-                            }
-                            .inner_margin(10.),
-                        )
                         .show(ctx, |ui| {
-                            ui.vertical_centered(|ui| {
-                                ui.label(
-                                    self.dialog_window_text.as_ref().unwrap_or(&"".to_string()),
-                                );
+                            tui(ui, ui.id().with("dialog"))
+                                .reserve_available_space()
+                                .style(taffy::Style {
+                                    flex_direction: taffy::FlexDirection::Column,
+                                    align_items: Some(taffy::AlignItems::Center),
+                                    justify_content: Some(taffy::JustifyContent::Center),
+                                    size: taffy::Size {
+                                        width: percent(1.),
+                                        height: percent(1.),
+                                    },
+                                    padding: length(15.),
+                                    gap: percent(0.15),
+                                    ..Default::default()
+                                })
+                                .show(|tui| {
+                                    tui.style(taffy::Style {
+                                        size: taffy::Size {
+                                            width: percent(1.),
+                                            height: auto(),
+                                        },
+                                        ..Default::default()
+                                    })
+                                    .ui_add(
+                                        egui::Label::new(
+                                            self.dialog_window_text
+                                                .as_ref()
+                                                .unwrap_or(&"".to_string()),
+                                        )
+                                        .halign(egui::Align::Center),
+                                    );
 
-                                ui.add_space(10.);
-                                if ui.button("Ok").clicked() {
-                                    self.dialog_window_text = None;
-                                }
-                            })
+                                    tui.style(taffy::Style {
+                                        size: taffy::Size {
+                                            width: length(30.),
+                                            height: auto(),
+                                        },
+                                        ..Default::default()
+                                    })
+                                    .ui(|ui| {
+                                        if ui.button("Ok").clicked() {
+                                            self.dialog_window_text = None;
+                                        }
+                                    });
+                                })
                         });
 
                     if ctx.input(|i| i.viewport().close_requested()) {
@@ -189,7 +233,6 @@ impl eframe::App for MainWindow {
                 egui::ViewportBuilder::default()
                     .with_title("Personal settings")
                     .with_inner_size([400., 350.])
-                    .with_active(true)
                     .with_maximize_button(false)
                     .with_resizable(false),
                 move |ctx, _| {
