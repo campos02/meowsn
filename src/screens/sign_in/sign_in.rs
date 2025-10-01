@@ -86,7 +86,16 @@ impl eframe::App for SignIn {
             let Message::SignInResult(result) = message;
             match result {
                 Ok(sign_in_return) => {
-                    let _ = self.sqlite.insert_user_if_not_in_db(&self.email);
+                    if self.remember_me {
+                        let _ = self.sqlite.insert_user_if_not_in_db(&self.email);
+                    }
+
+                    if self.remember_my_password
+                        && let Ok(entry) = Entry::new("meowsn", &self.email)
+                    {
+                        let _ = entry.set_password(&self.password);
+                    }
+
                     let _ = self
                         .main_window_sender
                         .send(crate::main_window::Message::SignIn(sign_in_return));
