@@ -277,7 +277,16 @@ impl eframe::App for SignIn {
                                     })
                                 });
 
-                                ui.checkbox(&mut self.remember_my_password, "Remember My Password");
+                                if ui
+                                    .checkbox(
+                                        &mut self.remember_my_password,
+                                        "Remember My Password",
+                                    )
+                                    .changed()
+                                    && self.remember_my_password
+                                {
+                                    self.remember_me = true;
+                                }
                             })
                         });
 
@@ -295,7 +304,7 @@ impl eframe::App for SignIn {
                         .ui(|ui| {
                             if !self.signing_in {
                                 if ui.button("Sign In").clicked() {
-                                    if self.emails.is_empty() || self.password.is_empty() {
+                                    if self.email.is_empty() || self.password.is_empty() {
                                         let _ = self.main_window_sender.send(
                                             crate::main_window::Message::OpenDialog(
                                                 "Please type your e-mail address and \
@@ -306,7 +315,7 @@ impl eframe::App for SignIn {
                                     } else {
                                         self.signing_in = true;
 
-                                        let email = Arc::new(self.email.clone());
+                                        let email = Arc::new(self.email.trim().to_string());
                                         let password = Arc::new(self.password.clone());
                                         let sqlite = self.sqlite.clone();
 
