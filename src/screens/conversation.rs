@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::models::contact::Contact;
 use crate::models::message;
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;
@@ -16,13 +17,13 @@ pub struct Conversation {
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     switchboards: HashMap<Arc<String>, Arc<Switchboard>>,
-    contact_repository: ContactRepository,
     participants: HashMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
     messages: Vec<message::Message>,
     message_buffer: Vec<message::Message>,
     new_message: String,
     user_display_picture: Option<Arc<[u8]>>,
+    contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
     user_typing: bool,
@@ -38,19 +39,51 @@ impl Conversation {
         user_display_name: Arc<String>,
         user_display_picture: Option<Arc<[u8]>>,
         contact_repository: ContactRepository,
+        session_id: Arc<String>,
+        switchboard: SwitchboardAndParticipants,
         sqlite: Sqlite,
     ) -> Self {
+        let mut messages = Vec::new();
+        if switchboard.participants.len() > 1
+            && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id)
+        {
+            messages = message_history;
+        }
+
+        let mut participants = HashMap::with_capacity(switchboard.participants.len());
+        for participant in &switchboard.participants {
+            participants.insert(
+                participant,
+                contact_repository
+                    .get_contact(participant)
+                    .unwrap_or(Contact {
+                        email: participant.clone(),
+                        display_name: participant.clone(),
+                        ..Contact::default()
+                    }),
+            );
+
+            if switchboard.participants.len() == 1
+                && let Ok(message_history) = sqlite.select_messages(&user_email, &participant)
+            {
+                messages = message_history;
+            }
+        }
+
+        let mut switchboards = HashMap::new();
+        switchboards.insert(session_id, switchboard.switchboard);
+
         Self {
             user_email,
             user_display_name,
-            switchboards: HashMap::new(),
-            contact_repository,
+            switchboards,
             participants: HashMap::new(),
             last_participant: None,
-            messages: vec![],
-            message_buffer: vec![],
+            messages,
+            message_buffer: Vec::new(),
             new_message: "".to_string(),
             user_display_picture,
+            contact_repository,
             sqlite,
             participant_typing: None,
             user_typing: false,
@@ -60,10 +93,73 @@ impl Conversation {
             strikethrough: false,
         }
     }
-}
 
-impl eframe::App for Conversation {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    pub fn handle_event(&mut self, message: crate::main_window::Message) {
+        match message {
+            crate::main_window::Message::NotificationServerEvent(event) => match event {
+                msnp11_sdk::Event::DisplayName(display_name) => {
+                    self.user_display_name = Arc::new(display_name);
+                }
+
+                msnp11_sdk::Event::PresenceUpdate {
+                    email,
+                    display_name,
+                    presence,
+                } => {
+                    if let Some(contact) = self.participants.get_mut(&email) {
+                        if let Some(msn_object) = &presence.msn_object
+                            && msn_object.object_type == 3
+                        {
+                            contact.display_picture = self
+                                .sqlite
+                                .select_display_picture(&msn_object.sha1d)
+                                .ok()
+                                .map(|picture| {
+                                    let picture = picture.into_boxed_slice();
+                                    Arc::from(picture)
+                                });
+                        }
+
+                        contact.display_name = Arc::new(display_name);
+                    }
+                }
+
+                _ => (),
+            },
+
+            crate::main_window::Message::SwitchboardEvent(session_id, event) => {
+                if let msnp11_sdk::Event::ParticipantInSwitchboard { email } = event
+                    && self.switchboards.contains_key(&session_id)
+                {
+                    let email = Arc::new(email);
+                    self.participants.insert(
+                        email.clone(),
+                        self.contact_repository
+                            .get_contact(&email)
+                            .unwrap_or(Contact {
+                                email: email.clone(),
+                                display_name: email,
+                                ..Contact::default()
+                            }),
+                    );
+                }
+            }
+
+            crate::main_window::Message::UserDisplayPictureChanged(picture) => {
+                self.user_display_picture = Some(picture);
+            }
+
+            crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
+                if let Some(contact) = self.participants.get_mut(&email) {
+                    contact.display_picture = Some(data);
+                }
+            }
+
+            _ => (),
+        }
+    }
+
+    pub fn conversation(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             tui(ui, ui.id().with("conversation-screen"))
                 .reserve_available_space()
@@ -440,5 +536,13 @@ impl eframe::App for Conversation {
                     });
                 });
         });
+    }
+
+    pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {
+        &self.participants
+    }
+
+    pub fn add_switchboard(&mut self, session_id: Arc<String>, switchboard: Arc<Switchboard>) {
+        self.switchboards.insert(session_id, switchboard);
     }
 }

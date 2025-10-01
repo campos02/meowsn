@@ -1,18 +1,21 @@
+use crate::contact_repository::ContactRepository;
+use crate::helpers::run_future::run_future;
+use crate::models::contact::Contact;
 use crate::models::sign_in_return::SignInReturn;
-use crate::screens;
-use crate::screens::{contacts, conversation, sign_in};
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
+use crate::screens::{contacts, conversation, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use eframe::egui;
 use eframe::egui::CornerRadius;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{Client, SdkError};
+use msnp11_sdk::{Client, SdkError, Switchboard};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 enum Screen {
     SignIn(sign_in::sign_in::SignIn),
     Contacts(contacts::contacts::Contacts),
-    Conversation(conversation::Conversation),
 }
 
 pub enum Message {
@@ -22,15 +25,50 @@ pub enum Message {
     ClosePersonalSettings,
     OpenDialog(String),
     NotificationServerEvent(msnp11_sdk::Event),
+    SwitchboardEvent(Arc<String>, msnp11_sdk::Event),
+    UserDisplayPictureChanged(Arc<[u8]>),
+    ContactDisplayPictureEvent {
+        email: String,
+        data: Arc<[u8]>,
+    },
+
     DisplayNameChangeResult(String, Result<(), SdkError>),
+    OpenConversation {
+        user_email: Arc<String>,
+        user_display_name: Arc<String>,
+        user_display_picture: Option<Arc<[u8]>>,
+        contact_repository: ContactRepository,
+        contact: Contact,
+        client: Arc<Client>,
+    },
+
+    CreateSessionResult {
+        user_email: Arc<String>,
+        user_display_name: Arc<String>,
+        user_display_picture: Option<Arc<[u8]>>,
+        contact_repository: ContactRepository,
+        result: Result<Arc<Switchboard>, SdkError>,
+    },
+
+    OpenConversationWithSwitchboard {
+        user_email: Arc<String>,
+        user_display_name: Arc<String>,
+        user_display_picture: Option<Arc<[u8]>>,
+        contact_repository: ContactRepository,
+        session_id: Arc<String>,
+        switchboard: SwitchboardAndParticipants,
+    },
+
+    CloseConversation(egui::ViewportId),
 }
 
 pub struct MainWindow {
     screen: Screen,
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
-    personal_settings_window: Option<Arc<Mutex<screens::personal_settings::PersonalSettings>>>,
+    personal_settings_window: Option<Arc<Mutex<personal_settings::PersonalSettings>>>,
     dialog_window_text: Option<String>,
+    conversations: HashMap<egui::ViewportId, Arc<Mutex<conversation::Conversation>>>,
     sqlite: Sqlite,
 }
 
@@ -48,6 +86,7 @@ impl Default for MainWindow {
             receiver,
             personal_settings_window: None,
             dialog_window_text: None,
+            conversations: HashMap::new(),
             sqlite,
         }
     }
@@ -106,7 +145,7 @@ impl eframe::App for MainWindow {
                         );
                     } else {
                         self.personal_settings_window = Some(Arc::new(Mutex::new(
-                            screens::personal_settings::PersonalSettings::new(
+                            personal_settings::PersonalSettings::new(
                                 display_name,
                                 client,
                                 self.sender.clone(),
@@ -148,7 +187,41 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(event);
+                        contacts.handle_event(Message::NotificationServerEvent(event));
+                        ctx.request_repaint();
+                    }
+                }
+
+                Message::SwitchboardEvent(session_id, event) => {
+                    if let msnp11_sdk::Event::DisplayPicture { email, data } = event {
+                        let data = data.into_boxed_slice();
+                        let data = Arc::from(data);
+
+                        let _ = self
+                            .sender
+                            .send(Message::ContactDisplayPictureEvent { email, data });
+                    } else {
+                        if let Screen::Contacts(contacts) = &mut self.screen {
+                            contacts.handle_event(Message::SwitchboardEvent(session_id, event));
+                            ctx.request_repaint();
+                        }
+                    }
+                }
+
+                Message::UserDisplayPictureChanged(picture) => {
+                    for conversation in self.conversations.values() {
+                        let mut conversation = conversation
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+
+                        conversation
+                            .handle_event(Message::UserDisplayPictureChanged(picture.clone()));
+                    }
+                }
+
+                Message::ContactDisplayPictureEvent { email, data } => {
+                    if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(Message::ContactDisplayPictureEvent { email, data });
                         ctx.request_repaint();
                     }
                 }
@@ -162,9 +235,125 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(msnp11_sdk::Event::DisplayName(display_name));
+                        contacts.handle_event(Message::NotificationServerEvent(
+                            msnp11_sdk::Event::DisplayName(display_name),
+                        ));
+
                         ctx.request_repaint();
                     }
+                }
+
+                Message::OpenConversation {
+                    user_email,
+                    user_display_name,
+                    user_display_picture,
+                    contact_repository,
+                    contact,
+                    client,
+                } => {
+                    if let Some((id, _)) = self.conversations.iter().find(|(_, conversation)| {
+                        let conversation = conversation
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+
+                        conversation.get_participants().contains_key(&user_email)
+                    }) {
+                        ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
+                    } else {
+                        let contact_email = contact.email.clone();
+                        let sender = self.sender.clone();
+
+                        run_future(
+                            async move { client.create_session(&contact_email).await },
+                            sender,
+                            move |result| Message::CreateSessionResult {
+                                user_email: user_email.clone(),
+                                user_display_name: user_display_name.clone(),
+                                user_display_picture: user_display_picture.clone(),
+                                contact_repository: contact_repository.clone(),
+                                result: result.map(Arc::from),
+                            },
+                        );
+                    }
+                }
+
+                Message::CreateSessionResult {
+                    user_email,
+                    user_display_name,
+                    user_display_picture,
+                    contact_repository,
+                    result,
+                } => {
+                    if let Ok(switchboard) = result
+                        && let Ok(session_id) =
+                            tokio::runtime::Handle::current().block_on(switchboard.get_session_id())
+                    {
+                        let switchboard = SwitchboardAndParticipants {
+                            switchboard,
+                            participants: Vec::new(),
+                        };
+
+                        let session_id = Arc::new(session_id);
+                        let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
+
+                        self.conversations.insert(
+                            viewport_id,
+                            Arc::new(Mutex::new(conversation::Conversation::new(
+                                user_email,
+                                user_display_name,
+                                user_display_picture,
+                                contact_repository,
+                                session_id,
+                                switchboard,
+                                self.sqlite.clone(),
+                            ))),
+                        );
+                    }
+                }
+
+                Message::OpenConversationWithSwitchboard {
+                    user_email,
+                    user_display_name,
+                    user_display_picture,
+                    contact_repository,
+                    session_id,
+                    switchboard,
+                } => {
+                    if let Some(conversation) = self.conversations.values().find(|conversation| {
+                        let conversation = conversation
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+
+                        conversation.get_participants().len() == 1
+                            && switchboard.participants.iter().all(|participant| {
+                                conversation.get_participants().contains_key(participant)
+                            })
+                    }) {
+                        let mut conversation = conversation
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+
+                        conversation.add_switchboard(session_id, switchboard.switchboard);
+                    } else {
+                        let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
+
+                        self.conversations.insert(
+                            viewport_id,
+                            Arc::new(Mutex::new(conversation::Conversation::new(
+                                user_email,
+                                user_display_name,
+                                user_display_picture,
+                                contact_repository,
+                                session_id,
+                                switchboard,
+                                self.sqlite.clone(),
+                            ))),
+                        );
+                    };
+                }
+
+                Message::CloseConversation(id) => {
+                    self.conversations.remove(&id);
                 }
             }
         }
@@ -172,7 +361,6 @@ impl eframe::App for MainWindow {
         match &mut self.screen {
             Screen::SignIn(sign_in) => sign_in.update(ctx, frame),
             Screen::Contacts(contacts) => contacts.update(ctx, frame),
-            Screen::Conversation(conversation) => conversation.update(ctx, frame),
         }
 
         if self.dialog_window_text.is_some() {
@@ -233,6 +421,30 @@ impl eframe::App for MainWindow {
 
                     if ctx.input(|i| i.viewport().close_requested()) {
                         self.dialog_window_text = None;
+                    }
+                },
+            );
+        }
+
+        for (id, conversation) in &self.conversations {
+            let sender = self.sender.clone();
+            let conversation = conversation.clone();
+            let id = id.clone();
+
+            ctx.show_viewport_deferred(
+                id,
+                egui::ViewportBuilder::default()
+                    .with_title("Conversation")
+                    .with_inner_size([1000., 650.])
+                    .with_min_inner_size([800., 500.]),
+                move |ctx, _| {
+                    conversation
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .conversation(ctx);
+
+                    if ctx.input(|input| input.viewport().close_requested()) {
+                        let _ = sender.send(Message::CloseConversation(id));
                     }
                 },
             );

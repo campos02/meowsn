@@ -2,6 +2,7 @@ use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::sign_in_return::SignInReturn;
+use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
@@ -41,6 +42,7 @@ pub struct Contacts {
     receiver: std::sync::mpsc::Receiver<Message>,
     sqlite: Sqlite,
     add_contact_window: Option<crate::screens::add_contact::AddContact>,
+    orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
 }
 
 impl Contacts {
@@ -74,89 +76,165 @@ impl Contacts {
             receiver,
             sqlite,
             add_contact_window: None,
+            orphan_switchboards: HashMap::new(),
         }
     }
 
-    pub fn handle_event(&mut self, event: msnp11_sdk::Event) {
-        match event {
-            msnp11_sdk::Event::DisplayName(display_name) => {
-                self.display_name = Arc::new(display_name);
-            }
+    pub fn handle_event(&mut self, message: crate::main_window::Message) {
+        match message {
+            crate::main_window::Message::NotificationServerEvent(event) => match event {
+                msnp11_sdk::Event::DisplayName(display_name) => {
+                    self.display_name = Arc::new(display_name);
+                }
 
-            msnp11_sdk::Event::ContactInForwardList {
-                email,
-                display_name,
-                guid,
-                lists,
-                ..
-            } => {
-                let email = Arc::new(email);
-                let contact = Contact {
-                    email: email.clone(),
-                    display_name: Arc::new(display_name),
-                    guid: Arc::new(guid),
+                msnp11_sdk::Event::ContactInForwardList {
+                    email,
+                    display_name,
+                    guid,
                     lists,
-                    ..Default::default()
-                };
+                    ..
+                } => {
+                    let email = Arc::new(email);
+                    let contact = Contact {
+                        email: email.clone(),
+                        display_name: Arc::new(display_name),
+                        guid: Arc::new(guid),
+                        lists,
+                        ..Default::default()
+                    };
 
-                self.contact_repository
-                    .add_contacts(std::slice::from_ref(&contact));
+                    self.contact_repository
+                        .add_contacts(std::slice::from_ref(&contact));
 
-                self.offline_contacts.insert(email, contact);
-            }
+                    self.offline_contacts.insert(email, contact);
+                }
 
-            msnp11_sdk::Event::PresenceUpdate {
-                email,
-                display_name,
-                presence,
-            } => {
-                let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
-                } else {
-                    self.offline_contacts.get_mut(&email)
-                };
+                msnp11_sdk::Event::PresenceUpdate {
+                    email,
+                    display_name,
+                    presence,
+                } => {
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
-                let mut previous_status = None;
-                if let Some(contact) = &mut contact {
-                    if let Some(msn_object) = &presence.msn_object
-                        && msn_object.object_type == 3
+                    let mut previous_status = None;
+                    if let Some(contact) = &mut contact {
+                        if let Some(msn_object) = &presence.msn_object
+                            && msn_object.object_type == 3
+                        {
+                            contact.display_picture = self
+                                .sqlite
+                                .select_display_picture(&msn_object.sha1d)
+                                .ok()
+                                .map(|picture| {
+                                    let picture = picture.into_boxed_slice();
+                                    Arc::from(picture)
+                                });
+                        }
+
+                        if let Some(presence) = &contact.status {
+                            previous_status = Some(presence.status.clone());
+                        }
+
+                        contact.display_name = Arc::new(display_name);
+                        contact.status = Some(Arc::new(presence));
+
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
+                    }
+
+                    if let Some(contact) = contact.cloned()
+                        && previous_status.is_none()
                     {
-                        contact.display_picture = self
-                            .sqlite
-                            .select_display_picture(&msn_object.sha1d)
-                            .ok()
-                            .map(|picture| {
-                                let picture = picture.into_boxed_slice();
-                                Arc::from(picture)
-                            });
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(&contact));
+
+                        self.offline_contacts.remove(&email);
+                        self.online_contacts.insert(contact.email.clone(), contact);
                     }
-
-                    if let Some(presence) = &contact.status {
-                        previous_status = Some(presence.status.clone());
-                    }
-
-                    contact.display_name = Arc::new(display_name);
-                    contact.status = Some(Arc::new(presence));
-
-                    self.contact_repository
-                        .update_contacts(std::slice::from_ref(contact));
                 }
 
-                if let Some(contact) = contact.cloned()
-                    && previous_status.is_none()
-                {
-                    self.contact_repository
-                        .update_contacts(std::slice::from_ref(&contact));
+                msnp11_sdk::Event::PersonalMessageUpdate {
+                    email,
+                    personal_message,
+                } => {
+                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
 
-                    self.offline_contacts.remove(&email);
-                    self.online_contacts.insert(contact.email.clone(), contact);
+                    if let Some(contact) = contact {
+                        contact.personal_message = Some(Arc::new(personal_message.psm));
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
+                    }
+                }
+
+                msnp11_sdk::Event::ContactOffline { email } => {
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
+
+                    if let Some(contact) = &mut contact {
+                        contact.status = None;
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
+                    }
+
+                    if let Some(contact) = contact.cloned() {
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(&contact));
+
+                        self.online_contacts.remove(&email);
+                        self.offline_contacts.insert(contact.email.clone(), contact);
+                    }
+                }
+
+                msnp11_sdk::Event::SessionAnswered(switchboard) => {
+                    if let Ok(session_id) =
+                        tokio::runtime::Handle::current().block_on(switchboard.get_session_id())
+                    {
+                        let session_id = Arc::new(session_id);
+                        self.orphan_switchboards.insert(
+                            session_id.clone(),
+                            SwitchboardAndParticipants {
+                                switchboard: switchboard.clone(),
+                                participants: Vec::new(),
+                            },
+                        );
+
+                        let sender = self.main_window_sender.clone();
+                        switchboard.add_event_handler_closure(move |event| {
+                            let sender = sender.clone();
+                            let session_id = session_id.clone();
+
+                            async move {
+                                let _ = sender.send(crate::main_window::Message::SwitchboardEvent(
+                                    session_id, event,
+                                ));
+                            }
+                        });
+                    }
+                }
+
+                _ => (),
+            },
+
+            crate::main_window::Message::SwitchboardEvent(session_id, event) => {
+                if let msnp11_sdk::Event::ParticipantInSwitchboard { email } = event
+                    && let Some(switchboard) = self.orphan_switchboards.get_mut(&session_id)
+                {
+                    switchboard.participants.push(Arc::from(email));
                 }
             }
 
-            msnp11_sdk::Event::PersonalMessageUpdate {
-                email,
-                personal_message,
-            } => {
+            crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
                 let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
                     Some(contact)
                 } else {
@@ -164,31 +242,7 @@ impl Contacts {
                 };
 
                 if let Some(contact) = contact {
-                    contact.personal_message = Some(Arc::new(personal_message.psm));
-                    self.contact_repository
-                        .update_contacts(std::slice::from_ref(contact));
-                }
-            }
-
-            msnp11_sdk::Event::ContactOffline { email } => {
-                let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
-                } else {
-                    self.offline_contacts.get_mut(&email)
-                };
-
-                if let Some(contact) = &mut contact {
-                    contact.status = None;
-                    self.contact_repository
-                        .update_contacts(std::slice::from_ref(contact));
-                }
-
-                if let Some(contact) = contact.cloned() {
-                    self.contact_repository
-                        .update_contacts(std::slice::from_ref(&contact));
-
-                    self.online_contacts.remove(&email);
-                    self.offline_contacts.insert(contact.email.clone(), contact);
+                    contact.display_picture = Some(data);
                 }
             }
 
@@ -203,7 +257,10 @@ impl eframe::App for Contacts {
             match message {
                 Message::DisplayPictureResult(result) => {
                     if let Ok(picture) = result {
-                        self.display_picture = Some(picture);
+                        self.display_picture = Some(picture.clone());
+                        let _ = self.main_window_sender.send(
+                            crate::main_window::Message::UserDisplayPictureChanged(picture),
+                        );
                     }
                 }
 
