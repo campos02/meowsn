@@ -110,7 +110,7 @@ impl PersonalSettings {
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
                             size: taffy::Size {
-                                width: length(35.),
+                                width: length(40.),
                                 height: auto(),
                             },
                             ..Default::default()
@@ -154,7 +154,7 @@ impl PersonalSettings {
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
                             size: taffy::Size {
-                                width: length(150.),
+                                width: length(160.),
                                 height: auto(),
                             },
                             padding: percent(0.1),

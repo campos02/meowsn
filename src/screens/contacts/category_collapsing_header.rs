@@ -66,36 +66,49 @@ pub fn category_collapsing_header(
                         contact_job.append(
                             contact.display_name.as_str(),
                             0.,
-                            TextFormat::default(),
+                            TextFormat {
+                                font_id: egui::FontId::proportional(13.),
+                                ..Default::default()
+                            },
                         );
 
                         if let Some(personal_message) = contact.personal_message.as_ref()
                             && !personal_message.is_empty()
                         {
-                            contact_job.append(" - ", 0., TextFormat::default());
+                            contact_job.append(" - ", 0., TextFormat {
+                                font_id: egui::FontId::proportional(13.),
+                                color: ui.visuals().weak_text_color(),
+                                ..Default::default()
+                            });
+
                             contact_job.append(
                                 personal_message,
                                 0.,
                                 TextFormat {
+                                    font_id: egui::FontId::proportional(13.),
                                     color: ui.visuals().weak_text_color(),
                                     ..Default::default()
                                 },
                             );
                         }
 
-                        let label = ui.selectable_label(
-                            if let Some(selected_contact) = selected_contact {
-                                contact.email == *selected_contact
-                            } else {
-                                false
-                            },
-                            contact_job,
-                        );
+                        ui.style_mut().spacing.button_padding = egui::Vec2::new(5., 3.);
+
+                        let label = ui.add(egui::Button::selectable(
+                            selected_contact
+                            .as_ref()
+                            .is_some_and(|selected_contact| {
+                                *selected_contact == contact.email
+                            }),
+                            contact_job
+                        )
+                        .truncate());
 
                         if label.clicked() {
                             *selected_contact = Some(contact.email.clone());
                         }
 
+                        ui.style_mut().spacing.button_padding = egui::Vec2::splat(5.);
                         label.context_menu(|ui| {
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),

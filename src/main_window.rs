@@ -240,7 +240,6 @@ impl eframe::App for MainWindow {
 
         if let Some(personal_settings_window) = self.personal_settings_window.clone() {
             let sender = self.sender.clone();
-
             ctx.show_viewport_deferred(
                 egui::ViewportId::from_hash_of("personal-settings"),
                 egui::ViewportBuilder::default()
