@@ -91,16 +91,18 @@ impl Contacts {
                 ..
             } => {
                 let email = Arc::new(email);
-                self.offline_contacts.insert(
-                    email.clone(),
-                    Contact {
-                        email,
-                        display_name: Arc::new(display_name),
-                        guid: Arc::new(guid),
-                        lists,
-                        ..Default::default()
-                    },
-                );
+                let contact = Contact {
+                    email: email.clone(),
+                    display_name: Arc::new(display_name),
+                    guid: Arc::new(guid),
+                    lists,
+                    ..Default::default()
+                };
+
+                self.contact_repository
+                    .add_contacts(std::slice::from_ref(&contact));
+
+                self.offline_contacts.insert(email, contact);
             }
 
             msnp11_sdk::Event::PresenceUpdate {
@@ -143,6 +145,9 @@ impl Contacts {
                 if let Some(contact) = contact.cloned()
                     && previous_status.is_none()
                 {
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(&contact));
+
                     self.offline_contacts.remove(&email);
                     self.online_contacts.insert(contact.email.clone(), contact);
                 }
@@ -179,6 +184,9 @@ impl Contacts {
                 }
 
                 if let Some(contact) = contact.cloned() {
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(&contact));
+
                     self.online_contacts.remove(&email);
                     self.offline_contacts.insert(contact.email.clone(), contact);
                 }
@@ -235,6 +243,8 @@ impl eframe::App for Contacts {
                         if let Some(contact) = contact {
                             contact.lists.push(MsnpList::BlockList);
                             contact.lists.retain(|list| list != &MsnpList::AllowList);
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(contact));
                         }
                     }
                 }
@@ -255,6 +265,8 @@ impl eframe::App for Contacts {
                         if let Some(contact) = contact {
                             contact.lists.retain(|list| list != &MsnpList::BlockList);
                             contact.lists.push(MsnpList::AllowList);
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(contact));
                         }
                     }
                 }
@@ -267,6 +279,7 @@ impl eframe::App for Contacts {
                     } else {
                         self.online_contacts.remove(&contact);
                         self.offline_contacts.remove(&contact);
+                        self.contact_repository.remove_contact(&contact);
                     }
                 }
 
@@ -284,16 +297,18 @@ impl eframe::App for Contacts {
                             let display_name = Arc::new(display_name);
                             let guid = Arc::new(guid);
 
-                            self.offline_contacts.insert(
-                                email.clone(),
-                                Contact {
-                                    email,
-                                    display_name,
-                                    guid,
-                                    lists,
-                                    ..Default::default()
-                                },
-                            );
+                            let contact = Contact {
+                                email: email.clone(),
+                                display_name,
+                                guid,
+                                lists,
+                                ..Default::default()
+                            };
+
+                            self.contact_repository
+                                .add_contacts(std::slice::from_ref(&contact));
+
+                            self.offline_contacts.insert(email, contact);
                         }
                     }
 

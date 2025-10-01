@@ -1,8 +1,9 @@
 use crate::models::sign_in_return::SignInReturn;
 use crate::screens;
-use crate::screens::{contacts, sign_in};
+use crate::screens::{contacts, conversation, sign_in};
 use crate::sqlite::Sqlite;
 use eframe::egui;
+use eframe::egui::CornerRadius;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, SdkError};
@@ -11,6 +12,7 @@ use std::sync::{Arc, Mutex};
 enum Screen {
     SignIn(sign_in::sign_in::SignIn),
     Contacts(contacts::contacts::Contacts),
+    Conversation(conversation::Conversation),
 }
 
 pub enum Message {
@@ -53,6 +55,19 @@ impl Default for MainWindow {
 
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if ctx.style().visuals.dark_mode {
+            catppuccin_egui::set_theme(&ctx, catppuccin_egui::MOCHA);
+        } else {
+            catppuccin_egui::set_theme(&ctx, catppuccin_egui::LATTE);
+        }
+
+        ctx.style_mut(|style| {
+            style.spacing.button_padding = egui::Vec2::splat(5.);
+            style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
+            style.visuals.indent_has_left_vline = false;
+            style.spacing.combo_height = 250.;
+        });
+
         if let Ok(message) = self.receiver.try_recv() {
             match message {
                 Message::SignIn(sign_in_return) => {
@@ -157,6 +172,7 @@ impl eframe::App for MainWindow {
         match &mut self.screen {
             Screen::SignIn(sign_in) => sign_in.update(ctx, frame),
             Screen::Contacts(contacts) => contacts.update(ctx, frame),
+            Screen::Conversation(conversation) => conversation.update(ctx, frame),
         }
 
         if self.dialog_window_text.is_some() {
@@ -164,59 +180,56 @@ impl eframe::App for MainWindow {
                 egui::ViewportId::from_hash_of("dialog"),
                 egui::ViewportBuilder::default()
                     .with_title("meowsn")
-                    .with_inner_size([300.0, 100.0])
+                    .with_inner_size([300., 100.])
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),
                 |ctx, _| {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    egui::CentralPanel::default()
-                        .show(ctx, |ui| {
-                            tui(ui, ui.id().with("dialog"))
-                                .reserve_available_space()
-                                .style(taffy::Style {
-                                    flex_direction: taffy::FlexDirection::Column,
-                                    align_items: Some(taffy::AlignItems::Center),
-                                    justify_content: Some(taffy::JustifyContent::Center),
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        tui(ui, ui.id().with("dialog"))
+                            .reserve_available_space()
+                            .style(taffy::Style {
+                                flex_direction: taffy::FlexDirection::Column,
+                                align_items: Some(taffy::AlignItems::Center),
+                                justify_content: Some(taffy::JustifyContent::Center),
+                                size: taffy::Size {
+                                    width: percent(1.),
+                                    height: percent(1.),
+                                },
+                                padding: length(15.),
+                                gap: percent(0.15),
+                                ..Default::default()
+                            })
+                            .show(|tui| {
+                                tui.style(taffy::Style {
                                     size: taffy::Size {
                                         width: percent(1.),
-                                        height: percent(1.),
+                                        height: auto(),
                                     },
-                                    padding: length(15.),
-                                    gap: percent(0.15),
                                     ..Default::default()
                                 })
-                                .show(|tui| {
-                                    tui.style(taffy::Style {
-                                        size: taffy::Size {
-                                            width: percent(1.),
-                                            height: auto(),
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .ui_add(
-                                        egui::Label::new(
-                                            self.dialog_window_text
-                                                .as_ref()
-                                                .unwrap_or(&"".to_string()),
-                                        )
-                                        .halign(egui::Align::Center),
-                                    );
+                                .ui_add(
+                                    egui::Label::new(
+                                        self.dialog_window_text.as_ref().unwrap_or(&"".to_string()),
+                                    )
+                                    .halign(egui::Align::Center),
+                                );
 
-                                    tui.style(taffy::Style {
-                                        size: taffy::Size {
-                                            width: length(30.),
-                                            height: auto(),
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .ui(|ui| {
-                                        if ui.button("Ok").clicked() {
-                                            self.dialog_window_text = None;
-                                        }
-                                    });
+                                tui.style(taffy::Style {
+                                    size: taffy::Size {
+                                        width: length(30.),
+                                        height: auto(),
+                                    },
+                                    ..Default::default()
                                 })
-                        });
+                                .ui(|ui| {
+                                    if ui.button("Ok").clicked() {
+                                        self.dialog_window_text = None;
+                                    }
+                                });
+                            })
+                    });
 
                     if ctx.input(|i| i.viewport().close_requested()) {
                         self.dialog_window_text = None;

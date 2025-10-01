@@ -46,4 +46,10 @@ impl ContactRepository {
             }
         }
     }
+
+    pub fn remove_contact(&self, email: &String) {
+        if let Ok(mut contacts_lock) = self.contacts.lock() {
+            contacts_lock.remove(email);
+        }
+    }
 }

@@ -15,7 +15,7 @@ mod widgets;
 
 use crate::main_window::MainWindow;
 use eframe::egui;
-use eframe::egui::CornerRadius;
+use std::sync::Arc;
 
 fn common_main() -> eframe::Result {
     tokio::spawn(async move { helpers::notify_new_version::notify_new_version().await });
@@ -27,6 +27,7 @@ fn common_main() -> eframe::Result {
                 eframe::icon_data::from_png_bytes(include_bytes!("../assets/meowsn.ico"))
                     .expect("Failed to load icon"),
             ),
+        centered: true,
         ..Default::default()
     };
 
@@ -35,16 +36,36 @@ fn common_main() -> eframe::Result {
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
+            cc.egui_ctx.set_pixels_per_point(1.08);
 
-            cc.egui_ctx.set_pixels_per_point(1.1);
-            cc.egui_ctx.style_mut(|style| {
-                style.spacing.button_padding = egui::Vec2::splat(5.);
-                style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
-                style.visuals.indent_has_left_vline = false;
-                style.spacing.combo_height = 250.;
-            });
+            let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert(
+                "noto_sans".to_string(),
+                Arc::new(egui::FontData::from_static(include_bytes!(
+                    "../assets/fonts/NotoSans-Regular.ttf"
+                ))),
+            );
 
+            fonts.font_data.insert(
+                "noto_sans_bold".to_string(),
+                Arc::new(egui::FontData::from_static(include_bytes!(
+                    "../assets/fonts/NotoSans-Bold.ttf"
+                ))),
+            );
+
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .insert(0, "noto_sans".to_string());
+
+            fonts
+                .families
+                .entry(egui::FontFamily::Name("Bold".into()))
+                .or_default()
+                .insert(0, "noto_sans_bold".to_string());
+
+            cc.egui_ctx.set_fonts(fonts);
             Ok(Box::<MainWindow>::default())
         }),
     )
