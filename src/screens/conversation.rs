@@ -1,4 +1,5 @@
 use crate::contact_repository::ContactRepository;
+use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
@@ -9,10 +10,16 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, FontSelection, TextFormat};
 use egui_taffy::taffy::prelude::{auto, fr, length, line, percent, repeat, span};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::Switchboard;
+use msnp11_sdk::{SdkError, Switchboard};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
+
+pub enum Message {
+    SendMessageResult(message::Message, Result<(), SdkError>),
+    ClearUserTyping,
+    ClearParticipantTyping,
+}
 
 pub struct Conversation {
     user_email: Arc<String>,
@@ -27,6 +34,8 @@ pub struct Conversation {
     contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
+    sender: std::sync::mpsc::Sender<Message>,
+    receiver: std::sync::mpsc::Receiver<Message>,
     user_typing: bool,
     bold: bool,
     italic: bool,
@@ -195,6 +204,16 @@ impl Conversation {
                                     } else {
                                         Some(Arc::new(email))
                                     };
+
+                                run_future(
+                                    self.handle.clone(),
+                                    async {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
+                                            .await
+                                    },
+                                    self.sender.clone(),
+                                    |_| Message::ClearParticipantTyping,
+                                );
                             }
                         }
 
@@ -334,15 +353,44 @@ impl Conversation {
     }
 
     pub fn conversation(&mut self, ctx: &egui::Context) {
+        let previous_focus = self.focused;
         self.focused = ctx.input(|input| input.viewport().focused.is_some_and(|focused| focused));
-        if let Ok(Message::SendMessageResult(mut message, result)) = self.receiver.try_recv() {
-            if result.is_err() {
-                message.errored = true;
-            } else {
-                let _ = self.sqlite.insert_message(&message);
-            }
 
-            self.messages.push(message);
+        if !previous_focus && self.focused {
+            for participant in self.participants.values() {
+                if participant.display_picture.is_none()
+                    && let Some(status) = &participant.status
+                    && let Some(msn_object) = status.msn_object_string.clone()
+                {
+                    let Some(switchboard) = self.switchboards.values().next().cloned() else {
+                        continue;
+                    };
+
+                    let email = participant.email.clone();
+                    self.handle.spawn(async move {
+                        switchboard
+                            .request_contact_display_picture(&email, &msn_object)
+                            .await
+                    });
+                }
+            }
+        }
+
+        if let Ok(message) = self.receiver.try_recv() {
+            match message {
+                Message::SendMessageResult(mut message, result) => {
+                    if result.is_err() {
+                        message.errored = true;
+                    } else {
+                        let _ = self.sqlite.insert_message(&message);
+                    }
+
+                    self.messages.push(message);
+                }
+
+                Message::ClearUserTyping => self.user_typing = false,
+                Message::ClearParticipantTyping => self.participant_typing = None,
+            }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -816,12 +864,21 @@ impl Conversation {
                                 );
 
                                 if multiline.changed()
+                                    && !self.user_typing
                                     && let Some(switchboard) = self.switchboards.values().next()
                                 {
+                                    self.user_typing = true;
                                     self.handle.block_on(async {
                                         let _ =
                                             switchboard.send_typing_user(&self.user_email).await;
                                     });
+
+                                    run_future(
+                                        self.handle.clone(),
+                                        async { tokio::time::sleep(tokio::time::Duration::from_secs(5)).await },
+                                        self.sender.clone(),
+                                        |_| Message::ClearUserTyping
+                                    );
                                 }
 
                                 if multiline.has_focus()
