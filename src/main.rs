@@ -21,12 +21,9 @@ fn common_main() -> eframe::Result {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .unwrap();
+        .expect("Could not build tokio runtime");
 
-    rt.block_on(async {
-        tokio::spawn(async move { helpers::notify_new_version::notify_new_version().await })
-    });
-
+    rt.spawn(async move { helpers::notify_new_version::notify_new_version().await });
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([350., 600.])

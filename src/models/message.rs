@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Message {
     pub sender: Arc<String>,
     pub receiver: Option<Arc<String>>,
