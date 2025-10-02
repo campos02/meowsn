@@ -123,11 +123,16 @@ impl eframe::App for MainWindow {
                     ));
 
                     let sender = self.sender.clone();
+                    let main_ctx = ctx.clone();
+
                     self.handle.block_on(async {
                         client.add_event_handler_closure(move |event| {
                             let sender = sender.clone();
+                            let ctx = main_ctx.clone();
+
                             async move {
                                 let _ = sender.send(Message::NotificationServerEvent(event));
+                                ctx.request_repaint();
                             }
                         });
                     });
@@ -198,7 +203,7 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::NotificationServerEvent(event.clone()));
+                        contacts.handle_event(Message::NotificationServerEvent(event.clone()), ctx);
                         for conversation in self.conversations.values() {
                             let mut conversation = conversation
                                 .lock()
@@ -207,8 +212,6 @@ impl eframe::App for MainWindow {
                             conversation
                                 .handle_event(Message::NotificationServerEvent(event.clone()));
                         }
-
-                        ctx.request_repaint();
                     }
                 }
 
@@ -220,13 +223,15 @@ impl eframe::App for MainWindow {
                         let _ = self
                             .sender
                             .send(Message::ContactDisplayPictureEvent { email, data });
-                    } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::SwitchboardEvent(
-                            session_id.clone(),
-                            event.clone(),
-                        ));
 
-                        for conversation in self.conversations.values() {
+                        ctx.request_repaint();
+                    } else if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(
+                            Message::SwitchboardEvent(session_id.clone(), event.clone()),
+                            ctx,
+                        );
+
+                        for (id, conversation) in self.conversations.iter() {
                             let mut conversation = conversation
                                 .lock()
                                 .unwrap_or_else(|error| error.into_inner());
@@ -235,9 +240,9 @@ impl eframe::App for MainWindow {
                                 session_id.clone(),
                                 event.clone(),
                             ));
-                        }
 
-                        ctx.request_repaint();
+                            ctx.request_repaint_of(*id);
+                        }
                     }
                 }
 
@@ -254,8 +259,8 @@ impl eframe::App for MainWindow {
 
                 Message::ContactDisplayPictureEvent { email, data } => {
                     if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::ContactDisplayPictureEvent { email, data });
-                        ctx.request_repaint();
+                        contacts
+                            .handle_event(Message::ContactDisplayPictureEvent { email, data }, ctx);
                     }
                 }
 
@@ -268,11 +273,12 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::NotificationServerEvent(
-                            msnp11_sdk::Event::DisplayName(display_name),
-                        ));
-
-                        ctx.request_repaint();
+                        contacts.handle_event(
+                            Message::NotificationServerEvent(msnp11_sdk::Event::DisplayName(
+                                display_name,
+                            )),
+                            ctx,
+                        );
                     }
                 }
 
@@ -345,14 +351,19 @@ impl eframe::App for MainWindow {
                         );
 
                         let sender = self.sender.clone();
+                        let ctx = ctx.clone();
+
                         self.handle.block_on(async {
                             inner_switchboard.add_event_handler_closure(move |event| {
                                 let sender = sender.clone();
                                 let session_id = session_id.clone();
+                                let ctx = ctx.clone();
 
                                 async move {
                                     let _ =
                                         sender.send(Message::SwitchboardEvent(session_id, event));
+
+                                    ctx.request_repaint();
                                 }
                             });
                         });
@@ -478,7 +489,7 @@ impl eframe::App for MainWindow {
         for (id, conversation) in &self.conversations {
             let sender = self.sender.clone();
             let conversation = conversation.clone();
-            let id = id.clone();
+            let id = *id;
 
             ctx.show_viewport_deferred(
                 id,

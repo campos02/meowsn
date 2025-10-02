@@ -84,7 +84,7 @@ impl Contacts {
         }
     }
 
-    pub fn handle_event(&mut self, message: crate::main_window::Message) {
+    pub fn handle_event(&mut self, message: crate::main_window::Message, ctx: &egui::Context) {
         match message {
             crate::main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
@@ -212,16 +212,21 @@ impl Contacts {
                         );
 
                         let sender = self.main_window_sender.clone();
+                        let ctx = ctx.clone();
+
                         self.handle.block_on(async {
                             switchboard.add_event_handler_closure(move |event| {
                                 let sender = sender.clone();
                                 let session_id = session_id.clone();
+                                let ctx = ctx.clone();
 
                                 async move {
                                     let _ =
                                         sender.send(crate::main_window::Message::SwitchboardEvent(
                                             session_id, event,
                                         ));
+
+                                    ctx.request_repaint();
                                 }
                             });
                         });
