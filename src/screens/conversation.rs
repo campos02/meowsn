@@ -182,6 +182,52 @@ impl Conversation {
                             {
                                 self.messages = message_history;
                             }
+
+                            if !self.message_buffer.is_empty()
+                                && let Some(switchboard) = self.switchboards.get(&session_id)
+                            {
+                                for mut message in self.message_buffer.drain(..) {
+                                    let switchboard = switchboard.clone();
+                                    let sender = self.sender.clone();
+
+                                    if !message.is_nudge {
+                                        let plain_text = msnp11_sdk::PlainText {
+                                            bold: message.bold,
+                                            italic: message.italic,
+                                            underline: message.underline,
+                                            strikethrough: message.strikethrough,
+                                            color: message.color.clone(),
+                                            text: message.text.clone(),
+                                        };
+
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move {
+                                                switchboard.send_text_message(&plain_text).await
+                                            },
+                                            sender,
+                                            move |result| {
+                                                Message::SendMessageResult(
+                                                    std::mem::take(&mut message),
+                                                    result,
+                                                )
+                                            },
+                                        );
+                                    } else {
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move { switchboard.send_nudge().await },
+                                            sender,
+                                            move |result| {
+                                                Message::SendMessageResult(
+                                                    std::mem::take(&mut message),
+                                                    result,
+                                                )
+                                            },
+                                        );
+                                    }
+                                }
+                            }
                         }
 
                         msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {

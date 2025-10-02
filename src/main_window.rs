@@ -316,6 +316,11 @@ impl eframe::App for MainWindow {
                             .unwrap_or_else(|error| error.into_inner());
 
                         conversation.get_participants().contains_key(&contact.email)
+                            || conversation.get_participants().is_empty()
+                                && conversation
+                                    .get_last_participant()
+                                    .as_ref()
+                                    .is_some_and(|participant| participant.email == contact.email)
                     }) {
                         ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
                     } else {
@@ -466,10 +471,7 @@ impl eframe::App for MainWindow {
                                 flex_direction: taffy::FlexDirection::Column,
                                 align_items: Some(taffy::AlignItems::Center),
                                 justify_content: Some(taffy::JustifyContent::Center),
-                                size: taffy::Size {
-                                    width: percent(1.),
-                                    height: percent(1.),
-                                },
+                                size: percent(1.),
                                 padding: length(15.),
                                 gap: percent(0.15),
                                 ..Default::default()
