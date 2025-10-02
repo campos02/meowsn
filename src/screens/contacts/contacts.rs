@@ -238,9 +238,19 @@ impl Contacts {
 
             crate::main_window::Message::SwitchboardEvent(session_id, event) => {
                 if let msnp11_sdk::Event::ParticipantInSwitchboard { email } = event
-                    && let Some(switchboard) = self.orphan_switchboards.get_mut(&session_id)
+                    && let Some(mut switchboard) = self.orphan_switchboards.remove(&session_id)
                 {
                     switchboard.participants.push(Arc::from(email));
+                    let _ = self.main_window_sender.send(
+                        crate::main_window::Message::OpenConversationWithSwitchboard {
+                            user_email: self.user_email.clone(),
+                            user_display_name: self.display_name.clone(),
+                            user_display_picture: self.display_picture.clone(),
+                            contact_repository: self.contact_repository.clone(),
+                            session_id,
+                            switchboard,
+                        },
+                    );
                 }
             }
 
@@ -522,6 +532,7 @@ impl eframe::App for Contacts {
                                 self.user_email.clone(),
                                 self.display_name.clone(),
                                 self.display_picture.clone(),
+                                self.selected_status.clone(),
                                 self.contact_repository.clone(),
                                 self.client.clone(),
                             );
@@ -537,6 +548,7 @@ impl eframe::App for Contacts {
                                 self.user_email.clone(),
                                 self.display_name.clone(),
                                 self.display_picture.clone(),
+                                self.selected_status.clone(),
                                 self.contact_repository.clone(),
                                 self.client.clone(),
                             );
@@ -557,6 +569,12 @@ impl eframe::App for Contacts {
                     add_contact.add_contact(ctx);
                 },
             );
+        }
+
+        if ctx.input(|input| input.viewport().close_requested()) {
+            let _ = self
+                .handle
+                .block_on(async { self.client.disconnect().await });
         }
     }
 }

@@ -21,6 +21,7 @@ pub fn category_collapsing_header(
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     user_display_picture: Option<Arc<[u8]>>,
+    user_status: crate::screens::contacts::status_selector::Status,
     contact_repository: ContactRepository,
     client: Arc<Client>,
 ) {
@@ -121,7 +122,9 @@ pub fn category_collapsing_header(
                             *selected_contact = Some(contact.email.clone());
                         }
 
-                        if label.double_clicked() {
+                        if label.double_clicked()
+                            && contact.status.is_some()
+                            && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
                             let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                 user_email: user_email.clone(),
                                 user_display_name: user_display_name.clone(),
@@ -137,7 +140,9 @@ pub fn category_collapsing_header(
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
-                                    if ui.button("Send an Instant Message").clicked() {
+                                    if ui.button("Send an Instant Message").clicked() 
+                                        && contact.status.is_some() 
+                                        && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
                                         let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                             user_email,
                                             user_display_name,

@@ -295,7 +295,7 @@ impl eframe::App for MainWindow {
                             .lock()
                             .unwrap_or_else(|error| error.into_inner());
 
-                        conversation.get_participants().contains_key(&user_email)
+                        conversation.get_participants().contains_key(&contact.email)
                     }) {
                         ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
                     } else {
@@ -395,7 +395,6 @@ impl eframe::App for MainWindow {
                         conversation.add_switchboard(session_id, switchboard.switchboard);
                     } else {
                         let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
-
                         self.conversations.insert(
                             viewport_id,
                             Arc::new(Mutex::new(conversation::Conversation::new(
@@ -498,12 +497,13 @@ impl eframe::App for MainWindow {
                     .with_inner_size([1000., 650.])
                     .with_min_inner_size([800., 500.]),
                 move |ctx, _| {
-                    conversation
+                    let mut conversation = conversation
                         .lock()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .conversation(ctx);
+                        .unwrap_or_else(|error| error.into_inner());
 
+                    conversation.conversation(ctx);
                     if ctx.input(|input| input.viewport().close_requested()) {
+                        conversation.leave_switchboards();
                         let _ = sender.send(Message::CloseConversation(id));
                     }
                 },

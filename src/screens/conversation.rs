@@ -161,10 +161,18 @@ impl Conversation {
                                     .get_contact(&email)
                                     .unwrap_or(Contact {
                                         email: email.clone(),
-                                        display_name: email,
+                                        display_name: email.clone(),
                                         ..Contact::default()
                                     }),
                             );
+
+                            if self.last_participant.is_none()
+                                && self.participants.len() == 1
+                                && let Ok(message_history) =
+                                    self.sqlite.select_messages(&self.user_email, &email)
+                            {
+                                self.messages = message_history;
+                            }
                         }
 
                         msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
@@ -521,6 +529,8 @@ impl Conversation {
                                             && participant.email == message.sender
                                         {
                                             &*participant.display_name
+                                        } else if message.sender == self.user_email {
+                                            &self.user_display_name
                                         } else {
                                             &message.sender
                                         };
@@ -697,5 +707,13 @@ impl Conversation {
 
     pub fn add_switchboard(&mut self, session_id: Arc<String>, switchboard: Arc<Switchboard>) {
         self.switchboards.insert(session_id, switchboard);
+    }
+
+    pub fn leave_switchboards(&self) {
+        for switchboard in self.switchboards.values() {
+            let _ = self
+                .handle
+                .block_on(async { switchboard.disconnect().await });
+        }
     }
 }

@@ -110,9 +110,7 @@ pub fn status_selector(
 
         Status::SignOut => {
             *selected_status = old_status;
-            let client = client.clone();
-
-            tokio::spawn(async move { client.disconnect().await });
+            let _ = handle.block_on(async { client.disconnect().await });
             let _ = main_window_sender.send(crate::main_window::Message::SignOut);
         }
 
