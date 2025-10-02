@@ -1,3 +1,4 @@
+use crate::models::display_picture::DisplayPicture;
 use crate::sqlite::Sqlite;
 use image::imageops::FilterType;
 use msnp11_sdk::Client;
@@ -10,7 +11,7 @@ pub async fn pick_display_picture(
     email: Arc<String>,
     client: Arc<Client>,
     sqlite: Sqlite,
-) -> Result<Arc<[u8]>, Box<dyn std::error::Error + Sync + Send>> {
+) -> Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>> {
     let picture = picture_future.await.ok_or(std::io::Error::new(
         ErrorKind::NotFound,
         "Display picture not found",
@@ -27,5 +28,8 @@ pub async fn pick_display_picture(
     let _ = sqlite.update_user_display_picture(&email, &hash);
 
     let bytes = bytes.into_boxed_slice();
-    Ok(Arc::from(bytes))
+    Ok(DisplayPicture {
+        data: Arc::from(bytes),
+        hash: Arc::new(hash),
+    })
 }

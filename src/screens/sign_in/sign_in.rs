@@ -1,5 +1,6 @@
 use crate::helpers::run_future::run_future;
 use crate::helpers::sign_in_async::sign_in_async;
+use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
@@ -19,7 +20,7 @@ pub enum Message {
 }
 
 pub struct SignIn {
-    display_picture: Option<Arc<[u8]>>,
+    display_picture: Option<DisplayPicture>,
     emails: Vec<String>,
     email: String,
     password: String,
@@ -40,7 +41,7 @@ impl SignIn {
         sqlite: Sqlite,
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     ) -> Self {
-        let mut display_picture: Option<Arc<[u8]>> = None;
+        let mut display_picture = None;
         let mut email = String::default();
         let mut password = String::default();
         let mut remember_me = false;
@@ -144,12 +145,15 @@ impl eframe::App for SignIn {
                         tui.add_with_border(|tui| {
                             tui.ui(|ui| {
                                 ui.add(if let Some(picture) = self.display_picture.clone() {
-                                    egui::Image::from_bytes("bytes://picture.png", picture)
-                                        .fit_to_exact_size(egui::Vec2::splat(100.))
-                                        .corner_radius(
-                                            ui.visuals().widgets.noninteractive.corner_radius,
-                                        )
-                                        .alt_text("User display picture")
+                                    egui::Image::from_bytes(
+                                        format!("bytes://{}.png", picture.hash),
+                                        picture.data,
+                                    )
+                                    .fit_to_exact_size(egui::Vec2::splat(100.))
+                                    .corner_radius(
+                                        ui.visuals().widgets.noninteractive.corner_radius,
+                                    )
+                                    .alt_text("User display picture")
                                 } else {
                                     egui::Image::new(svg::default_display_picture())
                                         .fit_to_exact_size(egui::Vec2::splat(100.))

@@ -44,7 +44,9 @@ pub async fn sign_in_async(
         display_picture = user.display_picture;
 
         if let Some(display_picture) = &display_picture {
-            client.set_display_picture(display_picture.to_vec()).await?;
+            client
+                .set_display_picture(display_picture.data.to_vec())
+                .await?;
         }
     }
 

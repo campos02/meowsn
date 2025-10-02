@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
+use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
@@ -16,7 +17,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 
 pub enum Message {
-    DisplayPictureResult(Result<Arc<[u8]>, Box<dyn std::error::Error + Sync + Send>>),
+    DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
     StatusResult(Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
     BlockResult(Arc<String>, Result<(), SdkError>),
@@ -30,7 +31,7 @@ pub struct Contacts {
     user_email: Arc<String>,
     display_name: Arc<String>,
     personal_message: String,
-    display_picture: Option<Arc<[u8]>>,
+    display_picture: Option<DisplayPicture>,
     selected_status: Status,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
@@ -129,14 +130,16 @@ impl Contacts {
                         if let Some(msn_object) = &presence.msn_object
                             && msn_object.object_type == 3
                         {
-                            contact.display_picture = self
-                                .sqlite
-                                .select_display_picture(&msn_object.sha1d)
-                                .ok()
-                                .map(|picture| {
-                                    let picture = picture.into_boxed_slice();
-                                    Arc::from(picture)
-                                });
+                            contact.display_picture = if let Ok(picture) =
+                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
+                            {
+                                Some(DisplayPicture {
+                                    data: picture,
+                                    hash: Arc::new(msn_object.sha1d.clone()),
+                                })
+                            } else {
+                                None
+                            }
                         }
 
                         if let Some(presence) = &contact.status {
@@ -264,7 +267,18 @@ impl Contacts {
                 };
 
                 if let Some(contact) = contact {
-                    contact.display_picture = Some(data);
+                    if let Some(status) = &contact.status
+                        && let Some(msn_object) = &status.msn_object
+                    {
+                        let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
+                        contact.display_picture = Some(DisplayPicture {
+                            data,
+                            hash: Arc::new(msn_object.sha1d.clone()),
+                        });
+                    }
+
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(contact));
                 }
             }
 
@@ -439,12 +453,15 @@ impl eframe::App for Contacts {
                             tui.add_with_border(|tui| {
                                 tui.ui(|ui| {
                                     ui.add(if let Some(picture) = self.display_picture.clone() {
-                                        egui::Image::from_bytes("bytes://picture.png", picture)
-                                            .fit_to_exact_size(egui::Vec2::splat(60.))
-                                            .corner_radius(
-                                                ui.visuals().widgets.noninteractive.corner_radius,
-                                            )
-                                            .alt_text("User display picture")
+                                        egui::Image::from_bytes(
+                                            format!("bytes://{}.png", picture.hash),
+                                            picture.data,
+                                        )
+                                        .fit_to_exact_size(egui::Vec2::splat(60.))
+                                        .corner_radius(
+                                            ui.visuals().widgets.noninteractive.corner_radius,
+                                        )
+                                        .alt_text("User display picture")
                                     } else {
                                         egui::Image::new(svg::default_display_picture())
                                             .fit_to_exact_size(egui::Vec2::splat(60.))

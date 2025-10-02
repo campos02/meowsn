@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
+use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::{contacts, conversation, personal_settings, sign_in};
@@ -27,7 +28,7 @@ pub enum Message {
     OpenDialog(String),
     NotificationServerEvent(msnp11_sdk::Event),
     SwitchboardEvent(Arc<String>, msnp11_sdk::Event),
-    UserDisplayPictureChanged(Arc<[u8]>),
+    UserDisplayPictureChanged(DisplayPicture),
     ContactDisplayPictureEvent {
         email: String,
         data: Arc<[u8]>,
@@ -37,7 +38,7 @@ pub enum Message {
     OpenConversation {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
-        user_display_picture: Option<Arc<[u8]>>,
+        user_display_picture: Option<DisplayPicture>,
         contact_repository: ContactRepository,
         contact: Contact,
         client: Arc<Client>,
@@ -46,7 +47,7 @@ pub enum Message {
     CreateSessionResult {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
-        user_display_picture: Option<Arc<[u8]>>,
+        user_display_picture: Option<DisplayPicture>,
         contact_repository: ContactRepository,
         result: Result<Arc<Switchboard>, SdkError>,
     },
@@ -54,7 +55,7 @@ pub enum Message {
     OpenConversationWithSwitchboard {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
-        user_display_picture: Option<Arc<[u8]>>,
+        user_display_picture: Option<DisplayPicture>,
         contact_repository: ContactRepository,
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
@@ -259,8 +260,27 @@ impl eframe::App for MainWindow {
 
                 Message::ContactDisplayPictureEvent { email, data } => {
                     if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts
-                            .handle_event(Message::ContactDisplayPictureEvent { email, data }, ctx);
+                        contacts.handle_event(
+                            Message::ContactDisplayPictureEvent {
+                                email: email.clone(),
+                                data: data.clone(),
+                            },
+                            ctx,
+                        );
+                    }
+
+                    for conversation in self.conversations.values() {
+                        let mut conversation = conversation
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner());
+
+                        conversation.handle_event(
+                            Message::ContactDisplayPictureEvent {
+                                email: email.clone(),
+                                data: data.clone(),
+                            },
+                            ctx,
+                        );
                     }
                 }
 
@@ -387,6 +407,12 @@ impl eframe::App for MainWindow {
                             && switchboard.participants.iter().all(|participant| {
                                 conversation.get_participants().contains_key(participant)
                             })
+                            || conversation.get_participants().is_empty()
+                                && switchboard.participants.iter().all(|sb_participant| {
+                                    conversation.get_last_participant().as_ref().is_some_and(
+                                        |participant| *sb_participant == participant.email,
+                                    )
+                                })
                     }) {
                         let mut conversation = conversation
                             .lock()

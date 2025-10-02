@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
+use crate::models::display_picture::DisplayPicture;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::sqlite::Sqlite;
@@ -30,7 +31,7 @@ pub struct Conversation {
     messages: Vec<message::Message>,
     message_buffer: Vec<message::Message>,
     new_message: String,
-    user_display_picture: Option<Arc<[u8]>>,
+    user_display_picture: Option<DisplayPicture>,
     contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
@@ -49,7 +50,7 @@ impl Conversation {
     pub fn new(
         user_email: Arc<String>,
         user_display_name: Arc<String>,
-        user_display_picture: Option<Arc<[u8]>>,
+        user_display_picture: Option<DisplayPicture>,
         contact_repository: ContactRepository,
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
@@ -66,7 +67,7 @@ impl Conversation {
         let mut participants = HashMap::with_capacity(switchboard.participants.len());
         for participant in &switchboard.participants {
             participants.insert(
-                participant,
+                participant.clone(),
                 contact_repository
                     .get_contact(participant)
                     .unwrap_or(Contact {
@@ -91,7 +92,7 @@ impl Conversation {
             user_email,
             user_display_name,
             switchboards,
-            participants: HashMap::new(),
+            participants,
             last_participant: None,
             messages,
             message_buffer: Vec::new(),
@@ -127,15 +128,13 @@ impl Conversation {
                     if let Some(contact) = self.participants.get_mut(&email) {
                         if let Some(msn_object) = &presence.msn_object
                             && msn_object.object_type == 3
+                            && let Ok(picture) =
+                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
                         {
-                            contact.display_picture = self
-                                .sqlite
-                                .select_display_picture(&msn_object.sha1d)
-                                .ok()
-                                .map(|picture| {
-                                    let picture = picture.into_boxed_slice();
-                                    Arc::from(picture)
-                                });
+                            contact.display_picture = Some(DisplayPicture {
+                                data: picture,
+                                hash: Arc::new(msn_object.sha1d.clone()),
+                            });
                         }
 
                         contact.display_name = Arc::new(display_name);
@@ -143,15 +142,13 @@ impl Conversation {
                         if *contact.email == email {
                             if let Some(msn_object) = &presence.msn_object
                                 && msn_object.object_type == 3
+                                && let Ok(picture) =
+                                    self.sqlite.select_display_picture_data(&msn_object.sha1d)
                             {
-                                contact.display_picture = self
-                                    .sqlite
-                                    .select_display_picture(&msn_object.sha1d)
-                                    .ok()
-                                    .map(|picture| {
-                                        let picture = picture.into_boxed_slice();
-                                        Arc::from(picture)
-                                    });
+                                contact.display_picture = Some(DisplayPicture {
+                                    data: picture,
+                                    hash: Arc::new(msn_object.sha1d.clone()),
+                                });
                             }
 
                             contact.display_name = Arc::new(display_name);
@@ -341,10 +338,23 @@ impl Conversation {
             }
 
             crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
-                if let Some(contact) = self.participants.get_mut(&email) {
-                    contact.display_picture = Some(data);
-                } else if let Some(contact) = &mut self.last_participant {
-                    contact.display_picture = Some(data);
+                if let Some(contact) = self.participants.get_mut(&email)
+                    && let Some(presence) = &contact.status
+                    && let Some(msn_object) = &presence.msn_object
+                {
+                    contact.display_picture = Some(DisplayPicture {
+                        data,
+                        hash: Arc::new(msn_object.sha1d.clone()),
+                    });
+                } else if let Some(contact) = &mut self.last_participant
+                    && let Some(presence) = &contact.status
+                    && let Some(msn_object) = &presence.msn_object
+                    && *contact.email == email
+                {
+                    contact.display_picture = Some(DisplayPicture {
+                        data,
+                        hash: Arc::new(msn_object.sha1d.clone()),
+                    });
                 }
             }
 
@@ -494,7 +504,7 @@ impl Conversation {
                                 if let Some(participant) = self.participants.values().next() {
                                     ui.add(
                                         if let Some(picture) = participant.display_picture.clone() {
-                                            egui::Image::from_bytes("bytes://picture.png", picture)
+                                            egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
                                                 .fit_to_exact_size(egui::Vec2::splat(90.))
                                                 .corner_radius(
                                                     ui.visuals()
@@ -512,7 +522,7 @@ impl Conversation {
                                 } else if let Some(participant) = &self.last_participant {
                                     ui.add(
                                         if let Some(picture) = participant.display_picture.clone() {
-                                            egui::Image::from_bytes("bytes://picture.png", picture)
+                                            egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
                                                 .fit_to_exact_size(egui::Vec2::splat(90.))
                                                 .corner_radius(
                                                     ui.visuals()
@@ -564,8 +574,7 @@ impl Conversation {
                                                 participant.display_picture.clone()
                                             {
                                                 egui::Image::from_bytes(
-                                                    "bytes://picture.png",
-                                                    picture,
+                                                    format!("bytes://{}.png", picture.hash), picture.data
                                                 )
                                                 .fit_to_exact_size(egui::Vec2::splat(40.))
                                                 .corner_radius(
@@ -960,7 +969,7 @@ impl Conversation {
                     .add_with_border(|tui| {
                         tui.ui(|ui| {
                             ui.add(if let Some(picture) = self.user_display_picture.clone() {
-                                egui::Image::from_bytes("bytes://picture.png", picture)
+                                egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
                                     .fit_to_exact_size(egui::Vec2::splat(90.))
                                     .corner_radius(
                                         ui.visuals().widgets.noninteractive.corner_radius,
@@ -979,6 +988,10 @@ impl Conversation {
 
     pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {
         &self.participants
+    }
+
+    pub fn get_last_participant(&self) -> &Option<Contact> {
+        &self.last_participant
     }
 
     pub fn add_switchboard(&mut self, session_id: Arc<String>, switchboard: Arc<Switchboard>) {

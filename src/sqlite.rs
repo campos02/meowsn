@@ -1,3 +1,4 @@
+use crate::models::display_picture::DisplayPicture;
 use crate::models::message;
 use crate::models::user::User;
 use r2d2::Pool;
@@ -85,7 +86,16 @@ impl Sqlite {
             let users = stmt.query_map([email], |row| {
                 Ok(User {
                     personal_message: row.get(0).ok(),
-                    display_picture: row.get(1).ok(),
+                    display_picture: if let Ok(picture) = row.get(1)
+                        && let Ok(hash) = row.get(2)
+                    {
+                        Some(DisplayPicture {
+                            data: picture,
+                            hash: Arc::new(hash),
+                        })
+                    } else {
+                        None
+                    },
                 })
             });
 
@@ -95,10 +105,10 @@ impl Sqlite {
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
-    pub fn select_display_picture(&self, hash: &str) -> rusqlite::Result<Vec<u8>> {
+    pub fn select_display_picture_data(&self, hash: &str) -> rusqlite::Result<Arc<[u8]>> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare("SELECT picture FROM display_pictures WHERE hash = ?1")?;
-            let picture = stmt.query_map([hash], |row| row.get::<usize, Vec<u8>>(0))?;
+            let picture = stmt.query_map([hash], |row| row.get::<usize, Arc<[u8]>>(0))?;
             return picture.last().ok_or(rusqlite::Error::QueryReturnedNoRows)?;
         }
 

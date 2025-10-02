@@ -1,6 +1,7 @@
 use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
+use crate::models::display_picture::DisplayPicture;
 use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
@@ -20,7 +21,7 @@ pub fn category_collapsing_header(
     handle: Handle,
     user_email: Arc<String>,
     user_display_name: Arc<String>,
-    user_display_picture: Option<Arc<[u8]>>,
+    user_display_picture: Option<DisplayPicture>,
     user_status: crate::screens::contacts::status_selector::Status,
     contact_repository: ContactRepository,
     client: Arc<Client>,
