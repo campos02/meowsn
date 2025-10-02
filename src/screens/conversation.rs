@@ -103,7 +103,7 @@ impl Conversation {
         }
     }
 
-    pub fn handle_event(&mut self, message: crate::main_window::Message) {
+    pub fn handle_event(&mut self, message: crate::main_window::Message, ctx: &egui::Context) {
         match message {
             crate::main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
@@ -236,6 +236,21 @@ impl Conversation {
                                     )
                                     .body(&message.text)
                                     .show();
+
+                                if let Some(session_id) = self.switchboards.keys().next() {
+                                    ctx.send_viewport_cmd_to(
+                                        egui::ViewportId::from_hash_of(session_id),
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
+                                } else {
+                                    ctx.send_viewport_cmd(
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
+                                }
                             }
 
                             self.messages.push(message);
@@ -276,6 +291,21 @@ impl Conversation {
                                     .summary("New message")
                                     .body(&message.text)
                                     .show();
+
+                                if let Some(session_id) = self.switchboards.keys().next() {
+                                    ctx.send_viewport_cmd_to(
+                                        egui::ViewportId::from_hash_of(session_id),
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
+                                } else {
+                                    ctx.send_viewport_cmd(
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
+                                }
                             }
 
                             self.messages.push(message);

@@ -210,7 +210,7 @@ impl eframe::App for MainWindow {
                                 .unwrap_or_else(|error| error.into_inner());
 
                             conversation
-                                .handle_event(Message::NotificationServerEvent(event.clone()));
+                                .handle_event(Message::NotificationServerEvent(event.clone()), ctx);
                         }
                     }
                 }
@@ -236,10 +236,10 @@ impl eframe::App for MainWindow {
                                 .lock()
                                 .unwrap_or_else(|error| error.into_inner());
 
-                            conversation.handle_event(Message::SwitchboardEvent(
-                                session_id.clone(),
-                                event.clone(),
-                            ));
+                            conversation.handle_event(
+                                Message::SwitchboardEvent(session_id.clone(), event.clone()),
+                                ctx,
+                            );
 
                             ctx.request_repaint_of(*id);
                         }
@@ -253,7 +253,7 @@ impl eframe::App for MainWindow {
                             .unwrap_or_else(|error| error.into_inner());
 
                         conversation
-                            .handle_event(Message::UserDisplayPictureChanged(picture.clone()));
+                            .handle_event(Message::UserDisplayPictureChanged(picture.clone()), ctx);
                     }
                 }
 
