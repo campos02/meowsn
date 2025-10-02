@@ -12,6 +12,7 @@ use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
 use msnp11_sdk::{MsnpStatus, SdkError};
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub enum Message {
     SignInResult(Result<SignInReturn, SdkError>),
@@ -27,6 +28,7 @@ pub struct SignIn {
     selected_status: Status,
     signing_in: bool,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    handle: Handle,
     sqlite: Sqlite,
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
@@ -34,6 +36,7 @@ pub struct SignIn {
 
 impl SignIn {
     pub fn new(
+        handle: Handle,
         sqlite: Sqlite,
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     ) -> Self {
@@ -73,6 +76,7 @@ impl SignIn {
             selected_status: Status::Online,
             signing_in: false,
             main_window_sender,
+            handle,
             sqlite,
             sender,
             receiver,
@@ -336,6 +340,7 @@ impl eframe::App for SignIn {
                                         };
 
                                         run_future(
+                                            self.handle.clone(),
                                             async move {
                                                 sign_in_async(email, password, status, sqlite).await
                                             },

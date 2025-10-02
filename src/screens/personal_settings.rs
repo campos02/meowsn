@@ -6,6 +6,7 @@ use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::Client;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub struct PersonalSettings {
     display_name: Option<String>,
@@ -14,6 +15,7 @@ pub struct PersonalSettings {
     check_for_updates: bool,
     client: Option<Arc<Client>>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    handle: Handle,
 }
 
 impl PersonalSettings {
@@ -21,6 +23,7 @@ impl PersonalSettings {
         display_name: Option<String>,
         client: Option<Arc<Client>>,
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        handle: Handle,
     ) -> Self {
         let settings = settings::get_settings().unwrap_or_default();
         Self {
@@ -30,6 +33,7 @@ impl PersonalSettings {
             check_for_updates: settings.check_for_updates,
             client,
             main_window_sender,
+            handle,
         }
     }
 
@@ -138,6 +142,7 @@ impl PersonalSettings {
                                 {
                                     let new_display_name = display_name.clone();
                                     run_future(
+                                        self.handle.clone(),
                                         async move { client.set_display_name(&display_name).await },
                                         self.main_window_sender.clone(),
                                         move |result| {

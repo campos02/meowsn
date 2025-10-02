@@ -18,7 +18,15 @@ use eframe::egui;
 use std::sync::Arc;
 
 fn common_main() -> eframe::Result {
-    tokio::spawn(async move { helpers::notify_new_version::notify_new_version().await });
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    rt.block_on(async {
+        tokio::spawn(async move { helpers::notify_new_version::notify_new_version().await })
+    });
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([350., 600.])
@@ -66,21 +74,19 @@ fn common_main() -> eframe::Result {
                 .insert(0, "noto_sans_bold".to_string());
 
             cc.egui_ctx.set_fonts(fonts);
-            Ok(Box::<MainWindow>::default())
+            Ok(Box::new(MainWindow::new(rt.handle().clone())))
         }),
     )
 }
 
 #[cfg(target_os = "macos")]
-#[tokio::main]
-pub async fn main() -> eframe::Result {
+pub fn main() -> eframe::Result {
     let id = notify_rust::get_bundle_identifier_or_default("meowsn");
     notify_rust::set_application(&id).expect("Could not set application name");
     common_main()
 }
 
 #[cfg(not(target_os = "macos"))]
-#[tokio::main]
-pub async fn main() -> eframe::Result {
+pub fn main() -> eframe::Result {
     common_main()
 }

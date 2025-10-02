@@ -12,6 +12,7 @@ use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::Switchboard;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub struct Conversation {
     user_email: Arc<String>,
@@ -31,6 +32,8 @@ pub struct Conversation {
     italic: bool,
     underline: bool,
     strikethrough: bool,
+    focused: bool,
+    handle: Handle,
 }
 
 impl Conversation {
@@ -42,6 +45,7 @@ impl Conversation {
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
         sqlite: Sqlite,
+        handle: Handle,
     ) -> Self {
         let mut messages = Vec::new();
         if switchboard.participants.len() > 1
@@ -91,6 +95,8 @@ impl Conversation {
             italic: false,
             underline: false,
             strikethrough: false,
+            focused: false,
+            handle,
         }
     }
 
@@ -121,6 +127,23 @@ impl Conversation {
                         }
 
                         contact.display_name = Arc::new(display_name);
+                    } else if let Some(contact) = &mut self.last_participant {
+                        if *contact.email == email {
+                            if let Some(msn_object) = &presence.msn_object
+                                && msn_object.object_type == 3
+                            {
+                                contact.display_picture = self
+                                    .sqlite
+                                    .select_display_picture(&msn_object.sha1d)
+                                    .ok()
+                                    .map(|picture| {
+                                        let picture = picture.into_boxed_slice();
+                                        Arc::from(picture)
+                                    });
+                            }
+
+                            contact.display_name = Arc::new(display_name);
+                        }
                     }
                 }
 
@@ -128,20 +151,128 @@ impl Conversation {
             },
 
             crate::main_window::Message::SwitchboardEvent(session_id, event) => {
-                if let msnp11_sdk::Event::ParticipantInSwitchboard { email } = event
-                    && self.switchboards.contains_key(&session_id)
-                {
-                    let email = Arc::new(email);
-                    self.participants.insert(
-                        email.clone(),
-                        self.contact_repository
-                            .get_contact(&email)
-                            .unwrap_or(Contact {
-                                email: email.clone(),
-                                display_name: email,
-                                ..Contact::default()
-                            }),
-                    );
+                if self.switchboards.contains_key(&session_id) {
+                    match event {
+                        msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
+                            let email = Arc::new(email);
+                            self.participants.insert(
+                                email.clone(),
+                                self.contact_repository
+                                    .get_contact(&email)
+                                    .unwrap_or(Contact {
+                                        email: email.clone(),
+                                        display_name: email,
+                                        ..Contact::default()
+                                    }),
+                            );
+                        }
+
+                        msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
+                            let email = Arc::new(email);
+                            let participant = self.participants.remove(&email);
+
+                            if self.participants.is_empty() && participant.is_some() {
+                                self.last_participant = participant;
+                            }
+                        }
+
+                        msnp11_sdk::Event::TypingNotification { email } => {
+                            if self.participant_typing.is_none() {
+                                self.participant_typing =
+                                    if let Some(participant) = self.participants.get(&email) {
+                                        Some(participant.display_name.clone())
+                                    } else {
+                                        Some(Arc::new(email))
+                                    };
+                            }
+                        }
+
+                        msnp11_sdk::Event::TextMessage { email, message } => {
+                            let message = message::Message {
+                                sender: Arc::new(email),
+                                receiver: Some(self.user_email.clone()),
+                                is_nudge: false,
+                                text: message.text,
+                                bold: message.bold,
+                                italic: message.italic,
+                                underline: message.underline,
+                                strikethrough: message.strikethrough,
+                                session_id: None,
+                                color: message.color,
+                                is_history: false,
+                                errored: false,
+                            };
+
+                            let _ = self.sqlite.insert_message(&message);
+                            if !self.focused {
+                                let _ = notify_rust::Notification::new()
+                                    .summary(
+                                        format!(
+                                            "{} said:",
+                                            if let Some(participant) =
+                                                self.participants.get(&message.sender)
+                                            {
+                                                &participant.display_name
+                                            } else if let Some(participant) = &self.last_participant
+                                                && participant.email == message.sender
+                                            {
+                                                &*participant.display_name
+                                            } else {
+                                                &message.sender
+                                            }
+                                        )
+                                        .as_str(),
+                                    )
+                                    .body(&message.text)
+                                    .show();
+                            }
+
+                            self.messages.push(message);
+                            self.participant_typing = None;
+                        }
+
+                        msnp11_sdk::Event::Nudge { email } => {
+                            let sender = Arc::new(email);
+                            let message = message::Message {
+                                sender: sender.clone(),
+                                receiver: Some(self.user_email.clone()),
+                                is_nudge: true,
+                                text: format!(
+                                    "{} just sent you a nudge!",
+                                    if let Some(participant) = self.participants.get(&sender) {
+                                        &participant.display_name
+                                    } else if let Some(participant) = &self.last_participant
+                                        && participant.email == sender
+                                    {
+                                        &*participant.display_name
+                                    } else {
+                                        &sender
+                                    }
+                                ),
+                                bold: false,
+                                italic: false,
+                                underline: false,
+                                strikethrough: false,
+                                session_id: None,
+                                color: "0".to_string(),
+                                is_history: false,
+                                errored: false,
+                            };
+
+                            let _ = self.sqlite.insert_message(&message);
+                            if !self.focused {
+                                let _ = notify_rust::Notification::new()
+                                    .summary("New message")
+                                    .body(&message.text)
+                                    .show();
+                            }
+
+                            self.messages.push(message);
+                            self.participant_typing = None;
+                        }
+
+                        _ => (),
+                    }
                 }
             }
 
@@ -152,6 +283,8 @@ impl Conversation {
             crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
                 if let Some(contact) = self.participants.get_mut(&email) {
                     contact.display_picture = Some(data);
+                } else if let Some(contact) = &mut self.last_participant {
+                    contact.display_picture = Some(data);
                 }
             }
 
@@ -160,6 +293,8 @@ impl Conversation {
     }
 
     pub fn conversation(&mut self, ctx: &egui::Context) {
+        self.focused = ctx.input(|input| input.viewport().focused.is_some_and(|focused| focused));
+
         egui::CentralPanel::default().show(ctx, |ui| {
             tui(ui, ui.id().with("conversation-screen"))
                 .reserve_available_space()
@@ -461,7 +596,25 @@ impl Conversation {
                         grid_row: line(4),
                         ..Default::default()
                     })
-                    .label("is writing a message...");
+                    .label(
+                        if let Some(typing_participant) = self.participant_typing.clone() {
+                            let display_name = if let Some(participant) =
+                                self.participants.get(&typing_participant)
+                            {
+                                &participant.display_name
+                            } else if let Some(participant) = &self.last_participant
+                                && participant.email == typing_participant
+                            {
+                                &*participant.display_name
+                            } else {
+                                &typing_participant
+                            };
+
+                            format!("{} is writing a message...", display_name)
+                        } else {
+                            "".to_string()
+                        },
+                    );
 
                     tui.style(taffy::Style {
                         justify_self: Some(taffy::JustifySelf::Stretch),

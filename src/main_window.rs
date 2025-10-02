@@ -12,6 +12,7 @@ use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, SdkError, Switchboard};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tokio::runtime::Handle;
 
 enum Screen {
     SignIn(sign_in::sign_in::SignIn),
@@ -69,16 +70,18 @@ pub struct MainWindow {
     personal_settings_window: Option<Arc<Mutex<personal_settings::PersonalSettings>>>,
     dialog_window_text: Option<String>,
     conversations: HashMap<egui::ViewportId, Arc<Mutex<conversation::Conversation>>>,
+    handle: Handle,
     sqlite: Sqlite,
 }
 
-impl Default for MainWindow {
-    fn default() -> Self {
+impl MainWindow {
+    pub fn new(handle: Handle) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         let sqlite = Sqlite::new().expect("Could not create database");
 
         Self {
             screen: Screen::SignIn(sign_in::sign_in::SignIn::new(
+                handle.clone(),
                 sqlite.clone(),
                 sender.clone(),
             )),
@@ -87,6 +90,7 @@ impl Default for MainWindow {
             personal_settings_window: None,
             dialog_window_text: None,
             conversations: HashMap::new(),
+            handle,
             sqlite,
         }
     }
@@ -115,14 +119,17 @@ impl eframe::App for MainWindow {
                         sign_in_return,
                         self.sender.clone(),
                         self.sqlite.clone(),
+                        self.handle.clone(),
                     ));
 
                     let sender = self.sender.clone();
-                    client.add_event_handler_closure(move |event| {
-                        let sender = sender.clone();
-                        async move {
-                            let _ = sender.send(Message::NotificationServerEvent(event));
-                        }
+                    self.handle.block_on(async {
+                        client.add_event_handler_closure(move |event| {
+                            let sender = sender.clone();
+                            async move {
+                                let _ = sender.send(Message::NotificationServerEvent(event));
+                            }
+                        });
                     });
 
                     ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
@@ -132,6 +139,7 @@ impl eframe::App for MainWindow {
 
                 Message::SignOut => {
                     self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                        self.handle.clone(),
                         self.sqlite.clone(),
                         self.sender.clone(),
                     ));
@@ -149,6 +157,7 @@ impl eframe::App for MainWindow {
                                 display_name,
                                 client,
                                 self.sender.clone(),
+                                self.handle.clone(),
                             ),
                         )));
                     }
@@ -165,6 +174,7 @@ impl eframe::App for MainWindow {
                 Message::NotificationServerEvent(event) => {
                     if let msnp11_sdk::Event::Disconnected = event {
                         self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                            self.handle.clone(),
                             self.sqlite.clone(),
                             self.sender.clone(),
                         ));
@@ -175,6 +185,7 @@ impl eframe::App for MainWindow {
                         ));
                     } else if let msnp11_sdk::Event::LoggedInAnotherDevice = event {
                         self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                            self.handle.clone(),
                             self.sqlite.clone(),
                             self.sender.clone(),
                         ));
@@ -187,7 +198,16 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::NotificationServerEvent(event));
+                        contacts.handle_event(Message::NotificationServerEvent(event.clone()));
+                        for conversation in self.conversations.values() {
+                            let mut conversation = conversation
+                                .lock()
+                                .unwrap_or_else(|error| error.into_inner());
+
+                            conversation
+                                .handle_event(Message::NotificationServerEvent(event.clone()));
+                        }
+
                         ctx.request_repaint();
                     }
                 }
@@ -200,11 +220,24 @@ impl eframe::App for MainWindow {
                         let _ = self
                             .sender
                             .send(Message::ContactDisplayPictureEvent { email, data });
-                    } else {
-                        if let Screen::Contacts(contacts) = &mut self.screen {
-                            contacts.handle_event(Message::SwitchboardEvent(session_id, event));
-                            ctx.request_repaint();
+                    } else if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(Message::SwitchboardEvent(
+                            session_id.clone(),
+                            event.clone(),
+                        ));
+
+                        for conversation in self.conversations.values() {
+                            let mut conversation = conversation
+                                .lock()
+                                .unwrap_or_else(|error| error.into_inner());
+
+                            conversation.handle_event(Message::SwitchboardEvent(
+                                session_id.clone(),
+                                event.clone(),
+                            ));
                         }
+
+                        ctx.request_repaint();
                     }
                 }
 
@@ -264,6 +297,7 @@ impl eframe::App for MainWindow {
                         let sender = self.sender.clone();
 
                         run_future(
+                            self.handle.clone(),
                             async move { client.create_session(&contact_email).await },
                             sender,
                             move |result| Message::CreateSessionResult {
@@ -285,8 +319,7 @@ impl eframe::App for MainWindow {
                     result,
                 } => {
                     if let Ok(switchboard) = result
-                        && let Ok(session_id) =
-                            tokio::runtime::Handle::current().block_on(switchboard.get_session_id())
+                        && let Ok(session_id) = self.handle.block_on(switchboard.get_session_id())
                     {
                         let switchboard = SwitchboardAndParticipants {
                             switchboard,
@@ -295,6 +328,7 @@ impl eframe::App for MainWindow {
 
                         let session_id = Arc::new(session_id);
                         let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
+                        let inner_switchboard = switchboard.switchboard.clone();
 
                         self.conversations.insert(
                             viewport_id,
@@ -303,11 +337,25 @@ impl eframe::App for MainWindow {
                                 user_display_name,
                                 user_display_picture,
                                 contact_repository,
-                                session_id,
+                                session_id.clone(),
                                 switchboard,
                                 self.sqlite.clone(),
+                                self.handle.clone(),
                             ))),
                         );
+
+                        let sender = self.sender.clone();
+                        self.handle.block_on(async {
+                            inner_switchboard.add_event_handler_closure(move |event| {
+                                let sender = sender.clone();
+                                let session_id = session_id.clone();
+
+                                async move {
+                                    let _ =
+                                        sender.send(Message::SwitchboardEvent(session_id, event));
+                                }
+                            });
+                        });
                     }
                 }
 
@@ -347,6 +395,7 @@ impl eframe::App for MainWindow {
                                 session_id,
                                 switchboard,
                                 self.sqlite.clone(),
+                                self.handle.clone(),
                             ))),
                         );
                     };

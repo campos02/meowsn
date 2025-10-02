@@ -7,6 +7,7 @@ use msnp11_sdk::{Client, MsnpStatus};
 use rfd::AsyncFileDialog;
 use std::fmt::Display;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Status {
@@ -40,6 +41,7 @@ pub fn status_selector(
     selected_status: &mut Status,
     contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    handle: Handle,
     sqlite: Sqlite,
     client: Arc<Client>,
 ) {
@@ -91,6 +93,7 @@ pub fn status_selector(
                 .pick_file();
 
             run_future(
+                handle.clone(),
                 pick_display_picture(picture, email, client, sqlite),
                 contacts_sender,
                 crate::screens::contacts::contacts::Message::DisplayPictureResult,
@@ -123,6 +126,7 @@ pub fn status_selector(
 
             let client = client.clone();
             run_future(
+                handle.clone(),
                 async move { client.set_presence(status).await },
                 contacts_sender,
                 crate::screens::contacts::contacts::Message::StatusResult,

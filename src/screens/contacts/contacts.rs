@@ -13,6 +13,7 @@ use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub enum Message {
     DisplayPictureResult(Result<Arc<[u8]>, Box<dyn std::error::Error + Sync + Send>>),
@@ -43,6 +44,7 @@ pub struct Contacts {
     sqlite: Sqlite,
     add_contact_window: Option<crate::screens::add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
+    handle: Handle,
 }
 
 impl Contacts {
@@ -50,6 +52,7 @@ impl Contacts {
         sign_in_return: SignInReturn,
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
+        handle: Handle,
     ) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         let selected_status = match sign_in_return.status {
@@ -77,6 +80,7 @@ impl Contacts {
             sqlite,
             add_contact_window: None,
             orphan_switchboards: HashMap::new(),
+            handle,
         }
     }
 
@@ -197,9 +201,7 @@ impl Contacts {
                 }
 
                 msnp11_sdk::Event::SessionAnswered(switchboard) => {
-                    if let Ok(session_id) =
-                        tokio::runtime::Handle::current().block_on(switchboard.get_session_id())
-                    {
+                    if let Ok(session_id) = self.handle.block_on(switchboard.get_session_id()) {
                         let session_id = Arc::new(session_id);
                         self.orphan_switchboards.insert(
                             session_id.clone(),
@@ -210,15 +212,18 @@ impl Contacts {
                         );
 
                         let sender = self.main_window_sender.clone();
-                        switchboard.add_event_handler_closure(move |event| {
-                            let sender = sender.clone();
-                            let session_id = session_id.clone();
+                        self.handle.block_on(async {
+                            switchboard.add_event_handler_closure(move |event| {
+                                let sender = sender.clone();
+                                let session_id = session_id.clone();
 
-                            async move {
-                                let _ = sender.send(crate::main_window::Message::SwitchboardEvent(
-                                    session_id, event,
-                                ));
-                            }
+                                async move {
+                                    let _ =
+                                        sender.send(crate::main_window::Message::SwitchboardEvent(
+                                            session_id, event,
+                                        ));
+                                }
+                            });
                         });
                     }
                 }
@@ -427,6 +432,7 @@ impl eframe::App for Contacts {
                                         &mut self.selected_status,
                                         self.sender.clone(),
                                         self.main_window_sender.clone(),
+                                        self.handle.clone(),
                                         self.sqlite.clone(),
                                         self.client.clone(),
                                     );
@@ -452,6 +458,7 @@ impl eframe::App for Contacts {
                                         };
 
                                         run_future(
+                                            self.handle.clone(),
                                             async move {
                                                 client.set_personal_message(&personal_message).await
                                             },
@@ -487,6 +494,7 @@ impl eframe::App for Contacts {
                                             Some(crate::screens::add_contact::AddContact::new(
                                                 self.client.clone(),
                                                 self.sender.clone(),
+                                                self.handle.clone(),
                                             ));
                                     }
                                 }
@@ -503,7 +511,13 @@ impl eframe::App for Contacts {
                                 "Online",
                                 &mut self.selected_contact,
                                 &self.online_contacts,
+                                self.main_window_sender.clone(),
                                 self.sender.clone(),
+                                self.handle.clone(),
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.contact_repository.clone(),
                                 self.client.clone(),
                             );
 
@@ -512,7 +526,13 @@ impl eframe::App for Contacts {
                                 "Offline",
                                 &mut self.selected_contact,
                                 &self.offline_contacts,
+                                self.main_window_sender.clone(),
                                 self.sender.clone(),
+                                self.handle.clone(),
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.contact_repository.clone(),
                                 self.client.clone(),
                             );
                         });

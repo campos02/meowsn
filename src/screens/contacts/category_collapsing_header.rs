@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::svg;
@@ -7,13 +8,20 @@ use eframe::egui::{TextFormat, Ui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub fn category_collapsing_header(
     ui: &mut Ui,
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
     contacts: &HashMap<Arc<String>, Contact>,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    handle: Handle,
+    user_email: Arc<String>,
+    user_display_name: Arc<String>,
+    user_display_picture: Option<Arc<[u8]>>,
+    contact_repository: ContactRepository,
     client: Arc<Client>,
 ) {
     egui::CollapsingHeader::new(name)
@@ -23,7 +31,12 @@ pub fn category_collapsing_header(
                 ui.label("No contacts in this category");
             } else {
                 for contact in contacts.values() {
+                    let user_email = user_email.clone();
+                    let user_display_name = user_display_name.clone();
+                    let user_display_picture = user_display_picture.clone();
+                    let contact_repository = contact_repository.clone();
                     let client = client.clone();
+                    
                     ui.horizontal(|ui| {
                         let mut alt_text = "Contact is offline";
                         ui.add(
@@ -108,12 +121,33 @@ pub fn category_collapsing_header(
                             *selected_contact = Some(contact.email.clone());
                         }
 
+                        if label.double_clicked() {
+                            let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
+                                user_email: user_email.clone(),
+                                user_display_name: user_display_name.clone(),
+                                user_display_picture: user_display_picture.clone(),
+                                contact_repository: contact_repository.clone(),
+                                contact: contact.clone(),
+                                client: client.clone(),
+                            });
+                        }
+
                         ui.style_mut().spacing.button_padding = egui::Vec2::splat(5.);
                         label.context_menu(|ui| {
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
-                                    ui.button("Send an Instant Message");
+                                    if ui.button("Send an Instant Message").clicked() {
+                                        let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
+                                            user_email,
+                                            user_display_name,
+                                            user_display_picture,
+                                            contact_repository,
+                                            contact: contact.clone(),
+                                            client: client.clone(),
+                                        });
+                                    }
+
                                     ui.separator();
 
                                     if contact.lists.contains(&MsnpList::BlockList) {
@@ -123,6 +157,7 @@ pub fn category_collapsing_header(
 
                                         if ui.button("Unblock").clicked() {
                                             run_future(
+                                                handle.clone(),
                                                 async move { client.unblock_contact(&email).await },
                                                 contacts_sender.clone(),
                                                 move |result| crate::screens::contacts::contacts::Message::UnblockResult(contact.clone(), result),
@@ -135,6 +170,7 @@ pub fn category_collapsing_header(
 
                                         if ui.button("Block").clicked() {
                                             run_future(
+                                                handle.clone(),
                                                 async move { client.block_contact(&email).await },
                                                 contacts_sender.clone(),
                                                 move |result| crate::screens::contacts::contacts::Message::BlockResult(contact.clone(), result),
@@ -147,6 +183,7 @@ pub fn category_collapsing_header(
                                         let contact = contact.email.clone();
 
                                         run_future(
+                                            handle.clone(),
                                             async move { client.remove_contact(&email, MsnpList::ForwardList).await },
                                             contacts_sender.clone(),
                                             move |result| crate::screens::contacts::contacts::Message::DeleteResult(contact.clone(), result),

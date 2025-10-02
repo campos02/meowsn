@@ -4,24 +4,28 @@ use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpList};
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub struct AddContact {
     email: String,
     display_name: String,
     client: Arc<Client>,
     contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    handle: Handle,
 }
 
 impl AddContact {
     pub fn new(
         client: Arc<Client>,
         contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+        handle: Handle,
     ) -> Self {
         Self {
             email: String::default(),
             display_name: String::default(),
             client,
             contacts_sender,
+            handle,
         }
     }
 
@@ -88,7 +92,8 @@ impl AddContact {
                                         self.email.clone()
                                     };
 
-                                    run_future(async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
+                                    run_future(self.handle.clone(),
+                                               async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
                                                contacts_sender,
                                                crate::screens::contacts::contacts::Message::AddContactResult);
 
