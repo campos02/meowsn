@@ -323,6 +323,7 @@ impl eframe::App for MainWindow {
                                     .as_ref()
                                     .is_some_and(|participant| participant.email == contact.email)
                     }) {
+                        ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Visible(true));
                         ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
                     } else {
                         let contact_email = contact.email.clone();
@@ -374,6 +375,7 @@ impl eframe::App for MainWindow {
                                 self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
+                                true,
                             ))),
                         );
 
@@ -440,6 +442,7 @@ impl eframe::App for MainWindow {
                                 self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
+                                false,
                             ))),
                         );
                     };
@@ -527,12 +530,24 @@ impl eframe::App for MainWindow {
             let conversation = conversation.clone();
             let id = *id;
 
+            let visible;
+            let title;
+            {
+                let conversation = conversation
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+
+                visible = conversation.visible();
+                title = conversation.get_title();
+            }
+
             ctx.show_viewport_deferred(
                 id,
                 egui::ViewportBuilder::default()
-                    .with_title("Conversation")
+                    .with_title(title)
                     .with_inner_size([1000., 650.])
-                    .with_min_inner_size([800., 500.]),
+                    .with_min_inner_size([800., 500.])
+                    .with_visible(visible),
                 move |ctx, _| {
                     let mut conversation = conversation
                         .lock()
