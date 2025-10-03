@@ -15,7 +15,7 @@ pub fn category_collapsing_header(
     ui: &mut Ui,
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
-    contacts: &HashMap<Arc<String>, Contact>,
+    contacts: &mut HashMap<Arc<String>, Contact>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
     handle: Handle,
@@ -32,7 +32,7 @@ pub fn category_collapsing_header(
             if contacts.is_empty() {
                 ui.label("No contacts in this category");
             } else {
-                for contact in contacts.values() {
+                for contact in contacts.values_mut() {
                     let user_email = user_email.clone();
                     let user_display_name = user_display_name.clone();
                     let user_display_picture = user_display_picture.clone();
@@ -126,6 +126,8 @@ pub fn category_collapsing_header(
                         if label.double_clicked()
                             && contact.status.is_some()
                             && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
+                            contact.opening_conversation = true;
+
                             let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                 user_email: user_email.clone(),
                                 user_display_name: user_display_name.clone(),
@@ -144,6 +146,8 @@ pub fn category_collapsing_header(
                                     if ui.button("Send an Instant Message").clicked() 
                                         && contact.status.is_some() 
                                         && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
+                                        contact.opening_conversation = true;
+
                                         let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                             user_email,
                                             user_display_name,

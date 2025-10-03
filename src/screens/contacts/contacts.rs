@@ -282,6 +282,18 @@ impl Contacts {
                 }
             }
 
+            crate::main_window::Message::ContactChatWindowFocused(email) => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = contact {
+                    contact.opening_conversation = false;
+                }
+            }
+
             _ => (),
         }
     }
@@ -558,7 +570,7 @@ impl eframe::App for Contacts {
                                 ui,
                                 "Online",
                                 &mut self.selected_contact,
-                                &self.online_contacts,
+                                &mut self.online_contacts,
                                 self.main_window_sender.clone(),
                                 self.sender.clone(),
                                 self.handle.clone(),
@@ -574,7 +586,7 @@ impl eframe::App for Contacts {
                                 ui,
                                 "Offline",
                                 &mut self.selected_contact,
-                                &self.offline_contacts,
+                                &mut self.offline_contacts,
                                 self.main_window_sender.clone(),
                                 self.sender.clone(),
                                 self.handle.clone(),

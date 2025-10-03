@@ -62,6 +62,7 @@ pub enum Message {
     },
 
     CloseConversation(egui::ViewportId),
+    ContactChatWindowFocused(Arc<String>),
 }
 
 pub struct MainWindow {
@@ -370,6 +371,7 @@ impl eframe::App for MainWindow {
                                 contact_repository,
                                 session_id.clone(),
                                 switchboard,
+                                self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
                             ))),
@@ -435,6 +437,7 @@ impl eframe::App for MainWindow {
                                 contact_repository,
                                 session_id,
                                 switchboard,
+                                self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
                             ))),
@@ -444,6 +447,12 @@ impl eframe::App for MainWindow {
 
                 Message::CloseConversation(id) => {
                     self.conversations.remove(&id);
+                }
+
+                Message::ContactChatWindowFocused(email) => {
+                    if let Screen::Contacts(contacts) = &mut self.screen {
+                        contacts.handle_event(Message::ContactChatWindowFocused(email), ctx);
+                    }
                 }
             }
         }

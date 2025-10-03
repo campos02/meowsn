@@ -35,6 +35,7 @@ pub struct Conversation {
     contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
     user_typing: bool,
@@ -54,6 +55,7 @@ impl Conversation {
         contact_repository: ContactRepository,
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
     ) -> Self {
@@ -101,6 +103,7 @@ impl Conversation {
             contact_repository,
             sqlite,
             participant_typing: None,
+            main_window_sender,
             sender,
             receiver,
             user_typing: false,
@@ -417,11 +420,8 @@ impl Conversation {
                 if participant.display_picture.is_none()
                     && let Some(status) = &participant.status
                     && let Some(msn_object) = status.msn_object_string.clone()
+                    && let Some(switchboard) = self.switchboards.values().next().cloned()
                 {
-                    let Some(switchboard) = self.switchboards.values().next().cloned() else {
-                        continue;
-                    };
-
                     let email = participant.email.clone();
                     self.handle.spawn(async move {
                         switchboard
@@ -429,6 +429,12 @@ impl Conversation {
                             .await
                     });
                 }
+
+                let _ = self.main_window_sender.send(
+                    crate::main_window::Message::ContactChatWindowFocused(
+                        participant.email.clone(),
+                    ),
+                );
             }
         }
 
