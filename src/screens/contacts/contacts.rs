@@ -6,11 +6,10 @@ use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::msnp_listener::Input;
 use crate::screens::contacts::bordered_container::bordered_container;
 use crate::screens::contacts::contact_map::contact_map;
-use crate::screens::contacts::transparent_button::transparent_button;
 use crate::sqlite::Sqlite;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
-use iced::widget::{column, container, pick_list, row, scrollable, svg, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
 use iced::{Background, Center, Color, Element, Fill, Padding, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use rfd::AsyncFileDialog;
@@ -151,7 +150,7 @@ impl Contacts {
                         .align_y(Center)
                         .spacing(20),
                         text_input("<Type a personal message>", &self.personal_message)
-                            .width(250)
+                            .width(300)
                             .size(14)
                             .on_input(Message::PersonalMessageChanged)
                             .on_submit(Message::PersonalMessageSubmit)
@@ -177,7 +176,9 @@ impl Contacts {
                 .spacing(10),
                 row![
                     svg(crate::svg::add_contact()).width(30),
-                    transparent_button("Add a contact").on_press(Message::AddContact),
+                    button("Add a contact")
+                        .style(button::text)
+                        .on_press(Message::AddContact),
                 ]
                 .align_y(Center),
                 scrollable(column![

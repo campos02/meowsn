@@ -1,10 +1,10 @@
 use crate::enums::sign_in_status::SignInStatus;
 use crate::screens::sign_in::bordered_container::bordered_container;
 use crate::sqlite::Sqlite;
-use iced::widget;
 use iced::widget::{
     button, checkbox, column, combo_box, container, pick_list, row, svg, text, text_input,
 };
+use iced::{Background, Color, Theme, widget};
 use iced::{Center, Element, Fill};
 use keyring::Entry;
 use std::borrow::Cow;
@@ -123,6 +123,24 @@ impl SignIn {
                         Message::StatusSelected
                     )
                     .text_size(14)
+                    .style(|theme: &Theme, status| {
+                        match status {
+                            pick_list::Status::Active => {
+                                let mut list = pick_list::default(theme, status);
+                                list.background = Background::Color(Color::TRANSPARENT);
+                                list.border.width = 0.0;
+                                list
+                            }
+
+                            _ => {
+                                let mut list = pick_list::default(theme, status);
+                                list.border.color = theme.extended_palette().secondary.strong.color;
+                                list.background =
+                                    Background::from(theme.extended_palette().secondary.weak.color);
+                                list
+                            }
+                        }
+                    })
                 ]
                 .spacing(3)
                 .align_y(Center),

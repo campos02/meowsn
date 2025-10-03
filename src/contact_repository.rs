@@ -22,14 +22,6 @@ impl ContactRepository {
         }
     }
 
-    pub fn get_contacts(&self) -> Option<Vec<Contact>> {
-        if let Ok(contacts) = self.contacts.lock() {
-            Some(contacts.values().cloned().collect())
-        } else {
-            None
-        }
-    }
-
     pub fn add_contacts(&self, contacts: &[Contact]) {
         if let Ok(mut contacts_lock) = self.contacts.lock() {
             contacts_lock.reserve(contacts.len());
