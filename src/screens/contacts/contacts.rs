@@ -124,13 +124,12 @@ impl Contacts {
                     },
                     column![
                         row![
-                            text(format!(" {}", self.display_name)).size(14),
+                            text(format!(" {}", self.display_name)),
                             pick_list(
                                 ContactListStatus::ALL,
                                 self.status.as_ref(),
                                 Message::StatusSelected
                             )
-                            .text_size(14)
                             .style(|theme: &Theme, status| {
                                 match status {
                                     pick_list::Status::Active => {
@@ -154,7 +153,6 @@ impl Contacts {
                         .spacing(20),
                         text_input("<Type a personal message>", &self.personal_message)
                             .width(300)
-                            .size(14)
                             .on_input(Message::PersonalMessageChanged)
                             .on_submit(Message::PersonalMessageSubmit)
                             .style(|theme: &Theme, status| {
@@ -179,7 +177,7 @@ impl Contacts {
                 .spacing(10),
                 row![
                     svg(crate::svg::add_contact()).width(30),
-                    button("Add a contact")
+                    button(text("Add a contact").size(15))
                         .style(button::text)
                         .on_press(Message::AddContact),
                 ]
@@ -371,6 +369,7 @@ impl Contacts {
             }
 
             Message::AddContact => {
+                self.selected_contact = None;
                 action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
                     self.client.clone(),
                 ))));

@@ -44,28 +44,23 @@ impl PersonalSettings {
         container(
             column![
                 column![
-                    text("Display name:").size(14),
+                    text("Display name:"),
                     if self.client.is_some() {
                         text_input("Display name", &self.display_name)
-                            .size(14)
                             .on_input(Message::DisplayNameChanged)
                     } else {
-                        text_input("Display name", &self.display_name).size(14)
+                        text_input("Display name", &self.display_name)
                     }
                 ]
                 .spacing(5),
                 column![
-                    text("Server:").size(14),
-                    text_input("Server", &self.server)
-                        .size(14)
-                        .on_input(Message::ServerChanged)
+                    text("Server:"),
+                    text_input("Server", &self.server).on_input(Message::ServerChanged)
                 ]
                 .spacing(5),
                 column![
-                    text("Nexus URL:").size(14),
-                    text_input("Nexus URL", &self.nexus_url)
-                        .size(14)
-                        .on_input(Message::NexusUrlChanged)
+                    text("Nexus URL:"),
+                    text_input("Nexus URL", &self.nexus_url).on_input(Message::NexusUrlChanged)
                 ]
                 .spacing(5),
                 container(

@@ -41,7 +41,7 @@ pub fn contact_map(
                 .width(30),
                 mouse_area(
                     container(row![
-                        text(&*contact.display_name),
+                        text(&*contact.display_name).size(15),
                         if let Some(personal_message) = &contact.personal_message
                             && !personal_message.is_empty()
                         {
@@ -50,8 +50,10 @@ pub fn contact_map(
                             };
 
                             row![
-                                text(" - ").style(personal_message_color),
-                                text(&**personal_message).style(personal_message_color)
+                                text(" - ").style(personal_message_color).size(15),
+                                text(&**personal_message)
+                                    .style(personal_message_color)
+                                    .size(15)
                             ]
                         } else {
                             row![]

@@ -13,8 +13,8 @@ use helpers::notify_new_version::notify_new_version;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
 use iced::widget::space;
-use iced::window::{Position, Settings, UserAttention, icon};
-use iced::{Element, Size, Subscription, Task, Theme, keyboard, widget, window};
+use iced::window::{Position, UserAttention, icon};
+use iced::{Element, Pixels, Size, Subscription, Task, Theme, keyboard, widget, window};
 use models::switchboard_and_participants::SwitchboardAndParticipants;
 use msnp_listener::Input;
 use msnp11_sdk::{Client, MsnpStatus, SdkError, Switchboard};
@@ -115,7 +115,10 @@ struct MeowSN {
 impl MeowSN {
     fn new() -> (Self, Task<Message>) {
         let sqlite = Sqlite::new().expect("Could not create database");
-        let (id, open) = window::open(MeowSN::window_settings(Size::new(450.0, 600.0)));
+        let (id, open) = window::open(MeowSN::window_settings(
+            Size::new(360.0, 620.0),
+            Size::new(300.0, 400.0),
+        ));
 
         (
             Self {
@@ -268,7 +271,11 @@ impl MeowSN {
                     return window::gain_focus(*id);
                 }
 
-                let (_, open) = window::open(MeowSN::window_settings(Size::new(500.0, 500.0)));
+                let (_, open) = window::open(MeowSN::window_settings(
+                    Size::new(400.0, 500.0),
+                    Size::new(400.0, 500.0),
+                ));
+
                 open.map(move |id| Message::WindowOpened {
                     id,
                     screen: Screen::PersonalSettings(personal_settings::PersonalSettings::new(
@@ -333,8 +340,10 @@ impl MeowSN {
                         }
 
                         let sqlite = self.sqlite.clone();
-                        let (_, open) =
-                            window::open(MeowSN::window_settings(Size::new(1000.0, 600.0)));
+                        let (_, open) = window::open(MeowSN::window_settings(
+                            Size::new(1100.0, 650.0),
+                            Size::new(800.0, 400.0),
+                        ));
 
                         open.map(move |id| Message::WindowOpened {
                             id,
@@ -391,10 +400,12 @@ impl MeowSN {
                         ),
                     ))
                 } else {
-                    let mut settings = MeowSN::window_settings(Size::new(1000.0, 600.0));
-                    settings.visible = false;
+                    let mut settings =
+                        MeowSN::window_settings(Size::new(1000.0, 600.0), Size::new(800.0, 400.0));
 
+                    settings.visible = false;
                     let (id, open) = window::open(settings);
+
                     let mut session_id = session_id.clone();
                     let sqlite = self.sqlite.clone();
 
@@ -425,9 +436,12 @@ impl MeowSN {
                     return window::gain_focus(id);
                 }
 
-                let (id, open) = window::open(MeowSN::window_settings(Size::new(400.0, 150.0)));
-                self.modal_id = Some(id);
+                let (id, open) = window::open(MeowSN::window_settings(
+                    Size::new(400.0, 150.0),
+                    Size::new(400.0, 150.0),
+                ));
 
+                self.modal_id = Some(id);
                 Task::batch([
                     open.map(move |id| Message::WindowOpened {
                         id,
@@ -454,7 +468,11 @@ impl MeowSN {
                     return window::gain_focus(*id);
                 }
 
-                let (_, open) = window::open(MeowSN::window_settings(Size::new(400.0, 220.0)));
+                let (_, open) = window::open(MeowSN::window_settings(
+                    Size::new(400.0, 220.0),
+                    Size::new(400.0, 220.0),
+                ));
+
                 open.map(move |id| Message::WindowOpened {
                     id,
                     screen: Screen::AddContact(add_contact::AddContact::new(client.clone())),
@@ -690,13 +708,13 @@ impl MeowSN {
         ])
     }
 
-    fn window_settings(size: Size) -> Settings {
-        Settings {
+    fn window_settings(size: Size, min_size: Size) -> window::Settings {
+        window::Settings {
             size,
-            min_size: Some(size),
+            min_size: Some(min_size),
             position: Position::Centered,
             icon: icon::from_file_data(include_bytes!("../assets/meowsn.ico"), None).ok(),
-            ..Settings::default()
+            ..Default::default()
         }
     }
 
@@ -717,6 +735,10 @@ pub fn main() -> iced::Result {
         .subscription(MeowSN::subscription)
         .title(MeowSN::title)
         .theme(MeowSN::theme)
+        .settings(iced::Settings {
+            default_text_size: Pixels(14.0),
+            ..Default::default()
+        })
         .run()
 }
 
@@ -726,5 +748,9 @@ pub fn main() -> iced::Result {
         .subscription(MeowSN::subscription)
         .title(MeowSN::title)
         .theme(MeowSN::theme)
+        .settings(iced::Settings {
+            default_text_size: Pixels(14.0),
+            ..Default::default()
+        })
         .run()
 }

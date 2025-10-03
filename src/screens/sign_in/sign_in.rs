@@ -2,7 +2,7 @@ use crate::enums::sign_in_status::SignInStatus;
 use crate::screens::sign_in::bordered_container::bordered_container;
 use crate::sqlite::Sqlite;
 use iced::widget::{
-    button, checkbox, column, combo_box, container, pick_list, row, svg, text, text_input,
+    button, checkbox, column, combo_box, container, pick_list, row, space, svg, text, text_input,
 };
 use iced::{Background, Color, Theme, widget};
 use iced::{Center, Element, Fill};
@@ -94,21 +94,19 @@ impl SignIn {
                 },
                 column![
                     column![
-                        text("E-mail address:").size(14),
+                        text("E-mail address:"),
                         combo_box(
                             &self.emails,
                             "E-mail address",
                             self.email.as_ref(),
                             Message::EmailSelected,
                         )
-                        .size(14.0)
                         .on_input(Message::EmailInput),
                     ]
                     .spacing(5),
                     column![
-                        text("Password:").size(14),
+                        text("Password:"),
                         text_input("Password", &self.password)
-                            .size(14)
                             .on_input(Message::PasswordChanged)
                             .secure(true),
                     ]
@@ -116,13 +114,12 @@ impl SignIn {
                 ]
                 .spacing(10),
                 row![
-                    text("Status: ").size(14),
+                    text("Status: "),
                     pick_list(
                         SignInStatus::ALL,
                         self.status.as_ref(),
                         Message::StatusSelected
                     )
-                    .text_size(14)
                     .style(|theme: &Theme, status| {
                         match status {
                             pick_list::Status::Active => {
@@ -148,8 +145,7 @@ impl SignIn {
                 column![
                     row![
                         checkbox("Remember Me", self.remember_me)
-                            .on_toggle(Message::RememberMeToggled)
-                            .size(12),
+                            .on_toggle(Message::RememberMeToggled),
                         button("(Forget Me)")
                             .style(button::text)
                             .on_press(Message::ForgetMe)
@@ -157,16 +153,16 @@ impl SignIn {
                     .spacing(15)
                     .align_y(Center),
                     checkbox("Remember My Password", self.remember_my_password)
-                        .on_toggle(Message::RememberMyPasswordToggled)
-                        .size(12),
+                        .on_toggle(Message::RememberMyPasswordToggled),
                 ],
+                space().height(5),
                 if self.signing_in {
                     button("Sign In")
                 } else {
                     button("Sign In").on_press(Message::SignIn)
                 },
             ]
-            .spacing(20)
+            .spacing(10)
             .align_x(Center),
         )
         .padding(50)

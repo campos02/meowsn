@@ -7,7 +7,7 @@ pub fn bordered_container<'a>(
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
 ) -> container::Container<'a, Message> {
     container(content)
-        .width(120)
+        .width(110)
         .style(|theme: &Theme| container::Style {
             border: Border {
                 color: theme.palette().text,

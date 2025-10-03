@@ -140,7 +140,7 @@ impl Conversation {
             row![
                 column![
                     row![
-                        "To: ",
+                        text("To: ").size(15),
                         if self.participants.len() == 1 {
                             text(if let Some(contact) = &self.participants.values().next() {
                                 &contact.display_name
@@ -150,16 +150,16 @@ impl Conversation {
                             .font(Font {
                                 weight: Weight::Bold,
                                 ..Font::default()
-                            })
+                            }).size(15)
                         } else if self.participants.len() > 1 {
-                            text(format!("{} participants", self.participants.len()))
+                            text(format!("{} participants", self.participants.len())).size(15)
                         } else if let Some(last_participant) = &self.last_participant {
                             text(&*last_participant.display_name).font(Font {
                                 weight: Weight::Bold,
                                 ..Font::default()
-                            })
+                            }).size(15)
                         } else {
-                            text("")
+                            text("").size(15)
                         },
                         " ",
                         if self.participants.len() == 1 {
@@ -170,15 +170,15 @@ impl Conversation {
                                 } else {
                                     ""
                                 }
-                            ))
+                            )).size(15)
                         } else if let Some(last_participant) = &self.last_participant {
-                            text(format!("<{}>", last_participant.email))
+                            text(format!("<{}>", last_participant.email)).size(15)
                         } else {
-                            text("")
+                            text("").size(15)
                         },
                     ]
                     .width(Fill),
-                    text("⸺⸺"),
+                    text("⸺⸺").size(15),
                     scrollable(column(self.messages.iter().map(|message| {
                         let history = |theme: &Theme| text::Style {
                             color: if !message.is_history {
@@ -191,7 +191,7 @@ impl Conversation {
                         column![
                             if message.errored {
                                 row![
-                                    text("The following message could not be delivered to all recipients:").style(history)
+                                    text("The following message could not be delivered to all recipients:").style(history).size(15)
                                 ]
                             } else if !message.is_nudge {
                                 row![
@@ -212,11 +212,11 @@ impl Conversation {
                                         weight: Weight::Bold,
                                         ..Font::default()
                                     })
-                                    .style(history),
-                                    text(" said:").style(history)
+                                    .style(history).size(15),
+                                    text(" said:").style(history).size(15)
                                 ]
                             } else {
-                                row![text(format!("⸺⸺\n{}\n⸺⸺", message.text)).style(history)]
+                                row![text(format!("⸺⸺\n{}\n⸺⸺", message.text)).style(history).size(15)]
                             },
                             if !message.is_nudge || message.errored {
                                 container(
@@ -236,6 +236,7 @@ impl Conversation {
                                             },
                                             ..Font::default()
                                         })])
+                                    .size(15)
                                     .style(|theme: &Theme| text::Style {
                                         color: if !message.is_history && !message.errored {
                                             Some(theme.palette().text)
@@ -256,16 +257,17 @@ impl Conversation {
                     .height(Fill)
                     .width(Fill),
                     if let Some(participant) = &self.participant_typing {
-                        text(format!("{participant} is writing a message...")).size(14)
+                        text(format!("{participant} is writing a message..."))
                     } else {
-                        text("").size(14)
+                        text("")
                     },
                     row![
                         toggle_button(
                             text("B").align_x(Center).font(Font {
                                 family: Family::Serif,
                                 ..Font::default()
-                            }),
+                            })
+                            .size(15),
                             self.bold
                         )
                         .width(30)
@@ -274,7 +276,7 @@ impl Conversation {
                             text("I").align_x(Center).font(Font {
                                 family: Family::Serif,
                                 ..Font::default()
-                            }),
+                            }).size(15),
                             self.italic
                         )
                         .width(30)
@@ -283,7 +285,7 @@ impl Conversation {
                             text("U").align_x(Center).font(Font {
                                 family: Family::Serif,
                                 ..Font::default()
-                            }),
+                            }).size(15),
                             self.underline
                         )
                         .width(30)
@@ -292,16 +294,17 @@ impl Conversation {
                             text("S").align_x(Center).font(Font {
                                 family: Family::Serif,
                                 ..Font::default()
-                            }),
+                            }).size(15),
                             self.strikethrough
                         )
                         .width(30)
                         .on_press(Message::StrikethroughPressed),
-                        button("Nudge").on_press(Message::SendNudge)
+                        button(text("Nudge").size(15)).on_press(Message::SendNudge)
                     ]
                     .spacing(5),
                     text_editor(&self.new_message)
                         .height(100)
+                        .size(15)
                         .on_action(Message::Edit),
                 ]
                 .spacing(10),
@@ -334,7 +337,7 @@ impl Conversation {
                                         )
                                         .width(40)
                                     },
-                                    text(&*participant.display_name).size(14)
+                                    text(&*participant.display_name)
                                 ]
                                 .spacing(5)
                                 .align_y(Center)
