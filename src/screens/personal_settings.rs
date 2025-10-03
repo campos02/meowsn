@@ -68,12 +68,11 @@ impl PersonalSettings {
                         .on_toggle(Message::CheckForUpdatesToggled)
                 )
                 .width(Fill),
-                space().height(5),
                 button("Save").on_press(Message::Save),
                 space().height(Fill),
                 text(format!("meowsn v{}", env!("CARGO_PKG_VERSION"))).style(|theme: &Theme| {
                     text::Style {
-                        color: Some(theme.extended_palette().secondary.weak.color),
+                        color: Some(theme.extended_palette().secondary.strong.color),
                     }
                 }),
             ]

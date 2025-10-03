@@ -56,6 +56,8 @@ pub enum Message {
     AddContact,
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
     SelectContact(Arc<String>),
+    OpenContactMenu(Arc<String>),
+    CloseContactMenu,
 }
 
 pub struct Contacts {
@@ -72,6 +74,7 @@ pub struct Contacts {
     sqlite: Sqlite,
     msnp_subscription_sender: Option<Sender<Input>>,
     selected_contact: Option<Arc<String>>,
+    contact_menu_opened: Option<Arc<String>>,
 }
 
 impl Contacts {
@@ -108,6 +111,7 @@ impl Contacts {
             sqlite,
             msnp_subscription_sender,
             selected_contact: None,
+            contact_menu_opened: None,
         }
     }
 
@@ -184,11 +188,15 @@ impl Contacts {
                 .align_y(Center),
                 scrollable(column![
                     if !self.online_contacts.is_empty() {
-                        column(
-                            self.online_contacts
-                                .values()
-                                .map(|contact| contact_map(contact, self.selected_contact.clone())),
-                        )
+                        column(self.online_contacts.values().map(|contact| {
+                            contact_map(
+                                contact,
+                                self.selected_contact.clone(),
+                                self.contact_menu_opened
+                                    .as_ref()
+                                    .is_some_and(|contact_opened| *contact_opened == contact.email),
+                            )
+                        }))
                         .spacing(10)
                         .padding(Padding {
                             top: 10.0,
@@ -199,11 +207,15 @@ impl Contacts {
                     } else {
                         column![].height(0).padding(0)
                     },
-                    column(
-                        self.offline_contacts
-                            .values()
-                            .map(|contact| contact_map(contact, self.selected_contact.clone())),
-                    )
+                    column(self.offline_contacts.values().map(|contact| {
+                        contact_map(
+                            contact,
+                            self.selected_contact.clone(),
+                            self.contact_menu_opened
+                                .as_ref()
+                                .is_some_and(|contact_opened| *contact_opened == contact.email),
+                        )
+                    }),)
                     .spacing(10)
                     .padding(10)
                 ])
@@ -302,6 +314,8 @@ impl Contacts {
 
             Message::BlockContact(contact) => {
                 let client = self.client.clone();
+                self.contact_menu_opened = None;
+
                 action = Some(Action::BlockContact(client, contact));
             }
 
@@ -326,6 +340,8 @@ impl Contacts {
 
             Message::UnblockContact(contact) => {
                 let client = self.client.clone();
+                self.contact_menu_opened = None;
+
                 action = Some(Action::UnblockContact(client, contact));
             }
 
@@ -350,6 +366,8 @@ impl Contacts {
 
             Message::RemoveContact { contact, guid } => {
                 let client = self.client.clone();
+                self.contact_menu_opened = None;
+
                 action = Some(Action::RemoveContact {
                     client,
                     contact,
@@ -370,6 +388,8 @@ impl Contacts {
 
             Message::AddContact => {
                 self.selected_contact = None;
+                self.contact_menu_opened = None;
+
                 action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
                     self.client.clone(),
                 ))));
@@ -388,6 +408,7 @@ impl Contacts {
             }
 
             Message::Conversation(contact) => {
+                self.contact_menu_opened = None;
                 if contact.status.is_some()
                     && self.status != Some(ContactListStatus::AppearOffline)
                     && !contact.opening_conversation
@@ -494,7 +515,13 @@ impl Contacts {
                     };
 
                     if let Some(contact) = contact {
-                        contact.personal_message = Some(Arc::new(personal_message.psm));
+                        let mut personal_message = personal_message.psm;
+                        if personal_message.len() > 28 {
+                            personal_message.truncate(28);
+                            personal_message.push_str("...");
+                        }
+
+                        contact.personal_message = Some(Arc::new(personal_message));
                         action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
                             contact.email.clone(),
                         ))));
@@ -589,6 +616,12 @@ impl Contacts {
             },
 
             Message::SelectContact(contact) => self.selected_contact = Some(contact),
+            Message::OpenContactMenu(contact) => {
+                self.contact_menu_opened = Some(contact.clone());
+                self.selected_contact = Some(contact)
+            }
+
+            Message::CloseContactMenu => self.contact_menu_opened = None,
         }
 
         action

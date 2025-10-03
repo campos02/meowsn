@@ -6,7 +6,9 @@ edition = "2024"
 [dependencies]
 dark-light = "2.0.0"
 iced = { version = "0.14.0-dev", features = ["sipper", "tokio", "image", "svg"] }
-iced_aw = { version = "0.13.0-dev", default-features = false, features = ["context_menu"] }
+iced_core = "0.14.0-dev"
+iced_widget = "0.14.0-dev"
+iced_aw = { version = "0.13.0-dev", default-features = false, features = ["drop_down"] }
 tokio = { version = "1.47.1", default-features = false, features = ["time"] }
 msnp11-sdk = "0.8.2"
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
@@ -16,7 +18,7 @@ r2d2_sqlite = { version = "0.31.0", features = ["bundled"] }
 toml = { version = "0.9.7", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 rfd = "0.15.4"
-image = "0.25.6"
+image = "0.25.8"
 notify-rust = "4.11.7"
 reqwest = { version = "0.12.23", features = ["json"] }
 semver = "1.0.27"

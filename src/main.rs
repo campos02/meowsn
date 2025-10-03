@@ -34,6 +34,7 @@ mod screens;
 mod settings;
 mod sqlite;
 mod svg;
+mod widgets;
 
 pub enum Message {
     WindowEvent((window::Id, window::Event)),
@@ -117,7 +118,7 @@ impl MeowSN {
         let sqlite = Sqlite::new().expect("Could not create database");
         let (id, open) = window::open(MeowSN::window_settings(
             Size::new(360.0, 620.0),
-            Size::new(300.0, 400.0),
+            Size::new(360.0, 400.0),
         ));
 
         (
