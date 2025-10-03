@@ -135,8 +135,9 @@ impl SignIn {
                             _ => {
                                 let mut list = pick_list::default(theme, status);
                                 list.border.color = theme.extended_palette().secondary.strong.color;
-                                list.background =
-                                    Background::from(theme.extended_palette().secondary.weak.color);
+                                list.background = Background::from(
+                                    theme.extended_palette().background.weak.color,
+                                );
                                 list
                             }
                         }

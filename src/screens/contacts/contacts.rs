@@ -55,6 +55,7 @@ pub enum Message {
     ContactFocused(Arc<String>),
     AddContact,
     UserDisplayPictureUpdated(Cow<'static, [u8]>),
+    SelectContact(Arc<String>),
 }
 
 pub struct Contacts {
@@ -70,6 +71,7 @@ pub struct Contacts {
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     sqlite: Sqlite,
     msnp_subscription_sender: Option<Sender<Input>>,
+    selected_contact: Option<Arc<String>>,
 }
 
 impl Contacts {
@@ -105,6 +107,7 @@ impl Contacts {
             orphan_switchboards: HashMap::new(),
             sqlite,
             msnp_subscription_sender,
+            selected_contact: None,
         }
     }
 
@@ -186,7 +189,7 @@ impl Contacts {
                         column(
                             self.online_contacts
                                 .values()
-                                .map(|contact| contact_map(contact)),
+                                .map(|contact| contact_map(contact, self.selected_contact.clone())),
                         )
                         .spacing(10)
                         .padding(Padding {
@@ -201,7 +204,7 @@ impl Contacts {
                     column(
                         self.offline_contacts
                             .values()
-                            .map(|contact| contact_map(contact))
+                            .map(|contact| contact_map(contact, self.selected_contact.clone())),
                     )
                     .spacing(10)
                     .padding(10)
@@ -585,6 +588,8 @@ impl Contacts {
 
                 _ => (),
             },
+
+            Message::SelectContact(contact) => self.selected_contact = Some(contact),
         }
 
         action

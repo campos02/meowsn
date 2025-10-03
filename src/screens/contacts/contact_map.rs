@@ -2,17 +2,17 @@ use crate::models::contact::Contact;
 use crate::screens::contacts::contacts::Message;
 use crate::screens::contacts::transparent_button::transparent_button;
 use iced::border::radius;
-use iced::widget::column;
+use iced::widget::{column, mouse_area};
 use iced::widget::{container, row, rule, svg, text};
 use iced::{Background, Border, Center, Color, Element, Fill, Theme};
 use iced_aw::ContextMenu;
 use msnp11_sdk::{MsnpList, MsnpStatus};
+use std::sync::Arc;
 
-pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
-    let personal_message_color = |theme: &Theme| text::Style {
-        color: Some(theme.extended_palette().secondary.weak.color),
-    };
-
+pub fn contact_map(
+    contact: &Contact,
+    selected_contact: Option<Arc<String>>,
+) -> Element<'_, Message> {
     ContextMenu::new(
         row![
             row![
@@ -39,21 +39,41 @@ pub fn contact_map(contact: &Contact) -> Element<'_, Message> {
                     crate::svg::default_display_picture_offline()
                 })
                 .width(30),
-                transparent_button(row![
-                    text(&*contact.display_name),
-                    if let Some(personal_message) = &contact.personal_message
-                        && !personal_message.is_empty()
-                    {
-                        row![
-                            text(" - ").style(personal_message_color),
-                            text(&**personal_message).style(personal_message_color)
-                        ]
-                    } else {
-                        row![]
-                    }
-                ])
-                .width(Fill)
-                .on_press(Message::Conversation(contact.clone()))
+                mouse_area(
+                    container(row![
+                        text(&*contact.display_name),
+                        if let Some(personal_message) = &contact.personal_message
+                            && !personal_message.is_empty()
+                        {
+                            let personal_message_color = |theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().secondary.weak.color),
+                            };
+
+                            row![
+                                text(" - ").style(personal_message_color),
+                                text(&**personal_message).style(personal_message_color)
+                            ]
+                        } else {
+                            row![]
+                        }
+                    ])
+                    .padding(5)
+                    .style(move |theme: &Theme| container::Style {
+                        background: if selected_contact
+                            .as_ref()
+                            .is_some_and(|selected_contact| contact.email == *selected_contact)
+                        {
+                            Some(Background::from(
+                                theme.extended_palette().secondary.strong.color,
+                            ))
+                        } else {
+                            None
+                        },
+                        ..Default::default()
+                    })
+                )
+                .on_press(Message::SelectContact(contact.email.clone()))
+                .on_double_click(Message::Conversation(contact.clone()))
             ]
             .align_y(Center)
         ]
