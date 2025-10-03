@@ -189,12 +189,12 @@ pub fn category_collapsing_header(
                                     }
 
                                     if ui.button("Delete Contact").clicked() {
-                                        let email = contact.email.clone();
+                                        let guid = contact.guid.clone();
                                         let contact = contact.email.clone();
 
                                         run_future(
                                             handle.clone(),
-                                            async move { client.remove_contact(&email, MsnpList::ForwardList).await },
+                                            async move { client.remove_contact_from_forward_list(&guid).await },
                                             contacts_sender.clone(),
                                             move |result| crate::screens::contacts::contacts::Message::DeleteResult(contact.clone(), result),
                                         );
