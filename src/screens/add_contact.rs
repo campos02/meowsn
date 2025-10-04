@@ -35,12 +35,12 @@ impl AddContact {
         container(
             column![
                 column![
-                    text("Type your contact's e-mail address:"),
+                    text("Contact e-mail address:"),
                     text_input("Contact e-mail", &self.email).on_input(Message::EmailChanged),
                 ]
                 .spacing(5),
                 column![
-                    text("Type your contact's display name:"),
+                    text("Contact display name (leave empty to set it as their e-mail):"),
                     text_input("Contact display name", &self.display_name)
                         .on_input(Message::DisplayNameChanged),
                 ]

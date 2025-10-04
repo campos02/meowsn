@@ -470,8 +470,8 @@ impl MeowSN {
                 }
 
                 let (_, open) = window::open(MeowSN::window_settings(
-                    Size::new(400.0, 220.0),
-                    Size::new(400.0, 220.0),
+                    Size::new(450.0, 220.0),
+                    Size::new(450.0, 220.0),
                 ));
 
                 open.map(move |id| Message::WindowOpened {
