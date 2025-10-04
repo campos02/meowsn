@@ -1,8 +1,10 @@
 use crate::enums::sign_in_status::SignInStatus;
 use crate::screens::sign_in::bordered_container::bordered_container;
 use crate::sqlite::Sqlite;
+use crate::widgets::pick_list_with_menu_width;
+use crate::widgets::pick_list_with_menu_width::PickListWithMenuWidth;
 use iced::widget::{
-    button, checkbox, column, combo_box, container, pick_list, row, space, svg, text, text_input,
+    button, checkbox, column, combo_box, container, row, space, svg, text, text_input,
 };
 use iced::{Background, Color, Theme, widget};
 use iced::{Center, Element, Fill};
@@ -115,22 +117,22 @@ impl SignIn {
                 .spacing(10),
                 row![
                     text("Status: "),
-                    pick_list(
+                    PickListWithMenuWidth::new(
                         SignInStatus::ALL,
                         self.status.as_ref(),
                         Message::StatusSelected
                     )
                     .style(|theme: &Theme, status| {
                         match status {
-                            pick_list::Status::Active => {
-                                let mut list = pick_list::default(theme, status);
+                            pick_list_with_menu_width::Status::Active => {
+                                let mut list = pick_list_with_menu_width::default(theme, status);
                                 list.background = Background::Color(Color::TRANSPARENT);
                                 list.border.width = 0.0;
                                 list
                             }
 
                             _ => {
-                                let mut list = pick_list::default(theme, status);
+                                let mut list = pick_list_with_menu_width::default(theme, status);
                                 list.border.color = theme.extended_palette().secondary.strong.color;
                                 list.background = Background::from(
                                     theme.extended_palette().background.weak.color,
@@ -139,6 +141,8 @@ impl SignIn {
                             }
                         }
                     })
+                    .width(130)
+                    .menu_width(150.0)
                 ]
                 .spacing(3)
                 .align_y(Center),

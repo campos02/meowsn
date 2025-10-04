@@ -7,9 +7,11 @@ use crate::msnp_listener::Input;
 use crate::screens::contacts::bordered_container::bordered_container;
 use crate::screens::contacts::contact_map::contact_map;
 use crate::sqlite::Sqlite;
+use crate::widgets::pick_list_with_menu_width;
+use crate::widgets::pick_list_with_menu_width::PickListWithMenuWidth;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::executor::block_on;
-use iced::widget::{button, column, container, pick_list, row, scrollable, svg, text, text_input};
+use iced::widget::{button, column, container, row, scrollable, svg, text, text_input};
 use iced::{Background, Center, Color, Element, Fill, Padding, Task, Theme, widget};
 use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use rfd::AsyncFileDialog;
@@ -129,34 +131,41 @@ impl Contacts {
                     column![
                         row![
                             text(format!(" {}", self.display_name)),
-                            pick_list(
+                            PickListWithMenuWidth::new(
                                 ContactListStatus::ALL,
                                 self.status.as_ref(),
                                 Message::StatusSelected
                             )
                             .style(|theme: &Theme, status| {
                                 match status {
-                                    pick_list::Status::Active => {
-                                        let mut list = pick_list::default(theme, status);
+                                    pick_list_with_menu_width::Status::Active => {
+                                        let mut list =
+                                            pick_list_with_menu_width::default(theme, status);
+
                                         list.background = Background::Color(Color::TRANSPARENT);
                                         list.border.width = 0.0;
                                         list
                                     }
 
                                     _ => {
-                                        let mut list = pick_list::default(theme, status);
+                                        let mut list =
+                                            pick_list_with_menu_width::default(theme, status);
+
                                         list.border.color =
                                             theme.extended_palette().secondary.strong.color;
+
                                         list.background = Background::Color(Color::TRANSPARENT);
                                         list
                                     }
                                 }
                             })
+                            .width(130)
+                            .menu_width(180.0)
                         ]
                         .align_y(Center)
                         .spacing(20),
                         text_input("<Type a personal message>", &self.personal_message)
-                            .width(300)
+                            .width(230)
                             .on_input(Message::PersonalMessageChanged)
                             .on_submit(Message::PersonalMessageSubmit)
                             .style(|theme: &Theme, status| {
