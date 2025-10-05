@@ -799,9 +799,7 @@ impl Conversation {
                                             });
                                         } else {
                                             ui.add_sized([20., 10.], egui::Separator::default());
-                                            ui.label(
-                                                format!("{} sent you a nudge!", display_name)
-                                            );
+                                            ui.label(&message.text);
                                             ui.add_sized([20., 10.], egui::Separator::default());
                                         }
                                     },
