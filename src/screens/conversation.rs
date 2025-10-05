@@ -133,39 +133,29 @@ impl Conversation {
                     self.user_display_name = Arc::new(display_name);
                 }
 
-                msnp11_sdk::Event::PresenceUpdate {
-                    email,
-                    display_name,
-                    presence,
-                } => {
+                msnp11_sdk::Event::PresenceUpdate { email, .. } => {
                     if let Some(contact) = self.participants.get_mut(&email) {
-                        if let Some(msn_object) = &presence.msn_object
-                            && msn_object.object_type == 3
-                            && let Ok(picture) =
-                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
-                        {
-                            contact.display_picture = Some(DisplayPicture {
-                                data: picture,
-                                hash: Arc::new(msn_object.sha1d.clone()),
+                        let email = Arc::new(email);
+                        *contact = self
+                            .contact_repository
+                            .get_contact(&email)
+                            .unwrap_or(Contact {
+                                email: email.clone(),
+                                display_name: email.clone(),
+                                ..Contact::default()
                             });
-                        }
-
-                        contact.display_name = Arc::new(display_name);
                     } else if let Some(contact) = &mut self.last_participant
                         && *contact.email == email
                     {
-                        if let Some(msn_object) = &presence.msn_object
-                            && msn_object.object_type == 3
-                            && let Ok(picture) =
-                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
-                        {
-                            contact.display_picture = Some(DisplayPicture {
-                                data: picture,
-                                hash: Arc::new(msn_object.sha1d.clone()),
+                        let email = Arc::new(email);
+                        *contact = self
+                            .contact_repository
+                            .get_contact(&email)
+                            .unwrap_or(Contact {
+                                email: email.clone(),
+                                display_name: email.clone(),
+                                ..Contact::default()
                             });
-                        }
-
-                        contact.display_name = Arc::new(display_name);
                     }
                 }
 
@@ -315,20 +305,24 @@ impl Conversation {
                                     if !self.visible {
                                         ctx.send_viewport_cmd_to(
                                             egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::Minimized(true),
+                                            egui::ViewportCommand::Visible(true),
+                                        );
+
+                                        self.visible = true;
+                                        ctx.send_viewport_cmd(
+                                            egui::ViewportCommand::RequestUserAttention(
+                                                egui::UserAttentionType::Informational,
+                                            ),
+                                        );
+                                    } else {
+                                        ctx.send_viewport_cmd_to(
+                                            egui::ViewportId::from_hash_of(session_id),
+                                            egui::ViewportCommand::RequestUserAttention(
+                                                egui::UserAttentionType::Informational,
+                                            ),
                                         );
                                     }
-
-                                    self.visible = true;
-                                    ctx.send_viewport_cmd_to(
-                                        egui::ViewportId::from_hash_of(session_id),
-                                        egui::ViewportCommand::Visible(true),
-                                    );
                                 }
-
-                                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                                    egui::UserAttentionType::Informational,
-                                ));
                             }
 
                             self.messages.push(message);
@@ -374,20 +368,24 @@ impl Conversation {
                                     if !self.visible {
                                         ctx.send_viewport_cmd_to(
                                             egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::Minimized(true),
+                                            egui::ViewportCommand::Visible(true),
+                                        );
+
+                                        self.visible = true;
+                                        ctx.send_viewport_cmd(
+                                            egui::ViewportCommand::RequestUserAttention(
+                                                egui::UserAttentionType::Informational,
+                                            ),
+                                        );
+                                    } else {
+                                        ctx.send_viewport_cmd_to(
+                                            egui::ViewportId::from_hash_of(session_id),
+                                            egui::ViewportCommand::RequestUserAttention(
+                                                egui::UserAttentionType::Informational,
+                                            ),
                                         );
                                     }
-
-                                    self.visible = true;
-                                    ctx.send_viewport_cmd_to(
-                                        egui::ViewportId::from_hash_of(session_id),
-                                        egui::ViewportCommand::Visible(true),
-                                    );
                                 }
-
-                                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                                    egui::UserAttentionType::Informational,
-                                ));
                             }
 
                             self.messages.push(message);
@@ -435,13 +433,9 @@ impl Conversation {
         if !previous_focus && self.focused {
             for participant in self.participants.values() {
                 if let Some(status) = &participant.status
-                    && let Some(msn_object) = &status.msn_object
                     && let Some(msn_object_string) = status.msn_object_string.clone()
                     && let Some(switchboard) = self.switchboards.values().next().cloned()
-                    && participant
-                        .display_picture
-                        .as_ref()
-                        .is_none_or(|picture| *picture.hash != msn_object.sha1d)
+                    && participant.display_picture.is_none()
                 {
                     let email = participant.email.clone();
                     self.handle.spawn(async move {

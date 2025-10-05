@@ -473,6 +473,10 @@ impl eframe::App for MainWindow {
                     .with_visible(visible),
                 |ctx, _| {
                     conversation.conversation(ctx);
+                    if !conversation.visible() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    }
+
                     if ctx.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
                         let _ = self.sender.send(Message::CloseConversation(*id));
