@@ -17,7 +17,7 @@ use tokio::runtime::Handle;
 
 enum Screen {
     SignIn(sign_in::sign_in::SignIn),
-    Contacts(contacts::contacts::Contacts),
+    Contacts(Box<contacts::contacts::Contacts>),
 }
 
 pub enum Message {
@@ -101,9 +101,9 @@ impl MainWindow {
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if ctx.style().visuals.dark_mode {
-            catppuccin_egui::set_theme(&ctx, catppuccin_egui::MOCHA);
+            catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
         } else {
-            catppuccin_egui::set_theme(&ctx, catppuccin_egui::LATTE);
+            catppuccin_egui::set_theme(ctx, catppuccin_egui::LATTE);
         }
 
         ctx.style_mut(|style| {
@@ -117,12 +117,12 @@ impl eframe::App for MainWindow {
             match message {
                 Message::SignIn(sign_in_return) => {
                     let client = sign_in_return.client.clone();
-                    self.screen = Screen::Contacts(contacts::contacts::Contacts::new(
+                    self.screen = Screen::Contacts(Box::new(contacts::contacts::Contacts::new(
                         sign_in_return,
                         self.sender.clone(),
                         self.sqlite.clone(),
                         self.handle.clone(),
-                    ));
+                    )));
 
                     let sender = self.sender.clone();
                     let main_ctx = ctx.clone();

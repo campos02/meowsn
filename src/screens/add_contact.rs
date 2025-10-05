@@ -93,9 +93,11 @@ impl AddContact {
                                     };
 
                                     run_future(self.handle.clone(),
-                                               async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
-                                               contacts_sender,
-                                               crate::screens::contacts::contacts::Message::AddContactResult);
+                                       async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
+                                       contacts_sender,
+                                       |result| {
+                                           crate::screens::contacts::contacts::Message::AddContactResult(Box::new(result))
+                                       });
 
                                     let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
                                 }

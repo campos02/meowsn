@@ -23,7 +23,7 @@ pub enum Message {
     BlockResult(Arc<String>, Result<(), SdkError>),
     UnblockResult(Arc<String>, Result<(), SdkError>),
     DeleteResult(Arc<String>, Result<(), SdkError>),
-    AddContactResult(Result<msnp11_sdk::Event, SdkError>),
+    AddContactResult(Box<Result<msnp11_sdk::Event, SdkError>>),
     CloseAddContact,
 }
 
@@ -398,7 +398,7 @@ impl eframe::App for Contacts {
                     }
                 }
 
-                Message::AddContactResult(result) => match result {
+                Message::AddContactResult(result) => match *result {
                     Ok(event) => {
                         if let msnp11_sdk::Event::ContactInForwardList {
                             email,
@@ -575,7 +575,7 @@ impl eframe::App for Contacts {
                                 self.user_email.clone(),
                                 self.display_name.clone(),
                                 self.display_picture.clone(),
-                                self.selected_status.clone(),
+                                self.selected_status,
                                 self.contact_repository.clone(),
                                 self.client.clone(),
                             );
@@ -591,7 +591,7 @@ impl eframe::App for Contacts {
                                 self.user_email.clone(),
                                 self.display_name.clone(),
                                 self.display_picture.clone(),
-                                self.selected_status.clone(),
+                                self.selected_status,
                                 self.contact_repository.clone(),
                                 self.client.clone(),
                             );

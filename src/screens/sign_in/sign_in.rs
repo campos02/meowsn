@@ -207,8 +207,7 @@ impl eframe::App for SignIn {
                                                         self.remember_my_password = true;
                                                     }
 
-                                                    if let Ok(user) =
-                                                        self.sqlite.select_user(&email)
+                                                    if let Ok(user) = self.sqlite.select_user(email)
                                                         && let Some(picture) = user.display_picture
                                                     {
                                                         self.display_picture = Some(picture);

@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
+#[allow(clippy::too_many_arguments)]
 pub fn category_collapsing_header(
     ui: &mut Ui,
     name: &str,

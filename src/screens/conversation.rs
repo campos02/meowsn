@@ -51,6 +51,7 @@ pub struct Conversation {
 }
 
 impl Conversation {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_email: Arc<String>,
         user_display_name: Arc<String>,
@@ -65,7 +66,8 @@ impl Conversation {
     ) -> Self {
         let mut messages = Vec::new();
         if switchboard.participants.len() > 1
-            && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id, INITIAL_HISTORY_LIMIT)
+            && let Ok(message_history) =
+                sqlite.select_messages_by_session_id(&session_id, INITIAL_HISTORY_LIMIT)
         {
             messages = message_history;
         }
@@ -85,7 +87,7 @@ impl Conversation {
 
             if switchboard.participants.len() == 1
                 && let Ok(message_history) =
-                    sqlite.select_messages(&user_email, &participant, INITIAL_HISTORY_LIMIT)
+                    sqlite.select_messages(&user_email, participant, INITIAL_HISTORY_LIMIT)
             {
                 messages = message_history;
             }
@@ -147,21 +149,21 @@ impl Conversation {
                         }
 
                         contact.display_name = Arc::new(display_name);
-                    } else if let Some(contact) = &mut self.last_participant {
-                        if *contact.email == email {
-                            if let Some(msn_object) = &presence.msn_object
-                                && msn_object.object_type == 3
-                                && let Ok(picture) =
-                                    self.sqlite.select_display_picture_data(&msn_object.sha1d)
-                            {
-                                contact.display_picture = Some(DisplayPicture {
-                                    data: picture,
-                                    hash: Arc::new(msn_object.sha1d.clone()),
-                                });
-                            }
-
-                            contact.display_name = Arc::new(display_name);
+                    } else if let Some(contact) = &mut self.last_participant
+                        && *contact.email == email
+                    {
+                        if let Some(msn_object) = &presence.msn_object
+                            && msn_object.object_type == 3
+                            && let Ok(picture) =
+                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
+                        {
+                            contact.display_picture = Some(DisplayPicture {
+                                data: picture,
+                                hash: Arc::new(msn_object.sha1d.clone()),
+                            });
                         }
+
+                        contact.display_name = Arc::new(display_name);
                     }
                 }
 
@@ -186,8 +188,11 @@ impl Conversation {
 
                             if self.last_participant.is_none()
                                 && self.participants.len() == 1
-                                && let Ok(message_history) =
-                                    self.sqlite.select_messages(&self.user_email, &email, INITIAL_HISTORY_LIMIT)
+                                && let Ok(message_history) = self.sqlite.select_messages(
+                                    &self.user_email,
+                                    &email,
+                                    INITIAL_HISTORY_LIMIT,
+                                )
                             {
                                 self.messages = message_history;
                             }
@@ -551,13 +556,11 @@ impl Conversation {
                         ui.label(job);
                         ui.add_space(10.);
 
-                        if self.participants.len() < 2 {
-                            if ui.link("Load your entire conversation history with this contact").clicked() {
-                                if let Some(participant) = self.participants.values().next() && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email) {
+                        if self.participants.len() < 2
+                            && ui.link("Load your entire conversation history with this contact").clicked()
+                                && let Some(participant) = self.participants.values().next() && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email) {
                                     self.messages = message_history;
                                 }
-                            }
-                        }
 
                         ui.separator();
                     });
@@ -711,7 +714,7 @@ impl Conversation {
 
                                         if !message.is_nudge && !message.errored {
                                             let id = ui
-                                                .label(&format!("{} said:", display_name))
+                                                .label(format!("{} said:", display_name))
                                                 .id;
 
                                             ui.indent(id, |ui| {
@@ -798,7 +801,7 @@ impl Conversation {
                                         } else {
                                             ui.add_sized([20., 10.], egui::Separator::default());
                                             ui.label(
-                                                &format!("{} sent you a nudge!", display_name)
+                                                format!("{} sent you a nudge!", display_name)
                                             );
                                             ui.add_sized([20., 10.], egui::Separator::default());
                                         }

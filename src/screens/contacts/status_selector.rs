@@ -34,6 +34,7 @@ impl Display for Status {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn status_selector(
     ui: &mut Ui,
     email: Arc<String>,
@@ -47,10 +48,7 @@ pub fn status_selector(
 ) {
     let old_status = *selected_status;
     CustomFillComboBox::from_label("")
-        .selected_text(format!(
-            "{display_name}   ({})",
-            selected_status.to_string()
-        ))
+        .selected_text(format!("{display_name}   ({})", selected_status))
         .fill_color(ui.style().visuals.window_fill)
         .show_ui(ui, |ui| {
             ui.selectable_value(selected_status, Status::Online, Status::Online.to_string());
