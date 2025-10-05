@@ -6,6 +6,7 @@ use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::{Status, status_selector};
+use crate::screens::conversation;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;
@@ -85,7 +86,12 @@ impl Contacts {
         }
     }
 
-    pub fn handle_event(&mut self, message: crate::main_window::Message, ctx: &egui::Context) {
+    pub fn handle_event(
+        &mut self,
+        message: crate::main_window::Message,
+        ctx: &egui::Context,
+        conversations: &mut HashMap<egui::ViewportId, conversation::Conversation>,
+    ) {
         match message {
             crate::main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
@@ -244,16 +250,37 @@ impl Contacts {
                     && let Some(mut switchboard) = self.orphan_switchboards.remove(&session_id)
                 {
                     switchboard.participants.push(Arc::from(email));
-                    let _ = self.main_window_sender.send(
-                        crate::main_window::Message::OpenConversationWithSwitchboard {
-                            user_email: self.user_email.clone(),
-                            user_display_name: self.display_name.clone(),
-                            user_display_picture: self.display_picture.clone(),
-                            contact_repository: self.contact_repository.clone(),
-                            session_id,
-                            switchboard,
-                        },
-                    );
+                    if let Some(conversation) = conversations.values_mut().find(|conversation| {
+                        conversation.get_participants().len() == 1
+                            && switchboard.participants.iter().all(|participant| {
+                                conversation.get_participants().contains_key(participant)
+                            })
+                            || conversation.get_participants().is_empty()
+                                && switchboard.participants.iter().all(|sb_participant| {
+                                    conversation.get_last_participant().as_ref().is_some_and(
+                                        |participant| *sb_participant == participant.email,
+                                    )
+                                })
+                    }) {
+                        conversation.add_switchboard(session_id, switchboard);
+                    } else {
+                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
+                        conversations.insert(
+                            viewport_id,
+                            conversation::Conversation::new(
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.contact_repository.clone(),
+                                session_id,
+                                switchboard,
+                                self.main_window_sender.clone(),
+                                self.sqlite.clone(),
+                                self.handle.clone(),
+                                false,
+                            ),
+                        );
+                    };
 
                     ctx.request_repaint();
                 }

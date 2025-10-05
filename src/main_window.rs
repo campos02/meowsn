@@ -52,15 +52,6 @@ pub enum Message {
         result: Result<Arc<Switchboard>, SdkError>,
     },
 
-    OpenConversationWithSwitchboard {
-        user_email: Arc<String>,
-        user_display_name: Arc<String>,
-        user_display_picture: Option<DisplayPicture>,
-        contact_repository: ContactRepository,
-        session_id: Arc<String>,
-        switchboard: SwitchboardAndParticipants,
-    },
-
     CloseConversation(egui::ViewportId),
     ContactChatWindowFocused(Arc<String>),
 }
@@ -205,7 +196,12 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::NotificationServerEvent(event.clone()), ctx);
+                        contacts.handle_event(
+                            Message::NotificationServerEvent(event.clone()),
+                            ctx,
+                            &mut self.conversations,
+                        );
+
                         for conversation in self.conversations.values_mut() {
                             conversation
                                 .handle_event(Message::NotificationServerEvent(event.clone()), ctx);
@@ -227,6 +223,7 @@ impl eframe::App for MainWindow {
                         contacts.handle_event(
                             Message::SwitchboardEvent(session_id.clone(), event.clone()),
                             ctx,
+                            &mut self.conversations,
                         );
 
                         for conversation in self.conversations.values_mut() {
@@ -255,6 +252,7 @@ impl eframe::App for MainWindow {
                                 data: data.clone(),
                             },
                             ctx,
+                            &mut self.conversations,
                         );
                     }
 
@@ -283,6 +281,7 @@ impl eframe::App for MainWindow {
                                 display_name,
                             )),
                             ctx,
+                            &mut self.conversations,
                         );
                     }
                 }
@@ -379,56 +378,17 @@ impl eframe::App for MainWindow {
                     }
                 }
 
-                Message::OpenConversationWithSwitchboard {
-                    user_email,
-                    user_display_name,
-                    user_display_picture,
-                    contact_repository,
-                    session_id,
-                    switchboard,
-                } => {
-                    if let Some(conversation) =
-                        self.conversations.values_mut().find(|conversation| {
-                            conversation.get_participants().len() == 1
-                                && switchboard.participants.iter().all(|participant| {
-                                    conversation.get_participants().contains_key(participant)
-                                })
-                                || conversation.get_participants().is_empty()
-                                    && switchboard.participants.iter().all(|sb_participant| {
-                                        conversation.get_last_participant().as_ref().is_some_and(
-                                            |participant| *sb_participant == participant.email,
-                                        )
-                                    })
-                        })
-                    {
-                        conversation.add_switchboard(session_id, switchboard);
-                    } else {
-                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
-                        self.conversations.insert(
-                            viewport_id,
-                            conversation::Conversation::new(
-                                user_email,
-                                user_display_name,
-                                user_display_picture,
-                                contact_repository,
-                                session_id,
-                                switchboard,
-                                self.sender.clone(),
-                                self.sqlite.clone(),
-                                self.handle.clone(),
-                                false,
-                            ),
-                        );
-                    };
-                }
-
                 Message::CloseConversation(id) => {
                     self.conversations.remove(&id);
                 }
 
                 Message::ContactChatWindowFocused(email) => {
                     if let Screen::Contacts(contacts) = &mut self.screen {
-                        contacts.handle_event(Message::ContactChatWindowFocused(email), ctx);
+                        contacts.handle_event(
+                            Message::ContactChatWindowFocused(email),
+                            ctx,
+                            &mut self.conversations,
+                        );
                     }
                 }
             }
