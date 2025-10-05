@@ -687,7 +687,7 @@ impl Conversation {
                         ..Default::default()
                     })
                     .ui(|ui| {
-                        egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                        egui::ScrollArea::vertical().auto_shrink(false).stick_to_bottom(true).show(ui, |ui| {
                             for message in self.messages.iter() {
                                 ui.with_layout(
                                     egui::Layout::top_down_justified(egui::Align::LEFT),

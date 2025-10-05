@@ -10,7 +10,7 @@ use crate::screens::conversation;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;
-use egui_taffy::taffy::prelude::length;
+use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
@@ -478,6 +478,7 @@ impl eframe::App for Contacts {
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,
                         padding: length(15.),
+                        size: percent(1.),
                         ..Default::default()
                     })
                     .show(|tui| {
@@ -588,40 +589,48 @@ impl eframe::App for Contacts {
 
                         tui.style(taffy::Style {
                             padding: length(10.),
+                            size: taffy::Size {
+                                width: percent(1.),
+                                height: percent(0.8),
+                            },
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            category_collapsing_header(
-                                ui,
-                                "Online",
-                                &mut self.selected_contact,
-                                &mut self.online_contacts,
-                                self.main_window_sender.clone(),
-                                self.sender.clone(),
-                                self.handle.clone(),
-                                self.user_email.clone(),
-                                self.display_name.clone(),
-                                self.display_picture.clone(),
-                                self.selected_status,
-                                self.contact_repository.clone(),
-                                self.client.clone(),
-                            );
+                            egui::ScrollArea::vertical()
+                                .auto_shrink(false)
+                                .show(ui, |ui| {
+                                    category_collapsing_header(
+                                        ui,
+                                        "Online",
+                                        &mut self.selected_contact,
+                                        &mut self.online_contacts,
+                                        self.main_window_sender.clone(),
+                                        self.sender.clone(),
+                                        self.handle.clone(),
+                                        self.user_email.clone(),
+                                        self.display_name.clone(),
+                                        self.display_picture.clone(),
+                                        self.selected_status,
+                                        self.contact_repository.clone(),
+                                        self.client.clone(),
+                                    );
 
-                            category_collapsing_header(
-                                ui,
-                                "Offline",
-                                &mut self.selected_contact,
-                                &mut self.offline_contacts,
-                                self.main_window_sender.clone(),
-                                self.sender.clone(),
-                                self.handle.clone(),
-                                self.user_email.clone(),
-                                self.display_name.clone(),
-                                self.display_picture.clone(),
-                                self.selected_status,
-                                self.contact_repository.clone(),
-                                self.client.clone(),
-                            );
+                                    category_collapsing_header(
+                                        ui,
+                                        "Offline",
+                                        &mut self.selected_contact,
+                                        &mut self.offline_contacts,
+                                        self.main_window_sender.clone(),
+                                        self.sender.clone(),
+                                        self.handle.clone(),
+                                        self.user_email.clone(),
+                                        self.display_name.clone(),
+                                        self.display_picture.clone(),
+                                        self.selected_status,
+                                        self.contact_repository.clone(),
+                                        self.client.clone(),
+                                    );
+                                });
                         });
                     })
             });
