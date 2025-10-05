@@ -98,10 +98,12 @@ impl AddContact {
                                                crate::screens::contacts::contacts::Message::AddContactResult);
 
                                     let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                    ctx.request_repaint();
                                 }
 
                                 if ui.button("Cancel").clicked() {
                                     let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                    ctx.request_repaint();
                                 }
                             })
                         })
@@ -112,6 +114,8 @@ impl AddContact {
             let _ = self
                 .contacts_sender
                 .send(crate::screens::contacts::contacts::Message::CloseAddContact);
+
+            ctx.request_repaint();
         }
     }
 }

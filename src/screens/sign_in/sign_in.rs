@@ -103,6 +103,8 @@ impl eframe::App for SignIn {
                     let _ = self
                         .main_window_sender
                         .send(crate::main_window::Message::SignIn(sign_in_return));
+
+                    ctx.request_repaint();
                 }
 
                 Err(error) => {
@@ -111,6 +113,7 @@ impl eframe::App for SignIn {
                         .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
                     self.signing_in = false;
+                    ctx.request_repaint();
                 }
             }
         }
@@ -325,6 +328,8 @@ impl eframe::App for SignIn {
                                                     .to_string(),
                                             ),
                                         );
+
+                                        ctx.request_repaint();
                                     } else {
                                         self.signing_in = true;
 

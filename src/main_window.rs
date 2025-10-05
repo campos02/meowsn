@@ -505,6 +505,7 @@ impl eframe::App for MainWindow {
                     if ctx.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
                         let _ = sender.send(Message::CloseConversation(id));
+                        ctx.request_repaint();
                     }
                 },
             );
@@ -527,6 +528,7 @@ impl eframe::App for MainWindow {
 
                     if ctx.input(|input| input.viewport().close_requested()) {
                         let _ = sender.send(Message::ClosePersonalSettings);
+                        ctx.request_repaint();
                     }
                 },
             );

@@ -115,20 +115,22 @@ pub fn status_selector(
         }
 
         _ => {
-            let status = match selected_status {
-                Status::Busy => MsnpStatus::Busy,
-                Status::Away => MsnpStatus::Away,
-                Status::AppearOffline => MsnpStatus::AppearOffline,
-                _ => MsnpStatus::Online,
-            };
+            if *selected_status != old_status {
+                let status = match selected_status {
+                    Status::Busy => MsnpStatus::Busy,
+                    Status::Away => MsnpStatus::Away,
+                    Status::AppearOffline => MsnpStatus::AppearOffline,
+                    _ => MsnpStatus::Online,
+                };
 
-            let client = client.clone();
-            run_future(
-                handle.clone(),
-                async move { client.set_presence(status).await },
-                contacts_sender,
-                crate::screens::contacts::contacts::Message::StatusResult,
-            )
+                let client = client.clone();
+                run_future(
+                    handle.clone(),
+                    async move { client.set_presence(status).await },
+                    contacts_sender,
+                    crate::screens::contacts::contacts::Message::StatusResult,
+                )
+            }
         }
     }
 }

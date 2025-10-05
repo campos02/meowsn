@@ -57,7 +57,7 @@ impl Conversation {
         let mut participants = HashMap::with_capacity(switchboard.participants.len());
         for participant in &switchboard.participants {
             participants.insert(
-                participant,
+                participant.clone(),
                 contact_repository
                     .get_contact(participant)
                     .unwrap_or(Contact {
@@ -81,7 +81,7 @@ impl Conversation {
             user_email,
             user_display_name,
             switchboards,
-            participants: HashMap::new(),
+            participants,
             last_participant: None,
             messages,
             message_buffer: Vec::new(),
@@ -638,7 +638,52 @@ impl Conversation {
                             .insert(egui::TextStyle::Button, FontId::proportional(12.));
 
                         ui.horizontal(|ui| {
-                            ui.button("Nudge");
+                            if ui.button("Nudge").clicked() {
+                                if let Some(switchboard) =
+                                    self.switchboards.values().next().cloned()
+                                {
+                                    let message = message::Message {
+                                        sender: self.user_email.clone(),
+                                        receiver: if self.participants.len() == 1 {
+                                            self.participants
+                                                .values()
+                                                .next()
+                                                .map(|participant| participant.email.clone())
+                                        } else if self.participants.is_empty() {
+                                            self.last_participant
+                                                .as_ref()
+                                                .map(|participant| participant.email.clone())
+                                        } else {
+                                            None
+                                        },
+                                        is_nudge: true,
+                                        text: "You just sent a nudge!".to_string(),
+                                        bold: false,
+                                        italic: false,
+                                        underline: false,
+                                        strikethrough: false,
+                                        session_id: None,
+                                        color: "0".to_string(),
+                                        is_history: false,
+                                        errored: false,
+                                    };
+
+                                    if !self.participants.is_empty() {
+                                        self.handle
+                                            .spawn(async move { switchboard.send_nudge().await });
+                                    } else {
+                                        self.message_buffer.push(message);
+                                        if let Some(last_participant) =
+                                            self.last_participant.clone()
+                                        {
+                                            self.handle.spawn(async move {
+                                                switchboard.invite(&last_participant.email).await
+                                            });
+                                        }
+                                    }
+                                };
+                            }
+
                             ui.add_space(5.);
 
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);

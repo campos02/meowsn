@@ -251,6 +251,8 @@ impl Contacts {
                             switchboard,
                         },
                     );
+
+                    ctx.request_repaint();
                 }
             }
 
@@ -281,6 +283,8 @@ impl eframe::App for Contacts {
                         let _ = self.main_window_sender.send(
                             crate::main_window::Message::UserDisplayPictureChanged(picture),
                         );
+
+                        ctx.request_repaint();
                     }
                 }
 
@@ -289,6 +293,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     }
                 }
 
@@ -297,6 +303,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     } else {
                         let _ = self
                             .sqlite
@@ -309,6 +317,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     } else {
                         let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
                         {
@@ -331,6 +341,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     } else {
                         let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
                         {
@@ -353,6 +365,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     } else {
                         self.online_contacts.remove(&contact);
                         self.offline_contacts.remove(&contact);
@@ -393,6 +407,8 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
                     }
                 },
 
