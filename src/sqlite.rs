@@ -15,12 +15,30 @@ pub struct Sqlite {
 
 impl Sqlite {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        // Compatibility with previous name
+        let mut old_data_local =
+            dirs::data_local_dir().expect("Could not find local data directory");
+        old_data_local.push("icedm");
+
         let mut data_local = dirs::data_local_dir().expect("Could not find local data directory");
         data_local.push("meowsn");
+
+        if old_data_local.exists() {
+            std::fs::rename(old_data_local.clone(), data_local.clone())?;
+        }
+
         std::fs::create_dir_all(&data_local)?;
+
+        let mut old_data_local = data_local.clone();
+        old_data_local.push("icedm");
+        old_data_local.set_extension("db");
 
         data_local.push("meowsn");
         data_local.set_extension("db");
+
+        if old_data_local.exists() {
+            std::fs::rename(old_data_local, data_local.clone())?;
+        }
 
         let manager = SqliteConnectionManager::file(data_local);
         let pool = Pool::new(manager)?;

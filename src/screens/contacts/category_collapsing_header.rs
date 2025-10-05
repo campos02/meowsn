@@ -207,9 +207,8 @@ pub fn category_collapsing_header(
                     });
                 }
             }
-        }).header_response.clicked() {
-        if let Some(contact) = selected_contact && contacts.contains_key(contact) {
+        }).header_response.clicked()
+        && let Some(contact) = selected_contact && contacts.contains_key(contact) {
             *selected_contact = None;
         }
-    }
 }

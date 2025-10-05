@@ -71,7 +71,7 @@ impl Conversation {
             message_history.reverse();
             message_history
         } else if switchboard.participants.len() == 1
-            && let Some(participant) = switchboard.participants.iter().next()
+            && let Some(participant) = switchboard.participants.first()
             && let Ok(mut message_history) =
                 sqlite.select_messages(&user_email, participant, INITIAL_HISTORY_LIMIT)
         {

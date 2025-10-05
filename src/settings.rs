@@ -17,40 +17,59 @@ impl Default for Settings {
     }
 }
 
+#[allow(dead_code)]
 pub enum SettingsError {
-    CreateSettingsDirectory,
+    GetLocalDir,
+    CreateSettingsDirectory(std::io::Error),
     GetSettings,
-    ParseSettings,
-    WriteSettings,
+    SerializeSettings(toml::ser::Error),
+    DeserializeSettings(toml::de::Error),
+    WriteSettings(std::io::Error),
 }
 
 pub fn get_settings() -> Result<Settings, SettingsError> {
-    let mut settings_local =
-        dirs::data_local_dir().ok_or(SettingsError::CreateSettingsDirectory)?;
+    // Compatibility with previous name
+    let mut old_settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
+    old_settings_local.push("icedm");
 
+    let mut settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
     settings_local.push("meowsn");
-    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::CreateSettingsDirectory))?;
+
+    if old_settings_local.exists() {
+        std::fs::rename(old_settings_local.clone(), settings_local.clone())
+            .map_err(SettingsError::CreateSettingsDirectory)?;
+    }
+
+    std::fs::create_dir_all(&settings_local).map_err(SettingsError::CreateSettingsDirectory)?;
+
+    let mut old_settings_local = settings_local.clone();
+    old_settings_local.push("icedm");
+    old_settings_local.set_extension("toml");
 
     settings_local.push("meowsn");
     settings_local.set_extension("toml");
 
+    if old_settings_local.exists() {
+        std::fs::rename(old_settings_local, settings_local.clone())
+            .map_err(SettingsError::CreateSettingsDirectory)?;
+    }
+
     toml::from_str(&std::fs::read_to_string(settings_local).or(Err(SettingsError::GetSettings))?)
-        .or(Err(SettingsError::ParseSettings))
+        .map_err(SettingsError::DeserializeSettings)
 }
 
 pub fn save_settings(settings: &Settings) -> Result<(), SettingsError> {
-    let mut settings_local =
-        dirs::data_local_dir().ok_or(SettingsError::CreateSettingsDirectory)?;
+    let mut settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
 
     settings_local.push("meowsn");
-    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::CreateSettingsDirectory))?;
+    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::GetLocalDir))?;
 
     settings_local.push("meowsn");
     settings_local.set_extension("toml");
 
     std::fs::write(
         settings_local,
-        toml::to_string(&settings).or(Err(SettingsError::WriteSettings))?,
+        toml::to_string(&settings).map_err(SettingsError::SerializeSettings)?,
     )
-    .or(Err(SettingsError::WriteSettings))
+    .map_err(SettingsError::WriteSettings)
 }
