@@ -79,7 +79,7 @@ pub fn category_collapsing_header(
 
                         let mut contact_job = LayoutJob::default();
                         contact_job.append(
-                            contact.display_name.as_str(),
+                            &contact.display_name,
                             0.,
                             TextFormat {
                                 font_id: egui::FontId::proportional(13.),

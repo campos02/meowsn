@@ -54,7 +54,7 @@ impl AddContact {
                     })
                     .show(|tui| {
                         tui.ui(|ui| {
-                            let label = ui.label("Contact e-mail:");
+                            let label = ui.label("Contact e-mail address:");
                             ui.add_space(3.);
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.email)
@@ -65,7 +65,7 @@ impl AddContact {
                         });
 
                         tui.ui(|ui| {
-                            let label = ui.label("Contact display name:");
+                            let label = ui.label("Contact display name (leave empty to set it as their e-mail):");
                             ui.add_space(3.);
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.display_name)

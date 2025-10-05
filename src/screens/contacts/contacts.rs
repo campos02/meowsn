@@ -230,6 +230,7 @@ impl Contacts {
                                         ));
 
                                     ctx.request_repaint();
+                                    println!("Requested repaint from SB closure");
                                 }
                             });
                         });
@@ -488,7 +489,7 @@ impl eframe::App for Contacts {
                                     status_selector(
                                         ui,
                                         self.user_email.clone(),
-                                        self.display_name.as_str(),
+                                        &self.display_name,
                                         &mut self.selected_status,
                                         self.sender.clone(),
                                         self.main_window_sender.clone(),

@@ -100,6 +100,8 @@ impl MainWindow {
 
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        println!("Main window update");
+
         if ctx.style().visuals.dark_mode {
             catppuccin_egui::set_theme(&ctx, catppuccin_egui::MOCHA);
         } else {
@@ -114,6 +116,7 @@ impl eframe::App for MainWindow {
         });
 
         if let Ok(message) = self.receiver.try_recv() {
+            println!("Has events");
             match message {
                 Message::SignIn(sign_in_return) => {
                     let client = sign_in_return.client.clone();
@@ -135,6 +138,7 @@ impl eframe::App for MainWindow {
                             async move {
                                 let _ = sender.send(Message::NotificationServerEvent(event));
                                 ctx.request_repaint();
+                                println!("Requested repaint from NS closure");
                             }
                         });
                     });
@@ -215,6 +219,8 @@ impl eframe::App for MainWindow {
                                 .handle_event(Message::NotificationServerEvent(event.clone()), ctx);
                         }
                     }
+
+                    ctx.request_repaint();
                 }
 
                 Message::SwitchboardEvent(session_id, event) => {
@@ -225,14 +231,13 @@ impl eframe::App for MainWindow {
                         let _ = self
                             .sender
                             .send(Message::ContactDisplayPictureEvent { email, data });
-
-                        ctx.request_repaint();
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(
                             Message::SwitchboardEvent(session_id.clone(), event.clone()),
                             ctx,
                         );
 
+                        println!("Before conversations for");
                         for (id, conversation) in self.conversations.iter() {
                             let mut conversation = conversation
                                 .lock()
@@ -245,7 +250,11 @@ impl eframe::App for MainWindow {
 
                             ctx.request_repaint_of(*id);
                         }
+
+                        println!("After conversations for");
                     }
+
+                    ctx.request_repaint();
                 }
 
                 Message::UserDisplayPictureChanged(picture) => {
@@ -360,7 +369,7 @@ impl eframe::App for MainWindow {
                         };
 
                         let session_id = Arc::new(session_id);
-                        let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
+                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
                         let inner_switchboard = switchboard.switchboard.clone();
 
                         self.conversations.insert(
@@ -393,6 +402,7 @@ impl eframe::App for MainWindow {
                                         sender.send(Message::SwitchboardEvent(session_id, event));
 
                                     ctx.request_repaint();
+                                    println!("Requested repaint from inner SB closure");
                                 }
                             });
                         });
@@ -427,9 +437,9 @@ impl eframe::App for MainWindow {
                             .lock()
                             .unwrap_or_else(|error| error.into_inner());
 
-                        conversation.add_switchboard(session_id, switchboard.switchboard);
+                        conversation.add_switchboard(session_id, switchboard);
                     } else {
-                        let viewport_id = egui::ViewportId::from_hash_of(session_id.as_str());
+                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
                         self.conversations.insert(
                             viewport_id,
                             Arc::new(Mutex::new(conversation::Conversation::new(
@@ -541,6 +551,7 @@ impl eframe::App for MainWindow {
                 title = conversation.get_title();
             }
 
+            let main_ctx = ctx.clone();
             ctx.show_viewport_deferred(
                 id,
                 egui::ViewportBuilder::default()
@@ -557,7 +568,7 @@ impl eframe::App for MainWindow {
                     if ctx.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
                         let _ = sender.send(Message::CloseConversation(id));
-                        ctx.request_repaint();
+                        main_ctx.request_repaint();
                     }
                 },
             );
@@ -565,6 +576,8 @@ impl eframe::App for MainWindow {
 
         if let Some(personal_settings_window) = self.personal_settings_window.clone() {
             let sender = self.sender.clone();
+            let main_ctx = ctx.clone();
+
             ctx.show_viewport_deferred(
                 egui::ViewportId::from_hash_of("personal-settings"),
                 egui::ViewportBuilder::default()
@@ -580,7 +593,7 @@ impl eframe::App for MainWindow {
 
                     if ctx.input(|input| input.viewport().close_requested()) {
                         let _ = sender.send(Message::ClosePersonalSettings);
-                        ctx.request_repaint();
+                        main_ctx.request_repaint();
                     }
                 },
             );

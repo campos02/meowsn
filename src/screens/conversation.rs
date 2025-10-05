@@ -170,6 +170,8 @@ impl Conversation {
                     match event {
                         msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
                             let email = Arc::new(email);
+                            println!("New participant: {}", email);
+
                             self.participants.insert(
                                 email.clone(),
                                 self.contact_repository
@@ -234,11 +236,13 @@ impl Conversation {
                                     }
                                 }
                             }
+
+                            ctx.request_repaint();
                         }
 
                         msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
-                            let email = Arc::new(email);
                             let participant = self.participants.remove(&email);
+                            println!("{} left", email);
 
                             if self.participants.is_empty() && participant.is_some() {
                                 self.last_participant = participant;
@@ -285,23 +289,20 @@ impl Conversation {
                             let _ = self.sqlite.insert_message(&message);
                             if !self.focused {
                                 let _ = notify_rust::Notification::new()
-                                    .summary(
-                                        format!(
-                                            "{} said:",
-                                            if let Some(participant) =
-                                                self.participants.get(&message.sender)
-                                            {
-                                                &participant.display_name
-                                            } else if let Some(participant) = &self.last_participant
-                                                && participant.email == message.sender
-                                            {
-                                                &*participant.display_name
-                                            } else {
-                                                &message.sender
-                                            }
-                                        )
-                                        .as_str(),
-                                    )
+                                    .summary(&format!(
+                                        "{} said:",
+                                        if let Some(participant) =
+                                            self.participants.get(&message.sender)
+                                        {
+                                            &participant.display_name
+                                        } else if let Some(participant) = &self.last_participant
+                                            && participant.email == message.sender
+                                        {
+                                            &*participant.display_name
+                                        } else {
+                                            &message.sender
+                                        }
+                                    ))
                                     .body(&message.text)
                                     .show();
 
@@ -428,15 +429,19 @@ impl Conversation {
 
         if !previous_focus && self.focused {
             for participant in self.participants.values() {
-                if participant.display_picture.is_none()
-                    && let Some(status) = &participant.status
-                    && let Some(msn_object) = status.msn_object_string.clone()
+                if let Some(status) = &participant.status
+                    && let Some(msn_object) = &status.msn_object
+                    && let Some(msn_object_string) = status.msn_object_string.clone()
                     && let Some(switchboard) = self.switchboards.values().next().cloned()
+                    && participant
+                        .display_picture
+                        .as_ref()
+                        .is_none_or(|picture| *picture.hash != msn_object.sha1d)
                 {
                     let email = participant.email.clone();
                     self.handle.spawn(async move {
                         switchboard
-                            .request_contact_display_picture(&email, &msn_object)
+                            .request_contact_display_picture(&email, &msn_object_string)
                             .await
                     });
                 }
@@ -497,7 +502,7 @@ impl Conversation {
                         && let Some(contact) = self.participants.values().next()
                     {
                         job.append(
-                            contact.display_name.as_str(),
+                            &contact.display_name,
                             0.,
                             TextFormat {
                                 ..Default::default()
@@ -505,7 +510,7 @@ impl Conversation {
                         );
 
                         job.append(
-                            format!(" <{}>", contact.email).as_str(),
+                            &format!(" <{}>", contact.email),
                             0.,
                             TextFormat {
                                 ..Default::default()
@@ -513,7 +518,7 @@ impl Conversation {
                         );
                     } else if self.participants.len() > 1 {
                         job.append(
-                            format!("{} participants", self.participants.len()).as_str(),
+                            &format!("{} participants", self.participants.len()),
                             0.,
                             TextFormat {
                                 ..Default::default()
@@ -521,7 +526,7 @@ impl Conversation {
                         );
                     } else if let Some(contact) = &self.last_participant {
                         job.append(
-                            contact.display_name.as_str(),
+                            &contact.display_name,
                             0.,
                             TextFormat {
                                 ..Default::default()
@@ -529,7 +534,7 @@ impl Conversation {
                         );
 
                         job.append(
-                            format!(" <{}>", contact.email).as_str(),
+                            &format!(" <{}>", contact.email),
                             0.,
                             TextFormat {
                                 ..Default::default()
@@ -623,8 +628,9 @@ impl Conversation {
                         .add(|tui| {
                             for participant in self.participants.values() {
                                 tui.style(taffy::Style {
+                                    justify_self: Some(taffy::JustifySelf::Start),
                                     size: taffy::Size {
-                                        width: length(43.5),
+                                        width: length(45.),
                                         height: auto(),
                                     },
                                     margin: percent(-0.9),
@@ -639,7 +645,7 @@ impl Conversation {
                                                 egui::Image::from_bytes(
                                                     format!("bytes://{}.png", picture.hash), picture.data
                                                 )
-                                                .fit_to_exact_size(egui::Vec2::splat(40.))
+                                                .fit_to_exact_size(egui::Vec2::splat(44.))
                                                 .corner_radius(
                                                     ui.visuals()
                                                         .widgets
@@ -649,7 +655,7 @@ impl Conversation {
                                                 .alt_text("Contact display picture")
                                             } else {
                                                 egui::Image::new(svg::default_display_picture())
-                                                    .fit_to_exact_size(egui::Vec2::splat(40.))
+                                                    .fit_to_exact_size(egui::Vec2::splat(44.))
                                                     .alt_text("Default display picture")
                                             },
                                         )
@@ -704,13 +710,13 @@ impl Conversation {
 
                                         if !message.is_nudge && !message.errored {
                                             let id = ui
-                                                .label(format!("{} said:", display_name).as_str())
+                                                .label(&format!("{} said:", display_name))
                                                 .id;
 
                                             ui.indent(id, |ui| {
                                                 let mut job = LayoutJob::default();
                                                 job.append(
-                                                    message.text.replace("\r\n", "\n").as_str(),
+                                                    &message.text.replace("\r\n", "\n"),
                                                     0.,
                                                     TextFormat {
                                                         font_id: if message.bold {
@@ -753,7 +759,7 @@ impl Conversation {
                                             ui.indent(id, |ui| {
                                                 let mut job = LayoutJob::default();
                                                 job.append(
-                                                    message.text.replace("\r\n", "\n").as_str(),
+                                                    &message.text.replace("\r\n", "\n"),
                                                     0.,
                                                     TextFormat {
                                                         font_id: if message.bold {
@@ -791,8 +797,7 @@ impl Conversation {
                                         } else {
                                             ui.add_sized([20., 10.], egui::Separator::default());
                                             ui.label(
-                                                format!("{} sent you a nudge!", display_name)
-                                                    .as_str(),
+                                                &format!("{} sent you a nudge!", display_name)
                                             );
                                             ui.add_sized([20., 10.], egui::Separator::default());
                                         }
@@ -873,6 +878,8 @@ impl Conversation {
                                     is_history: false,
                                     errored: false,
                                 };
+
+                                println!("In SB: {}", self.participants.len());
 
                                 if !self.participants.is_empty() {
                                     let switchboard = switchboard.clone();
@@ -1057,8 +1064,26 @@ impl Conversation {
         &self.last_participant
     }
 
-    pub fn add_switchboard(&mut self, session_id: Arc<String>, switchboard: Arc<Switchboard>) {
-        self.switchboards.insert(session_id, switchboard);
+    pub fn add_switchboard(
+        &mut self,
+        session_id: Arc<String>,
+        switchboard: SwitchboardAndParticipants,
+    ) {
+        self.switchboards
+            .insert(session_id, switchboard.switchboard);
+
+        for participant in &switchboard.participants {
+            self.participants.insert(
+                participant.clone(),
+                self.contact_repository
+                    .get_contact(participant)
+                    .unwrap_or(Contact {
+                        email: participant.clone(),
+                        display_name: participant.clone(),
+                        ..Contact::default()
+                    }),
+            );
+        }
     }
 
     pub fn leave_switchboards(&self) {
