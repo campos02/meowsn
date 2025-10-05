@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
-const INITIAL_HISTORY_LIMIT: u32 = 5;
+const INITIAL_HISTORY_LIMIT: u32 = 3;
 
 pub enum Message {
     SendMessageResult(message::Message, Result<(), SdkError>),
@@ -64,13 +64,22 @@ impl Conversation {
         handle: Handle,
         visible: bool,
     ) -> Self {
-        let mut messages = Vec::new();
-        if switchboard.participants.len() > 1
-            && let Ok(message_history) =
+        let messages = if switchboard.participants.len() > 1
+            && let Ok(mut message_history) =
                 sqlite.select_messages_by_session_id(&session_id, INITIAL_HISTORY_LIMIT)
         {
-            messages = message_history;
-        }
+            message_history.reverse();
+            message_history
+        } else if switchboard.participants.len() == 1
+            && let Some(participant) = switchboard.participants.iter().next()
+            && let Ok(mut message_history) =
+                sqlite.select_messages(&user_email, participant, INITIAL_HISTORY_LIMIT)
+        {
+            message_history.reverse();
+            message_history
+        } else {
+            Vec::new()
+        };
 
         let mut participants = HashMap::with_capacity(switchboard.participants.len());
         for participant in &switchboard.participants {
@@ -84,13 +93,6 @@ impl Conversation {
                         ..Contact::default()
                     }),
             );
-
-            if switchboard.participants.len() == 1
-                && let Ok(message_history) =
-                    sqlite.select_messages(&user_email, participant, INITIAL_HISTORY_LIMIT)
-            {
-                messages = message_history;
-            }
         }
 
         let mut switchboards = HashMap::new();
@@ -188,12 +190,13 @@ impl Conversation {
 
                             if self.last_participant.is_none()
                                 && self.participants.len() == 1
-                                && let Ok(message_history) = self.sqlite.select_messages(
+                                && let Ok(mut message_history) = self.sqlite.select_messages(
                                     &self.user_email,
                                     &email,
                                     INITIAL_HISTORY_LIMIT,
                                 )
                             {
+                                message_history.reverse();
                                 self.messages = message_history;
                             }
 
@@ -558,9 +561,11 @@ impl Conversation {
 
                         if self.participants.len() < 2
                             && ui.link("Load your entire conversation history with this contact").clicked()
-                                && let Some(participant) = self.participants.values().next() && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email) {
-                                    self.messages = message_history;
-                                }
+                            && let Some(participant) = self.participants.values().next()
+                            && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email)
+                        {
+                            self.messages = message_history;
+                        }
 
                         ui.separator();
                     });

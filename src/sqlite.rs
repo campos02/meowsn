@@ -124,7 +124,7 @@ impl Sqlite {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare(
                 "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
-                WHERE (sender = ?1 OR receiver = ?1) AND (receiver = ?2 OR sender = ?2) LIMIT ?3",
+                WHERE (sender = ?1 OR receiver = ?1) AND (receiver = ?2 OR sender = ?2) ORDER BY id DESC LIMIT ?3",
             )?;
 
             let messages = stmt.query_map(params![sender1, sender2, limit], |row| {
@@ -192,7 +192,7 @@ impl Sqlite {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare(
                 "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
-                WHERE session_id = ?1 LIMIT ?2",
+                WHERE session_id = ?1 ORDER BY id DESC LIMIT ?2",
             )?;
 
             let messages = stmt.query_map(params![session_id, limit], |row| {
