@@ -5,7 +5,7 @@ use crate::models::display_picture::DisplayPicture;
 use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
-use eframe::egui::{TextFormat, Ui};
+use eframe::egui::{FontId, TextFormat, Ui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ pub fn category_collapsing_header(
     contact_repository: ContactRepository,
     client: Arc<Client>,
 ) {
-    egui::CollapsingHeader::new(name)
+    if egui::CollapsingHeader::new(name)
         .default_open(true)
         .show(ui, |ui| {
             if contacts.is_empty() {
@@ -83,7 +83,8 @@ pub fn category_collapsing_header(
                             &contact.display_name,
                             0.,
                             TextFormat {
-                                font_id: egui::FontId::proportional(13.),
+                                font_id: FontId::proportional(13.),
+                                color: ui.visuals().text_color(),
                                 ..Default::default()
                             },
                         );
@@ -92,7 +93,7 @@ pub fn category_collapsing_header(
                             && !personal_message.is_empty()
                         {
                             contact_job.append(" - ", 0., TextFormat {
-                                font_id: egui::FontId::proportional(13.),
+                                font_id: FontId::proportional(13.),
                                 color: ui.visuals().weak_text_color(),
                                 ..Default::default()
                             });
@@ -101,7 +102,7 @@ pub fn category_collapsing_header(
                                 personal_message,
                                 0.,
                                 TextFormat {
-                                    font_id: egui::FontId::proportional(13.),
+                                    font_id: FontId::proportional(13.),
                                     color: ui.visuals().weak_text_color(),
                                     ..Default::default()
                                 },
@@ -206,5 +207,9 @@ pub fn category_collapsing_header(
                     });
                 }
             }
-        });
+        }).header_response.clicked() {
+        if let Some(contact) = selected_contact && contacts.contains_key(contact) {
+            *selected_contact = None;
+        }
+    }
 }
