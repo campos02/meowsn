@@ -230,7 +230,6 @@ impl Contacts {
                                         ));
 
                                     ctx.request_repaint();
-                                    println!("Requested repaint from SB closure");
                                 }
                             });
                         });
@@ -310,8 +309,6 @@ impl eframe::App for Contacts {
                         let _ = self.main_window_sender.send(
                             crate::main_window::Message::UserDisplayPictureChanged(picture),
                         );
-
-                        ctx.request_repaint();
                     }
                 }
 

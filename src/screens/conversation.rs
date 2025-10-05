@@ -170,8 +170,6 @@ impl Conversation {
                     match event {
                         msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
                             let email = Arc::new(email);
-                            println!("New participant: {}", email);
-
                             self.participants.insert(
                                 email.clone(),
                                 self.contact_repository
@@ -236,14 +234,10 @@ impl Conversation {
                                     }
                                 }
                             }
-
-                            ctx.request_repaint();
                         }
 
                         msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
                             let participant = self.participants.remove(&email);
-                            println!("{} left", email);
-
                             if self.participants.is_empty() && participant.is_some() {
                                 self.last_participant = participant;
                             }
@@ -879,8 +873,6 @@ impl Conversation {
                                     errored: false,
                                 };
 
-                                println!("In SB: {}", self.participants.len());
-
                                 if !self.participants.is_empty() {
                                     let switchboard = switchboard.clone();
                                     run_future(
@@ -1071,19 +1063,6 @@ impl Conversation {
     ) {
         self.switchboards
             .insert(session_id, switchboard.switchboard);
-
-        for participant in &switchboard.participants {
-            self.participants.insert(
-                participant.clone(),
-                self.contact_repository
-                    .get_contact(participant)
-                    .unwrap_or(Contact {
-                        email: participant.clone(),
-                        display_name: participant.clone(),
-                        ..Contact::default()
-                    }),
-            );
-        }
     }
 
     pub fn leave_switchboards(&self) {

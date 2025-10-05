@@ -71,7 +71,7 @@ pub struct MainWindow {
     receiver: std::sync::mpsc::Receiver<Message>,
     personal_settings_window: Option<Arc<Mutex<personal_settings::PersonalSettings>>>,
     dialog_window_text: Option<String>,
-    conversations: HashMap<egui::ViewportId, Arc<Mutex<conversation::Conversation>>>,
+    conversations: HashMap<egui::ViewportId, conversation::Conversation>,
     handle: Handle,
     sqlite: Sqlite,
 }
@@ -100,8 +100,6 @@ impl MainWindow {
 
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        println!("Main window update");
-
         if ctx.style().visuals.dark_mode {
             catppuccin_egui::set_theme(&ctx, catppuccin_egui::MOCHA);
         } else {
@@ -116,7 +114,6 @@ impl eframe::App for MainWindow {
         });
 
         if let Ok(message) = self.receiver.try_recv() {
-            println!("Has events");
             match message {
                 Message::SignIn(sign_in_return) => {
                     let client = sign_in_return.client.clone();
@@ -138,7 +135,6 @@ impl eframe::App for MainWindow {
                             async move {
                                 let _ = sender.send(Message::NotificationServerEvent(event));
                                 ctx.request_repaint();
-                                println!("Requested repaint from NS closure");
                             }
                         });
                     });
@@ -210,11 +206,7 @@ impl eframe::App for MainWindow {
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(Message::NotificationServerEvent(event.clone()), ctx);
-                        for conversation in self.conversations.values() {
-                            let mut conversation = conversation
-                                .lock()
-                                .unwrap_or_else(|error| error.into_inner());
-
+                        for conversation in self.conversations.values_mut() {
                             conversation
                                 .handle_event(Message::NotificationServerEvent(event.clone()), ctx);
                         }
@@ -237,32 +229,19 @@ impl eframe::App for MainWindow {
                             ctx,
                         );
 
-                        println!("Before conversations for");
-                        for (id, conversation) in self.conversations.iter() {
-                            let mut conversation = conversation
-                                .lock()
-                                .unwrap_or_else(|error| error.into_inner());
-
+                        for conversation in self.conversations.values_mut() {
                             conversation.handle_event(
                                 Message::SwitchboardEvent(session_id.clone(), event.clone()),
                                 ctx,
                             );
-
-                            ctx.request_repaint_of(*id);
                         }
-
-                        println!("After conversations for");
                     }
 
                     ctx.request_repaint();
                 }
 
                 Message::UserDisplayPictureChanged(picture) => {
-                    for conversation in self.conversations.values() {
-                        let mut conversation = conversation
-                            .lock()
-                            .unwrap_or_else(|error| error.into_inner());
-
+                    for conversation in self.conversations.values_mut() {
                         conversation
                             .handle_event(Message::UserDisplayPictureChanged(picture.clone()), ctx);
                     }
@@ -279,11 +258,7 @@ impl eframe::App for MainWindow {
                         );
                     }
 
-                    for conversation in self.conversations.values() {
-                        let mut conversation = conversation
-                            .lock()
-                            .unwrap_or_else(|error| error.into_inner());
-
+                    for conversation in self.conversations.values_mut() {
                         conversation.handle_event(
                             Message::ContactDisplayPictureEvent {
                                 email: email.clone(),
@@ -321,10 +296,6 @@ impl eframe::App for MainWindow {
                     client,
                 } => {
                     if let Some((id, _)) = self.conversations.iter().find(|(_, conversation)| {
-                        let conversation = conversation
-                            .lock()
-                            .unwrap_or_else(|error| error.into_inner());
-
                         conversation.get_participants().contains_key(&contact.email)
                             || conversation.get_participants().is_empty()
                                 && conversation
@@ -374,7 +345,7 @@ impl eframe::App for MainWindow {
 
                         self.conversations.insert(
                             viewport_id,
-                            Arc::new(Mutex::new(conversation::Conversation::new(
+                            conversation::Conversation::new(
                                 user_email,
                                 user_display_name,
                                 user_display_picture,
@@ -385,7 +356,7 @@ impl eframe::App for MainWindow {
                                 self.sqlite.clone(),
                                 self.handle.clone(),
                                 true,
-                            ))),
+                            ),
                         );
 
                         let sender = self.sender.clone();
@@ -402,7 +373,6 @@ impl eframe::App for MainWindow {
                                         sender.send(Message::SwitchboardEvent(session_id, event));
 
                                     ctx.request_repaint();
-                                    println!("Requested repaint from inner SB closure");
                                 }
                             });
                         });
@@ -417,32 +387,26 @@ impl eframe::App for MainWindow {
                     session_id,
                     switchboard,
                 } => {
-                    if let Some(conversation) = self.conversations.values().find(|conversation| {
-                        let conversation = conversation
-                            .lock()
-                            .unwrap_or_else(|error| error.into_inner());
-
-                        conversation.get_participants().len() == 1
-                            && switchboard.participants.iter().all(|participant| {
-                                conversation.get_participants().contains_key(participant)
-                            })
-                            || conversation.get_participants().is_empty()
-                                && switchboard.participants.iter().all(|sb_participant| {
-                                    conversation.get_last_participant().as_ref().is_some_and(
-                                        |participant| *sb_participant == participant.email,
-                                    )
+                    if let Some(conversation) =
+                        self.conversations.values_mut().find(|conversation| {
+                            conversation.get_participants().len() == 1
+                                && switchboard.participants.iter().all(|participant| {
+                                    conversation.get_participants().contains_key(participant)
                                 })
-                    }) {
-                        let mut conversation = conversation
-                            .lock()
-                            .unwrap_or_else(|error| error.into_inner());
-
+                                || conversation.get_participants().is_empty()
+                                    && switchboard.participants.iter().all(|sb_participant| {
+                                        conversation.get_last_participant().as_ref().is_some_and(
+                                            |participant| *sb_participant == participant.email,
+                                        )
+                                    })
+                        })
+                    {
                         conversation.add_switchboard(session_id, switchboard);
                     } else {
                         let viewport_id = egui::ViewportId::from_hash_of(&session_id);
                         self.conversations.insert(
                             viewport_id,
-                            Arc::new(Mutex::new(conversation::Conversation::new(
+                            conversation::Conversation::new(
                                 user_email,
                                 user_display_name,
                                 user_display_picture,
@@ -453,7 +417,7 @@ impl eframe::App for MainWindow {
                                 self.sqlite.clone(),
                                 self.handle.clone(),
                                 false,
-                            ))),
+                            ),
                         );
                     };
                 }
@@ -535,40 +499,23 @@ impl eframe::App for MainWindow {
             );
         }
 
-        for (id, conversation) in &self.conversations {
-            let sender = self.sender.clone();
-            let conversation = conversation.clone();
-            let id = *id;
+        for (id, conversation) in &mut self.conversations {
+            let visible = conversation.visible();
+            let title = conversation.get_title();
 
-            let visible;
-            let title;
-            {
-                let conversation = conversation
-                    .lock()
-                    .unwrap_or_else(|error| error.into_inner());
-
-                visible = conversation.visible();
-                title = conversation.get_title();
-            }
-
-            let main_ctx = ctx.clone();
-            ctx.show_viewport_deferred(
-                id,
+            // Immediate might waste more CPU cycles but deferred is a real PITA in this type of application
+            ctx.show_viewport_immediate(
+                *id,
                 egui::ViewportBuilder::default()
                     .with_title(title)
                     .with_inner_size([1000., 650.])
                     .with_min_inner_size([800., 500.])
                     .with_visible(visible),
-                move |ctx, _| {
-                    let mut conversation = conversation
-                        .lock()
-                        .unwrap_or_else(|error| error.into_inner());
-
+                |ctx, _| {
                     conversation.conversation(ctx);
                     if ctx.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
-                        let _ = sender.send(Message::CloseConversation(id));
-                        main_ctx.request_repaint();
+                        let _ = self.sender.send(Message::CloseConversation(*id));
                     }
                 },
             );
