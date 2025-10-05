@@ -1,4 +1,6 @@
+use crate::models::display_picture::DisplayPicture;
+
 pub struct User {
     pub personal_message: Option<String>,
-    pub display_picture: Option<Vec<u8>>,
+    pub display_picture: Option<DisplayPicture>,
 }

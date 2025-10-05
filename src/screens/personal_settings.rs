@@ -1,128 +1,172 @@
+use crate::helpers::run_future::run_future;
 use crate::settings;
 use crate::settings::Settings;
-use iced::widget::{button, checkbox, column, container, space, text, text_input};
-use iced::{Center, Element, Fill, Task, Theme};
+use eframe::egui;
+use egui_taffy::taffy::prelude::{auto, length, percent};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::Client;
 use std::sync::Arc;
-
-#[allow(dead_code)]
-pub enum Action {
-    SavePressed(Task<crate::Message>),
-    RunTask(Task<crate::Message>),
-}
-
-#[derive(Debug, Clone)]
-pub enum Message {
-    DisplayNameChanged(String),
-    ServerChanged(String),
-    NexusUrlChanged(String),
-    CheckForUpdatesToggled(bool),
-    Save,
-}
+use tokio::runtime::Handle;
 
 pub struct PersonalSettings {
-    client: Option<Arc<Client>>,
-    display_name: String,
+    display_name: Option<String>,
     server: String,
     nexus_url: String,
     check_for_updates: bool,
+    client: Option<Arc<Client>>,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    handle: Handle,
 }
 
 impl PersonalSettings {
-    pub fn new(client: Option<Arc<Client>>, display_name: Option<String>) -> Self {
+    pub fn new(
+        display_name: Option<String>,
+        client: Option<Arc<Client>>,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        handle: Handle,
+    ) -> Self {
         let settings = settings::get_settings().unwrap_or_default();
         Self {
-            client,
-            display_name: display_name.unwrap_or_default(),
+            display_name,
             server: settings.server,
             nexus_url: settings.nexus_url,
             check_for_updates: settings.check_for_updates,
+            client,
+            main_window_sender,
+            handle,
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        container(
-            column![
-                column![
-                    text("Display name:"),
-                    if self.client.is_some() {
-                        text_input("Display name", &self.display_name)
-                            .on_input(Message::DisplayNameChanged)
-                    } else {
-                        text_input("Display name", &self.display_name)
-                    }
-                ]
-                .spacing(5),
-                column![
-                    text("Server:"),
-                    text_input("Server", &self.server).on_input(Message::ServerChanged)
-                ]
-                .spacing(5),
-                column![
-                    text("Nexus URL:"),
-                    text_input("Nexus URL", &self.nexus_url).on_input(Message::NexusUrlChanged)
-                ]
-                .spacing(5),
-                container(
-                    checkbox("Check for updates on startup", self.check_for_updates)
-                        .on_toggle(Message::CheckForUpdatesToggled)
-                )
-                .width(Fill),
-                button("Save").on_press(Message::Save),
-                space().height(Fill),
-                text(format!("meowsn v{}", env!("CARGO_PKG_VERSION"))).style(|theme: &Theme| {
-                    text::Style {
-                        color: Some(theme.extended_palette().secondary.strong.color),
-                    }
-                }),
-            ]
-            .spacing(15)
-            .align_x(Center),
-        )
-        .padding(40)
-        .center_x(Fill)
-        .into()
-    }
-
-    pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut action = None;
-        match message {
-            Message::DisplayNameChanged(display_name) => self.display_name = display_name,
-            Message::ServerChanged(server) => self.server = server,
-            Message::NexusUrlChanged(nexus_url) => self.nexus_url = nexus_url,
-            Message::CheckForUpdatesToggled(check_for_updates) => {
-                self.check_for_updates = check_for_updates
-            }
-
-            Message::Save => {
-                self.display_name = self.display_name.trim().to_string();
-                self.server = self.server.trim().to_string();
-                self.nexus_url = self.nexus_url.trim().to_string();
-
-                let settings = Settings {
-                    server: self.server.clone(),
-                    nexus_url: self.nexus_url.clone(),
-                    check_for_updates: self.check_for_updates,
-                };
-
-                let _ = settings::save_settings(&settings);
-
-                if let Some(client) = self.client.clone() {
-                    let display_name = self.display_name.clone();
-                    let new_display_name = display_name.clone();
-
-                    action = Some(Action::SavePressed(Task::perform(
-                        async move { client.set_display_name(&display_name).await },
-                        move |result| {
-                            crate::Message::DisplayNameResult(new_display_name.clone(), result)
+    pub fn personal_settings(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame {
+                fill: ctx.style().visuals.window_fill,
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("personal-settings-screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        flex_direction: taffy::FlexDirection::Column,
+                        align_items: Some(taffy::AlignItems::Stretch),
+                        size: taffy::Size {
+                            width: percent(1.),
+                            height: auto(),
                         },
-                    )));
-                } else {
-                    action = Some(Action::SavePressed(Task::none()))
-                }
-            }
-        }
+                        padding: length(30.),
+                        gap: length(15.),
+                        ..Default::default()
+                    })
+                    .show(|tui| {
+                        tui.ui(|ui| {
+                            let label = ui.label("Display name:");
+                            ui.add_space(3.);
 
-        action
+                            if let Some(display_name) = &mut self.display_name {
+                                ui.add_enabled(
+                                    true,
+                                    egui::text_edit::TextEdit::singleline(display_name)
+                                        .hint_text("Display name")
+                                        .min_size(egui::Vec2::new(340., 5.)),
+                                )
+                                .labelled_by(label.id)
+                            } else {
+                                let mut buffer = "";
+                                ui.add_enabled(
+                                    false,
+                                    egui::text_edit::TextEdit::singleline(&mut buffer)
+                                        .hint_text("Display name")
+                                        .min_size(egui::Vec2::new(340., 5.)),
+                                )
+                                .labelled_by(label.id)
+                            }
+                        });
+
+                        tui.ui(|ui| {
+                            let label = ui.label("Server:");
+                            ui.add_space(3.);
+                            ui.add(
+                                egui::text_edit::TextEdit::singleline(&mut self.server)
+                                    .hint_text("Server")
+                                    .min_size(egui::Vec2::new(340., 5.)),
+                            )
+                            .labelled_by(label.id);
+                        });
+
+                        tui.ui(|ui| {
+                            let label = ui.label("Nexus URL:");
+                            ui.add_space(3.);
+                            ui.add(
+                                egui::text_edit::TextEdit::singleline(&mut self.nexus_url)
+                                    .hint_text("Nexus URL")
+                                    .min_size(egui::Vec2::new(340., 5.)),
+                            )
+                            .labelled_by(label.id);
+                        });
+
+                        tui.ui(|ui| {
+                            ui.checkbox(
+                                &mut self.check_for_updates,
+                                "Check for updates on startup",
+                            );
+                        });
+
+                        tui.style(taffy::Style {
+                            align_self: Some(taffy::AlignItems::Center),
+                            size: taffy::Size {
+                                width: length(40.),
+                                height: auto(),
+                            },
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            if ui.button("Save").clicked() {
+                                self.display_name
+                                    .as_mut()
+                                    .map(|display_name| display_name.trim().to_string());
+
+                                self.server = self.server.trim().to_string();
+                                self.nexus_url = self.nexus_url.trim().to_string();
+
+                                let settings = Settings {
+                                    server: self.server.clone(),
+                                    nexus_url: self.nexus_url.clone(),
+                                    check_for_updates: self.check_for_updates,
+                                };
+
+                                let _ = settings::save_settings(&settings);
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+
+                                if let Some(display_name) = self.display_name.clone()
+                                    && let Some(client) = self.client.clone()
+                                {
+                                    let new_display_name = display_name.clone();
+                                    run_future(
+                                        self.handle.clone(),
+                                        async move { client.set_display_name(&display_name).await },
+                                        self.main_window_sender.clone(),
+                                        move |result| {
+                                            crate::main_window::Message::DisplayNameChangeResult(
+                                                new_display_name.clone(),
+                                                result,
+                                            )
+                                        },
+                                    );
+                                }
+                            }
+                        });
+
+                        tui.style(taffy::Style {
+                            align_self: Some(taffy::AlignItems::Center),
+                            size: taffy::Size {
+                                width: length(160.),
+                                height: auto(),
+                            },
+                            padding: percent(0.1),
+                            ..Default::default()
+                        })
+                        .label(format!("meowsn v{}", env!("CARGO_PKG_VERSION")));
+                    });
+            });
     }
 }

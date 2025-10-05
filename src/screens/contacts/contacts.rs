@@ -1,473 +1,126 @@
 use crate::contact_repository::ContactRepository;
-use crate::enums::contact_list_status::ContactListStatus;
-use crate::helpers::pick_display_picture::pick_display_picture;
+use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
+use crate::models::display_picture::DisplayPicture;
+use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
-use crate::msnp_listener::Input;
-use crate::screens::contacts::bordered_container::bordered_container;
-use crate::screens::contacts::contact_map::contact_map;
+use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
+use crate::screens::contacts::status_selector::{Status, status_selector};
+use crate::screens::conversation;
 use crate::sqlite::Sqlite;
-use crate::widgets::pick_list_with_menu_width;
-use crate::widgets::pick_list_with_menu_width::PickListWithMenuWidth;
-use iced::futures::channel::mpsc::Sender;
-use iced::futures::executor::block_on;
-use iced::widget::{button, column, container, row, scrollable, svg, text, text_input};
-use iced::{Background, Center, Color, Element, Fill, Padding, Task, Theme, widget};
-use msnp11_sdk::{Client, Event, MsnpList, MsnpStatus, PersonalMessage, SdkError};
-use rfd::AsyncFileDialog;
-use std::borrow::Cow;
+use crate::svg;
+use eframe::egui;
+use egui_taffy::taffy::prelude::length;
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
-pub enum Action {
-    SignOut(Task<crate::Message>),
-    RunTask(Task<crate::Message>),
-    NewMessage,
-    SetPersonalMessage(Arc<Client>, PersonalMessage),
-    SetPresence(Arc<Client>, ContactListStatus),
-    BlockContact(Arc<Client>, Arc<String>),
-    UnblockContact(Arc<Client>, Arc<String>),
-    RemoveContact {
-        client: Arc<Client>,
-        contact: Arc<String>,
-        guid: Arc<String>,
-    },
-}
-
-#[derive(Clone)]
 pub enum Message {
-    PersonalMessageChanged(String),
-    PersonalMessageSubmit,
+    DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
+    StatusResult(Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
-    StatusSelected(ContactListStatus),
-    StatusResult(ContactListStatus, Result<(), SdkError>),
-    Conversation(Contact),
-    NotificationServerEvent(Event),
-    SwitchboardEvent(Arc<String>, Event),
-    BlockContact(Arc<String>),
     BlockResult(Arc<String>, Result<(), SdkError>),
-    UnblockContact(Arc<String>),
     UnblockResult(Arc<String>, Result<(), SdkError>),
-    RemoveContact {
-        contact: Arc<String>,
-        guid: Arc<String>,
-    },
-
-    RemoveResult(Arc<String>, Result<(), SdkError>),
-    ContactFocused(Arc<String>),
-    AddContact,
-    UserDisplayPictureUpdated(Cow<'static, [u8]>),
-    SelectContact(Arc<String>),
-    OpenContactMenu(Arc<String>),
-    CloseContactMenu,
+    DeleteResult(Arc<String>, Result<(), SdkError>),
+    AddContactResult(Box<Result<msnp11_sdk::Event, SdkError>>),
+    CloseAddContact,
 }
 
 pub struct Contacts {
-    email: Arc<String>,
-    display_picture: Option<Cow<'static, [u8]>>,
+    user_email: Arc<String>,
     display_name: Arc<String>,
     personal_message: String,
-    status: Option<ContactListStatus>,
-    contact_repository: ContactRepository,
+    display_picture: Option<DisplayPicture>,
+    selected_status: Status,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    show_personal_message_frame: bool,
     online_contacts: HashMap<Arc<String>, Contact>,
     offline_contacts: HashMap<Arc<String>, Contact>,
-    client: Arc<Client>,
-    orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
-    sqlite: Sqlite,
-    msnp_subscription_sender: Option<Sender<Input>>,
+    contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
-    contact_menu_opened: Option<Arc<String>>,
+    client: Arc<Client>,
+    sender: std::sync::mpsc::Sender<Message>,
+    receiver: std::sync::mpsc::Receiver<Message>,
+    sqlite: Sqlite,
+    add_contact_window: Option<crate::screens::add_contact::AddContact>,
+    orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
+    handle: Handle,
 }
 
 impl Contacts {
     pub fn new(
-        email: Arc<String>,
-        personal_message: String,
-        initial_status: MsnpStatus,
-        client: Arc<Client>,
+        sign_in_return: SignInReturn,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
-        msnp_subscription_sender: Option<Sender<Input>>,
+        handle: Handle,
     ) -> Self {
-        let initial_status = match initial_status {
-            MsnpStatus::Busy => ContactListStatus::Busy,
-            MsnpStatus::Away => ContactListStatus::Away,
-            MsnpStatus::AppearOffline => ContactListStatus::AppearOffline,
-            _ => ContactListStatus::Online,
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let selected_status = match sign_in_return.status {
+            MsnpStatus::Busy => Status::Busy,
+            MsnpStatus::Away => Status::Away,
+            MsnpStatus::AppearOffline => Status::AppearOffline,
+            _ => Status::Online,
         };
 
         Self {
-            email: email.clone(),
-            display_picture: if let Ok(user) = sqlite.select_user(&email) {
-                user.display_picture.map(Cow::Owned)
-            } else {
-                None
-            },
-            display_name: Arc::new(String::new()),
-            personal_message,
-            status: Some(initial_status),
-            contact_repository: ContactRepository::new(),
+            user_email: sign_in_return.email,
+            display_name: Arc::new(String::from("")),
+            personal_message: sign_in_return.personal_message,
+            display_picture: sign_in_return.display_picture,
+            main_window_sender,
+            selected_status,
+            show_personal_message_frame: false,
             online_contacts: HashMap::new(),
             offline_contacts: HashMap::new(),
-            client,
-            orphan_switchboards: HashMap::new(),
-            sqlite,
-            msnp_subscription_sender,
+            contact_repository: ContactRepository::new(),
             selected_contact: None,
-            contact_menu_opened: None,
+            client: sign_in_return.client,
+            sender,
+            receiver,
+            sqlite,
+            add_contact_window: None,
+            orphan_switchboards: HashMap::new(),
+            handle,
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        container(
-            column![
-                row![
-                    if let Some(picture) = self.display_picture.clone() {
-                        bordered_container(widget::image(widget::image::Handle::from_bytes(
-                            Box::from(picture),
-                        )))
-                    } else {
-                        bordered_container(svg(crate::svg::default_display_picture()))
-                    },
-                    column![
-                        row![
-                            text(format!(" {}", self.display_name)),
-                            PickListWithMenuWidth::new(
-                                ContactListStatus::ALL,
-                                self.status.as_ref(),
-                                Message::StatusSelected
-                            )
-                            .style(|theme: &Theme, status| {
-                                match status {
-                                    pick_list_with_menu_width::Status::Active => {
-                                        let mut list =
-                                            pick_list_with_menu_width::default(theme, status);
-
-                                        list.background = Background::Color(Color::TRANSPARENT);
-                                        list.border.width = 0.0;
-                                        list
-                                    }
-
-                                    _ => {
-                                        let mut list =
-                                            pick_list_with_menu_width::default(theme, status);
-
-                                        list.border.color =
-                                            theme.extended_palette().secondary.strong.color;
-
-                                        list.background = Background::Color(Color::TRANSPARENT);
-                                        list
-                                    }
-                                }
-                            })
-                            .width(130)
-                            .menu_width(180.0)
-                        ]
-                        .align_y(Center)
-                        .spacing(20),
-                        text_input("<Type a personal message>", &self.personal_message)
-                            .width(230)
-                            .on_input(Message::PersonalMessageChanged)
-                            .on_submit(Message::PersonalMessageSubmit)
-                            .style(|theme: &Theme, status| {
-                                match status {
-                                    text_input::Status::Active | text_input::Status::Disabled => {
-                                        let mut list = text_input::default(theme, status);
-                                        list.border.width = 0.0;
-                                        list
-                                    }
-
-                                    _ => {
-                                        let mut list = text_input::default(theme, status);
-                                        list.border.color =
-                                            theme.extended_palette().secondary.strong.color;
-                                        list
-                                    }
-                                }
-                            }),
-                    ]
-                    .spacing(5)
-                ]
-                .spacing(10),
-                row![
-                    svg(crate::svg::add_contact()).width(30),
-                    button(text("Add a contact").size(15))
-                        .style(button::text)
-                        .on_press(Message::AddContact),
-                ]
-                .align_y(Center),
-                scrollable(column![
-                    if !self.online_contacts.is_empty() {
-                        column(self.online_contacts.values().map(|contact| {
-                            contact_map(
-                                contact,
-                                self.selected_contact.clone(),
-                                self.contact_menu_opened
-                                    .as_ref()
-                                    .is_some_and(|contact_opened| *contact_opened == contact.email),
-                            )
-                        }))
-                        .spacing(10)
-                        .padding(Padding {
-                            top: 10.0,
-                            right: 10.0,
-                            bottom: 0.0,
-                            left: 10.0,
-                        })
-                    } else {
-                        column![].height(0).padding(0)
-                    },
-                    column(self.offline_contacts.values().map(|contact| {
-                        contact_map(
-                            contact,
-                            self.selected_contact.clone(),
-                            self.contact_menu_opened
-                                .as_ref()
-                                .is_some_and(|contact_opened| *contact_opened == contact.email),
-                        )
-                    }),)
-                    .spacing(10)
-                    .padding(10)
-                ])
-                .height(Fill)
-                .width(Fill)
-            ]
-            .spacing(10),
-        )
-        .padding(15)
-        .into()
-    }
-
-    pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut action = None;
+    pub fn handle_event(
+        &mut self,
+        message: crate::main_window::Message,
+        ctx: &egui::Context,
+        conversations: &mut HashMap<egui::ViewportId, conversation::Conversation>,
+    ) {
         match message {
-            Message::UserDisplayPictureUpdated(picture) => {
-                self.display_picture = Some(picture);
-            }
-
-            Message::PersonalMessageChanged(personal_message) => {
-                self.personal_message = personal_message;
-            }
-
-            Message::PersonalMessageSubmit => {
-                let client = self.client.clone();
-                let personal_message = PersonalMessage {
-                    psm: self.personal_message.clone(),
-                    current_media: "".to_string(),
-                };
-
-                action = Some(Action::SetPersonalMessage(client, personal_message));
-            }
-
-            Message::PersonalMessageResult(result) => {
-                if let Err(error) = result {
-                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
-                        error.to_string(),
-                    ))))
-                } else {
-                    let _ = self
-                        .sqlite
-                        .update_personal_message(&self.email, &self.personal_message);
-                }
-            }
-
-            Message::StatusSelected(status) => match status {
-                ContactListStatus::ChangeDisplayPicture => {
-                    let picture = AsyncFileDialog::new()
-                        .add_filter("Images", &["png", "jpeg", "jpg"])
-                        .set_directory("/")
-                        .set_title("Select a display picture")
-                        .pick_file();
-
-                    action = Some(Action::RunTask(Task::perform(
-                        pick_display_picture(
-                            picture,
-                            self.email.clone(),
-                            self.client.clone(),
-                            self.sqlite.clone(),
-                        ),
-                        |result| crate::Message::UserDisplayPictureUpdated(result.ok()),
-                    )));
-                }
-
-                ContactListStatus::PersonalSettings => {
-                    action = Some(Action::RunTask(Task::done(
-                        crate::Message::OpenPersonalSettings {
-                            client: Some(self.client.clone()),
-                            display_name: Some(self.display_name.trim().to_string()),
-                        },
-                    )));
-                }
-
-                ContactListStatus::SignOut => {
-                    let client = self.client.clone();
-                    action = Some(Action::SignOut(
-                        Task::future(async move { client.disconnect().await }).discard(),
-                    ));
-                }
-
-                _ => {
-                    let client = self.client.clone();
-                    action = Some(Action::SetPresence(client, status));
-                }
-            },
-
-            Message::StatusResult(status, result) => {
-                if let Err(error) = result {
-                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
-                        error.to_string(),
-                    ))))
-                } else {
-                    self.status = Some(status);
-                }
-            }
-
-            Message::BlockContact(contact) => {
-                let client = self.client.clone();
-                self.contact_menu_opened = None;
-
-                action = Some(Action::BlockContact(client, contact));
-            }
-
-            Message::BlockResult(contact, result) => {
-                if let Err(error) = result {
-                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
-                        error.to_string(),
-                    ))))
-                } else {
-                    let contact = if let Some(contact) = self.online_contacts.get_mut(&contact) {
-                        Some(contact)
-                    } else {
-                        self.offline_contacts.get_mut(&contact)
-                    };
-
-                    if let Some(contact) = contact {
-                        contact.lists.push(MsnpList::BlockList);
-                        contact.lists.retain(|list| list != &MsnpList::AllowList);
-                    }
-                }
-            }
-
-            Message::UnblockContact(contact) => {
-                let client = self.client.clone();
-                self.contact_menu_opened = None;
-
-                action = Some(Action::UnblockContact(client, contact));
-            }
-
-            Message::UnblockResult(contact, result) => {
-                if let Err(error) = result {
-                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
-                        error.to_string(),
-                    ))))
-                } else {
-                    let contact = if let Some(contact) = self.online_contacts.get_mut(&contact) {
-                        Some(contact)
-                    } else {
-                        self.offline_contacts.get_mut(&contact)
-                    };
-
-                    if let Some(contact) = contact {
-                        contact.lists.retain(|list| list != &MsnpList::BlockList);
-                        contact.lists.push(MsnpList::AllowList);
-                    }
-                }
-            }
-
-            Message::RemoveContact { contact, guid } => {
-                let client = self.client.clone();
-                self.contact_menu_opened = None;
-
-                action = Some(Action::RemoveContact {
-                    client,
-                    contact,
-                    guid,
-                });
-            }
-
-            Message::RemoveResult(contact, result) => {
-                if let Err(error) = result {
-                    action = Some(Action::RunTask(Task::done(crate::Message::OpenDialog(
-                        error.to_string(),
-                    ))))
-                } else {
-                    self.online_contacts.remove(&contact);
-                    self.offline_contacts.remove(&contact);
-                }
-            }
-
-            Message::AddContact => {
-                self.selected_contact = None;
-                self.contact_menu_opened = None;
-
-                action = Some(Action::RunTask(Task::done(crate::Message::OpenAddContact(
-                    self.client.clone(),
-                ))));
-            }
-
-            Message::ContactFocused(email) => {
-                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                    Some(contact)
-                } else {
-                    self.offline_contacts.get_mut(&email)
-                };
-
-                if let Some(contact) = contact {
-                    contact.opening_conversation = false;
-                }
-            }
-
-            Message::Conversation(contact) => {
-                self.contact_menu_opened = None;
-                if contact.status.is_some()
-                    && self.status != Some(ContactListStatus::AppearOffline)
-                    && !contact.opening_conversation
-                {
-                    if let Some(contact) = self.online_contacts.get_mut(&contact.email) {
-                        contact.opening_conversation = true;
-                    }
-
-                    action = Some(Action::RunTask(Task::done(
-                        crate::Message::OpenConversation {
-                            contact_repository: self.contact_repository.clone(),
-                            email: self.email.clone(),
-                            display_name: self.display_name.clone(),
-                            contact_email: contact.email.clone(),
-                            client: self.client.clone(),
-                        },
-                    )));
-                }
-            }
-
-            Message::NotificationServerEvent(event) => match event {
-                Event::DisplayName(display_name) => {
+            crate::main_window::Message::NotificationServerEvent(event) => match event {
+                msnp11_sdk::Event::DisplayName(display_name) => {
                     self.display_name = Arc::new(display_name);
-                    action = Some(Action::RunTask(Task::done(
-                        crate::Message::UserDisplayNameUpdated(self.display_name.clone()),
-                    )));
                 }
 
-                Event::ContactInForwardList {
+                msnp11_sdk::Event::ContactInForwardList {
                     email,
                     display_name,
                     guid,
                     lists,
                     ..
                 } => {
+                    let email = Arc::new(email);
                     let contact = Contact {
-                        email: Arc::new(email),
+                        email: email.clone(),
                         display_name: Arc::new(display_name),
                         guid: Arc::new(guid),
                         lists,
-                        ..Contact::default()
+                        ..Default::default()
                     };
 
-                    self.offline_contacts
-                        .insert(contact.email.clone(), contact.clone());
+                    self.contact_repository
+                        .add_contacts(std::slice::from_ref(&contact));
 
-                    self.contact_repository.add_contacts(&[contact]);
+                    self.offline_contacts.insert(email, contact);
                 }
 
-                Event::PresenceUpdate {
+                msnp11_sdk::Event::PresenceUpdate {
                     email,
                     display_name,
                     presence,
@@ -483,23 +136,24 @@ impl Contacts {
                         if let Some(msn_object) = &presence.msn_object
                             && msn_object.object_type == 3
                         {
-                            contact.display_picture = self
-                                .sqlite
-                                .select_display_picture(&msn_object.sha1d)
-                                .ok()
-                                .map(Cow::Owned);
+                            contact.display_picture = if let Ok(picture) =
+                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
+                            {
+                                Some(DisplayPicture {
+                                    data: picture,
+                                    hash: Arc::new(msn_object.sha1d.clone()),
+                                })
+                            } else {
+                                None
+                            }
                         }
 
-                        if let Some(status) = &contact.status {
-                            previous_status = Some(status.status.clone());
+                        if let Some(presence) = &contact.status {
+                            previous_status = Some(presence.status.clone());
                         }
 
                         contact.display_name = Arc::new(display_name);
                         contact.status = Some(Arc::new(presence));
-
-                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.email.clone(),
-                        ))));
 
                         self.contact_repository
                             .update_contacts(std::slice::from_ref(contact));
@@ -508,12 +162,15 @@ impl Contacts {
                     if let Some(contact) = contact.cloned()
                         && previous_status.is_none()
                     {
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(&contact));
+
                         self.offline_contacts.remove(&email);
                         self.online_contacts.insert(contact.email.clone(), contact);
                     }
                 }
 
-                Event::PersonalMessageUpdate {
+                msnp11_sdk::Event::PersonalMessageUpdate {
                     email,
                     personal_message,
                 } => {
@@ -524,20 +181,13 @@ impl Contacts {
                     };
 
                     if let Some(contact) = contact {
-                        let mut personal_message = personal_message.psm;
-                        if personal_message.len() > 28 {
-                            personal_message.truncate(28);
-                            personal_message.push_str("...");
-                        }
-
-                        contact.personal_message = Some(Arc::new(personal_message));
-                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.email.clone(),
-                        ))));
+                        contact.personal_message = Some(Arc::new(personal_message.psm));
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
                     }
                 }
 
-                Event::ContactOffline { email } => {
+                msnp11_sdk::Event::ContactOffline { email } => {
                     let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
                         Some(contact)
                     } else {
@@ -546,93 +196,455 @@ impl Contacts {
 
                     if let Some(contact) = &mut contact {
                         contact.status = None;
-                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.email.clone(),
-                        ))));
-
                         self.contact_repository
                             .update_contacts(std::slice::from_ref(contact));
                     }
 
                     if let Some(contact) = contact.cloned() {
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(&contact));
+
                         self.online_contacts.remove(&email);
                         self.offline_contacts.insert(contact.email.clone(), contact);
                     }
                 }
 
-                Event::SessionAnswered(switchboard) => {
-                    if let Ok(session_id) = block_on(switchboard.get_session_id()) {
+                msnp11_sdk::Event::SessionAnswered(switchboard) => {
+                    if let Ok(session_id) = self.handle.block_on(switchboard.get_session_id()) {
+                        let session_id = Arc::new(session_id);
                         self.orphan_switchboards.insert(
-                            Arc::new(session_id),
+                            session_id.clone(),
                             SwitchboardAndParticipants {
                                 switchboard: switchboard.clone(),
                                 participants: Vec::new(),
                             },
                         );
 
-                        if let Some(ref mut sender) = self.msnp_subscription_sender {
-                            let _ = sender.start_send(Input::NewSwitchboard(switchboard.clone()));
-                        }
+                        let sender = self.main_window_sender.clone();
+                        let ctx = ctx.clone();
+
+                        self.handle.block_on(async {
+                            switchboard.add_event_handler_closure(move |event| {
+                                let sender = sender.clone();
+                                let session_id = session_id.clone();
+                                let ctx = ctx.clone();
+
+                                async move {
+                                    let _ =
+                                        sender.send(crate::main_window::Message::SwitchboardEvent(
+                                            session_id, event,
+                                        ));
+
+                                    ctx.request_repaint();
+                                }
+                            });
+                        });
                     }
                 }
 
                 _ => (),
             },
 
-            Message::SwitchboardEvent(session_id, event) => match event {
-                Event::ParticipantInSwitchboard { email } => {
-                    if let Some(mut switchboard) = self.orphan_switchboards.remove(&*session_id) {
-                        switchboard.participants.push(Arc::new(email));
-
-                        action = Some(Action::RunTask(Task::done(
-                            crate::Message::CreateConversationWithSwitchboard {
-                                contact_repository: self.contact_repository.clone(),
-                                email: self.email.clone(),
-                                display_name: self.display_name.clone(),
-                                session_id,
-                                switchboard: switchboard.clone(),
-                                minimized: true,
-                            },
-                        )));
-                    }
-                }
-
-                Event::DisplayPicture { email, data } => {
-                    let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
-                        Some(contact)
+            crate::main_window::Message::SwitchboardEvent(session_id, event) => {
+                if let msnp11_sdk::Event::ParticipantInSwitchboard { email } = event
+                    && let Some(mut switchboard) = self.orphan_switchboards.remove(&session_id)
+                {
+                    switchboard.participants.push(Arc::from(email));
+                    if let Some(conversation) = conversations.values_mut().find(|conversation| {
+                        conversation.get_participants().len() == 1
+                            && switchboard.participants.iter().all(|participant| {
+                                conversation.get_participants().contains_key(participant)
+                            })
+                            || conversation.get_participants().is_empty()
+                                && switchboard.participants.iter().all(|sb_participant| {
+                                    conversation.get_last_participant().as_ref().is_some_and(
+                                        |participant| *sb_participant == participant.email,
+                                    )
+                                })
+                    }) {
+                        conversation.add_switchboard(session_id, switchboard);
                     } else {
-                        self.offline_contacts.get_mut(&email)
+                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
+                        conversations.insert(
+                            viewport_id,
+                            conversation::Conversation::new(
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.contact_repository.clone(),
+                                session_id,
+                                switchboard,
+                                self.main_window_sender.clone(),
+                                self.sqlite.clone(),
+                                self.handle.clone(),
+                                false,
+                            ),
+                        );
                     };
 
-                    if let Some(contact) = contact {
-                        if let Some(status) = &contact.status
-                            && let Some(msn_object) = &status.msn_object
-                        {
-                            let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
-                        }
+                    ctx.request_repaint();
+                }
+            }
 
-                        contact.display_picture = Some(Cow::Owned(data));
-                        action = Some(Action::RunTask(Task::done(crate::Message::ContactUpdated(
-                            contact.email.clone(),
-                        ))));
+            crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
 
-                        self.contact_repository
-                            .update_contacts(std::slice::from_ref(contact));
+                if let Some(contact) = contact {
+                    if let Some(status) = &contact.status
+                        && let Some(msn_object) = &status.msn_object
+                    {
+                        let _ = self.sqlite.insert_display_picture(&data, &msn_object.sha1d);
+                        contact.display_picture = Some(DisplayPicture {
+                            data,
+                            hash: Arc::new(msn_object.sha1d.clone()),
+                        });
+                    }
+
+                    self.contact_repository
+                        .update_contacts(std::slice::from_ref(contact));
+                }
+            }
+
+            crate::main_window::Message::ContactChatWindowFocused(email) => {
+                let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                    Some(contact)
+                } else {
+                    self.offline_contacts.get_mut(&email)
+                };
+
+                if let Some(contact) = contact {
+                    contact.opening_conversation = false;
+                }
+            }
+
+            _ => (),
+        }
+    }
+}
+
+impl eframe::App for Contacts {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if let Ok(message) = self.receiver.try_recv() {
+            match message {
+                Message::DisplayPictureResult(result) => {
+                    if let Ok(picture) = result {
+                        self.display_picture = Some(picture.clone());
+                        let _ = self.main_window_sender.send(
+                            crate::main_window::Message::UserDisplayPictureChanged(picture),
+                        );
                     }
                 }
 
-                _ => (),
-            },
+                Message::StatusResult(result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-            Message::SelectContact(contact) => self.selected_contact = Some(contact),
-            Message::OpenContactMenu(contact) => {
-                self.contact_menu_opened = Some(contact.clone());
-                self.selected_contact = Some(contact)
+                        ctx.request_repaint();
+                    }
+                }
+
+                Message::PersonalMessageResult(result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    } else {
+                        let _ = self
+                            .sqlite
+                            .update_personal_message(&self.user_email, &self.personal_message);
+                    }
+                }
+
+                Message::BlockResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    } else {
+                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
+                        {
+                            Some(contact)
+                        } else {
+                            self.offline_contacts.get_mut(&contact)
+                        };
+
+                        if let Some(contact) = contact {
+                            contact.lists.push(MsnpList::BlockList);
+                            contact.lists.retain(|list| list != &MsnpList::AllowList);
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(contact));
+                        }
+                    }
+                }
+
+                Message::UnblockResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    } else {
+                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
+                        {
+                            Some(contact)
+                        } else {
+                            self.offline_contacts.get_mut(&contact)
+                        };
+
+                        if let Some(contact) = contact {
+                            contact.lists.retain(|list| list != &MsnpList::BlockList);
+                            contact.lists.push(MsnpList::AllowList);
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(contact));
+                        }
+                    }
+                }
+
+                Message::DeleteResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    } else {
+                        self.online_contacts.remove(&contact);
+                        self.offline_contacts.remove(&contact);
+                        self.contact_repository.remove_contact(&contact);
+                    }
+                }
+
+                Message::AddContactResult(result) => match *result {
+                    Ok(event) => {
+                        if let msnp11_sdk::Event::ContactInForwardList {
+                            email,
+                            display_name,
+                            guid,
+                            lists,
+                            ..
+                        } = event
+                        {
+                            let email = Arc::new(email);
+                            let display_name = Arc::new(display_name);
+                            let guid = Arc::new(guid);
+
+                            let contact = Contact {
+                                email: email.clone(),
+                                display_name,
+                                guid,
+                                lists,
+                                ..Default::default()
+                            };
+
+                            self.contact_repository
+                                .add_contacts(std::slice::from_ref(&contact));
+
+                            self.offline_contacts.insert(email, contact);
+                        }
+                    }
+
+                    Err(error) => {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    }
+                },
+
+                Message::CloseAddContact => self.add_contact_window = None,
             }
-
-            Message::CloseContactMenu => self.contact_menu_opened = None,
         }
 
-        action
+        egui::CentralPanel::default()
+            .frame(egui::Frame {
+                fill: ctx.style().visuals.window_fill,
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("contacts-screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        flex_direction: taffy::FlexDirection::Column,
+                        padding: length(15.),
+                        ..Default::default()
+                    })
+                    .show(|tui| {
+                        tui.style(taffy::Style {
+                            flex_direction: taffy::FlexDirection::Row,
+                            gap: length(10.),
+                            ..Default::default()
+                        })
+                        .add(|tui| {
+                            tui.add_with_border(|tui| {
+                                tui.ui(|ui| {
+                                    ui.add(if let Some(picture) = self.display_picture.clone() {
+                                        egui::Image::from_bytes(
+                                            format!("bytes://{}.png", picture.hash),
+                                            picture.data,
+                                        )
+                                        .fit_to_exact_size(egui::Vec2::splat(60.))
+                                        .corner_radius(
+                                            ui.visuals().widgets.noninteractive.corner_radius,
+                                        )
+                                        .alt_text("User display picture")
+                                    } else {
+                                        egui::Image::new(svg::default_display_picture())
+                                            .fit_to_exact_size(egui::Vec2::splat(60.))
+                                            .alt_text("Default display picture")
+                                    })
+                                })
+                            });
+
+                            tui.ui(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.add_space(5.);
+                                    status_selector(
+                                        ui,
+                                        self.user_email.clone(),
+                                        &self.display_name,
+                                        &mut self.selected_status,
+                                        self.sender.clone(),
+                                        self.main_window_sender.clone(),
+                                        self.handle.clone(),
+                                        self.sqlite.clone(),
+                                        self.client.clone(),
+                                    );
+
+                                    let personal_message_edit = ui.add(
+                                        egui::text_edit::TextEdit::singleline(
+                                            &mut self.personal_message,
+                                        )
+                                        .hint_text("<Type a personal message>")
+                                        .min_size(egui::vec2(180., 5.))
+                                        .frame(self.show_personal_message_frame),
+                                    );
+
+                                    if personal_message_edit.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                    {
+                                        let client = self.client.clone();
+                                        let sender = self.sender.clone();
+
+                                        let personal_message = PersonalMessage {
+                                            psm: self.personal_message.clone(),
+                                            current_media: "".to_string(),
+                                        };
+
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move {
+                                                client.set_personal_message(&personal_message).await
+                                            },
+                                            sender,
+                                            Message::PersonalMessageResult,
+                                        );
+                                    }
+
+                                    self.show_personal_message_frame = personal_message_edit
+                                        .hovered()
+                                        || personal_message_edit.has_focus();
+                                });
+                            })
+                        });
+
+                        tui.ui(|ui| ui.add_space(8.));
+                        tui.ui(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    egui::Image::new(svg::add_contact())
+                                        .fit_to_exact_size(egui::Vec2::splat(20.))
+                                        .alt_text("Add a contact"),
+                                );
+
+                                if ui.link("Add a Contact").clicked() {
+                                    if self.add_contact_window.is_some() {
+                                        ctx.send_viewport_cmd_to(
+                                            egui::ViewportId::from_hash_of("add-contact"),
+                                            egui::ViewportCommand::Focus,
+                                        );
+                                    } else {
+                                        self.add_contact_window =
+                                            Some(crate::screens::add_contact::AddContact::new(
+                                                self.client.clone(),
+                                                self.sender.clone(),
+                                                self.handle.clone(),
+                                            ));
+                                    }
+                                }
+                            })
+                        });
+
+                        tui.style(taffy::Style {
+                            padding: length(10.),
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            category_collapsing_header(
+                                ui,
+                                "Online",
+                                &mut self.selected_contact,
+                                &mut self.online_contacts,
+                                self.main_window_sender.clone(),
+                                self.sender.clone(),
+                                self.handle.clone(),
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.selected_status,
+                                self.contact_repository.clone(),
+                                self.client.clone(),
+                            );
+
+                            category_collapsing_header(
+                                ui,
+                                "Offline",
+                                &mut self.selected_contact,
+                                &mut self.offline_contacts,
+                                self.main_window_sender.clone(),
+                                self.sender.clone(),
+                                self.handle.clone(),
+                                self.user_email.clone(),
+                                self.display_name.clone(),
+                                self.display_picture.clone(),
+                                self.selected_status,
+                                self.contact_repository.clone(),
+                                self.client.clone(),
+                            );
+                        });
+                    })
+            });
+
+        if let Some(add_contact) = &mut self.add_contact_window {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("add-contact"),
+                egui::ViewportBuilder::default()
+                    .with_title("Add contact")
+                    .with_inner_size([390., 180.])
+                    .with_maximize_button(false)
+                    .with_minimize_button(false)
+                    .with_resizable(false),
+                |ctx, _| {
+                    add_contact.add_contact(ctx);
+                },
+            );
+        }
+
+        if ctx.input(|input| input.viewport().close_requested()) {
+            let _ = self
+                .handle
+                .block_on(async { self.client.disconnect().await });
+        }
     }
 }

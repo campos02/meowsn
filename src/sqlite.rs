@@ -1,3 +1,4 @@
+use crate::models::display_picture::DisplayPicture;
 use crate::models::message;
 use crate::models::user::User;
 use r2d2::Pool;
@@ -14,12 +15,30 @@ pub struct Sqlite {
 
 impl Sqlite {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        // Compatibility with previous name
+        let mut old_data_local =
+            dirs::data_local_dir().expect("Could not find local data directory");
+        old_data_local.push("icedm");
+
         let mut data_local = dirs::data_local_dir().expect("Could not find local data directory");
         data_local.push("meowsn");
+
+        if old_data_local.exists() {
+            std::fs::rename(old_data_local.clone(), data_local.clone())?;
+        }
+
         std::fs::create_dir_all(&data_local)?;
+
+        let mut old_data_local = data_local.clone();
+        old_data_local.push("icedm");
+        old_data_local.set_extension("db");
 
         data_local.push("meowsn");
         data_local.set_extension("db");
+
+        if old_data_local.exists() {
+            std::fs::rename(old_data_local, data_local.clone())?;
+        }
 
         let manager = SqliteConnectionManager::file(data_local);
         let pool = Pool::new(manager)?;
@@ -85,7 +104,16 @@ impl Sqlite {
             let users = stmt.query_map([email], |row| {
                 Ok(User {
                     personal_message: row.get(0).ok(),
-                    display_picture: row.get(1).ok(),
+                    display_picture: if let Ok(picture) = row.get(1)
+                        && let Ok(hash) = row.get(2)
+                    {
+                        Some(DisplayPicture {
+                            data: picture,
+                            hash: Arc::new(hash),
+                        })
+                    } else {
+                        None
+                    },
                 })
             });
 
@@ -95,10 +123,10 @@ impl Sqlite {
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
-    pub fn select_display_picture(&self, hash: &str) -> rusqlite::Result<Vec<u8>> {
+    pub fn select_display_picture_data(&self, hash: &str) -> rusqlite::Result<Arc<[u8]>> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare("SELECT picture FROM display_pictures WHERE hash = ?1")?;
-            let picture = stmt.query_map([hash], |row| row.get::<usize, Vec<u8>>(0))?;
+            let picture = stmt.query_map([hash], |row| row.get::<usize, Arc<[u8]>>(0))?;
             return picture.last().ok_or(rusqlite::Error::QueryReturnedNoRows)?;
         }
 
@@ -106,6 +134,41 @@ impl Sqlite {
     }
 
     pub fn select_messages(
+        &self,
+        sender1: &str,
+        sender2: &str,
+        limit: u32,
+    ) -> rusqlite::Result<Vec<message::Message>> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare(
+                "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
+                WHERE (sender = ?1 OR receiver = ?1) AND (receiver = ?2 OR sender = ?2) ORDER BY id DESC LIMIT ?3",
+            )?;
+
+            let messages = stmt.query_map(params![sender1, sender2, limit], |row| {
+                Ok(message::Message {
+                    sender: Arc::new(row.get(0)?),
+                    receiver: row.get(1).ok().map(Arc::new),
+                    is_nudge: row.get(2)?,
+                    text: row.get(3)?,
+                    bold: row.get(4)?,
+                    italic: row.get(5)?,
+                    underline: row.get(6)?,
+                    strikethrough: row.get(7)?,
+                    session_id: row.get(8).ok().map(Arc::new),
+                    color: "0".to_string(),
+                    is_history: true,
+                    errored: false,
+                })
+            });
+
+            return messages?.collect();
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn select_all_messages(
         &self,
         sender1: &str,
         sender2: &str,
@@ -142,14 +205,15 @@ impl Sqlite {
     pub fn select_messages_by_session_id(
         &self,
         session_id: &str,
+        limit: u32,
     ) -> rusqlite::Result<Vec<message::Message>> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare(
                 "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
-                WHERE session_id = ?1",
+                WHERE session_id = ?1 ORDER BY id DESC LIMIT ?2",
             )?;
 
-            let messages = stmt.query_map([session_id], |row| {
+            let messages = stmt.query_map(params![session_id, limit], |row| {
                 Ok(message::Message {
                     sender: Arc::new(row.get(0)?),
                     receiver: row.get(1).ok().map(Arc::new),

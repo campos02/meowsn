@@ -1,93 +1,119 @@
-use iced::widget::{button, column, container, row, text, text_input};
-use iced::{Center, Element, Fill, Task};
+use crate::helpers::run_future::run_future;
+use eframe::egui;
+use egui_taffy::taffy::prelude::{auto, length, percent};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpList};
 use std::sync::Arc;
-
-#[derive(Clone)]
-pub enum Message {
-    EmailChanged(String),
-    DisplayNameChanged(String),
-    OkPressed,
-    CancelPressed,
-}
-
-pub enum Action {
-    OkPressed(Task<crate::Message>),
-    CancelPressed,
-}
+use tokio::runtime::Handle;
 
 pub struct AddContact {
     email: String,
     display_name: String,
     client: Arc<Client>,
+    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    handle: Handle,
 }
 
 impl AddContact {
-    pub fn new(client: Arc<Client>) -> Self {
+    pub fn new(
+        client: Arc<Client>,
+        contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+        handle: Handle,
+    ) -> Self {
         Self {
-            email: String::new(),
-            display_name: String::new(),
+            email: String::default(),
+            display_name: String::default(),
             client,
+            contacts_sender,
+            handle,
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        container(
-            column![
-                column![
-                    text("Contact e-mail address:"),
-                    text_input("Contact e-mail", &self.email).on_input(Message::EmailChanged),
-                ]
-                .spacing(5),
-                column![
-                    text("Contact display name (leave empty to set it as their e-mail):"),
-                    text_input("Contact display name", &self.display_name)
-                        .on_input(Message::DisplayNameChanged),
-                ]
-                .spacing(5),
-                row![
-                    button("Ok").on_press(Message::OkPressed),
-                    button("Cancel").on_press(Message::CancelPressed)
-                ]
-                .spacing(5),
-            ]
-            .spacing(20)
-            .align_x(Center),
-        )
-        .center_x(Fill)
-        .padding(20)
-        .into()
-    }
+    pub fn add_contact(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame {
+                    fill: ctx.style().visuals.window_fill,
+                    ..Default::default()
+                }
+                .inner_margin(5.),
+            )
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("add-contact-screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        flex_direction: taffy::FlexDirection::Column,
+                        align_items: Some(taffy::AlignItems::Stretch),
+                        size: taffy::Size {
+                            width: percent(1.),
+                            height: auto(),
+                        },
+                        padding: length(20.),
+                        gap: length(15.),
+                        ..Default::default()
+                    })
+                    .show(|tui| {
+                        tui.ui(|ui| {
+                            let label = ui.label("Contact e-mail address:");
+                            ui.add_space(3.);
+                            ui.add(
+                                egui::text_edit::TextEdit::singleline(&mut self.email)
+                                    .hint_text("Contact e-mail")
+                                    .min_size(egui::Vec2::new(340., 5.)),
+                            )
+                            .labelled_by(label.id);
+                        });
 
-    pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut action = None;
-        match message {
-            Message::EmailChanged(email) => self.email = email,
-            Message::DisplayNameChanged(display_name) => self.display_name = display_name,
-            Message::OkPressed => {
-                let client = self.client.clone();
-                let email = self.email.clone();
-                let display_name = self.display_name.clone();
+                        tui.ui(|ui| {
+                            let label = ui.label("Contact display name (leave empty to set it as their e-mail):");
+                            ui.add_space(3.);
+                            ui.add(
+                                egui::text_edit::TextEdit::singleline(&mut self.display_name)
+                                    .hint_text("Contact display name")
+                                    .min_size(egui::Vec2::new(340., 5.)),
+                            )
+                            .labelled_by(label.id);
+                        });
 
-                action = Some(Action::OkPressed(Task::perform(
-                    async move {
-                        if !display_name.is_empty() {
-                            client
-                                .add_contact(&email, &display_name, MsnpList::ForwardList)
-                                .await
-                        } else {
-                            client
-                                .add_contact(&email, &email, MsnpList::ForwardList)
-                                .await
-                        }
-                    },
-                    crate::Message::EventResult,
-                )));
-            }
+                        tui.style(taffy::Style {
+                            align_self: Some(taffy::AlignItems::Center),
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            ui.horizontal(|ui| {
+                                if ui.button("Ok").clicked() {
+                                    let contacts_sender = self.contacts_sender.clone();
+                                    let client = self.client.clone();
+                                    let email = self.email.clone();
 
-            Message::CancelPressed => action = Some(Action::CancelPressed),
+                                    let display_name = if !self.display_name.is_empty() {
+                                        self.display_name.clone()
+                                    } else {
+                                        self.email.clone()
+                                    };
+
+                                    run_future(self.handle.clone(),
+                                       async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
+                                       contacts_sender,
+                                       |result| {
+                                           crate::screens::contacts::contacts::Message::AddContactResult(Box::new(result))
+                                       });
+
+                                    let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                }
+
+                                if ui.button("Cancel").clicked() {
+                                    let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                }
+                            })
+                        })
+                    })
+            });
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            let _ = self
+                .contacts_sender
+                .send(crate::screens::contacts::contacts::Message::CloseAddContact);
         }
-
-        action
     }
 }

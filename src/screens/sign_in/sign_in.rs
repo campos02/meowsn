@@ -1,284 +1,367 @@
-use crate::enums::sign_in_status::SignInStatus;
-use crate::screens::sign_in::bordered_container::bordered_container;
+use crate::helpers::run_future::run_future;
+use crate::helpers::sign_in_async::sign_in_async;
+use crate::models::display_picture::DisplayPicture;
+use crate::models::sign_in_return::SignInReturn;
+use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
-use crate::widgets::pick_list_with_menu_width;
-use crate::widgets::pick_list_with_menu_width::PickListWithMenuWidth;
-use iced::widget::{
-    button, checkbox, column, combo_box, container, row, space, svg, text, text_input,
-};
-use iced::{Background, Color, Theme, widget};
-use iced::{Center, Element, Fill};
+use crate::svg;
+use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
+use eframe::egui;
+use eframe::egui::{FontFamily, FontId};
+use egui_taffy::taffy::prelude::{auto, length, percent};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
-use std::borrow::Cow;
+use msnp11_sdk::{MsnpStatus, SdkError};
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
-#[derive(Clone)]
 pub enum Message {
-    EmailInput(String),
-    EmailSelected(String),
-    PasswordChanged(String),
-    StatusSelected(SignInStatus),
-    ForgetMe,
-    RememberMeToggled(bool),
-    RememberMyPasswordToggled(bool),
-    SignIn,
-    SignInFailed,
-}
-
-pub enum Action {
-    SignIn,
-    PersonalSettings,
-    Dialog(String),
+    SignInResult(Result<SignInReturn, SdkError>),
 }
 
 pub struct SignIn {
-    email: Option<String>,
-    display_picture: Option<Cow<'static, [u8]>>,
-    emails: combo_box::State<String>,
+    display_picture: Option<DisplayPicture>,
+    emails: Vec<String>,
+    email: String,
     password: String,
-    status: Option<SignInStatus>,
     remember_me: bool,
     remember_my_password: bool,
+    selected_status: Status,
     signing_in: bool,
+    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    handle: Handle,
     sqlite: Sqlite,
+    sender: std::sync::mpsc::Sender<Message>,
+    receiver: std::sync::mpsc::Receiver<Message>,
 }
 
 impl SignIn {
-    pub fn new(sqlite: Sqlite) -> Self {
-        let mut email = None;
-        let mut password = String::new();
+    pub fn new(
+        handle: Handle,
+        sqlite: Sqlite,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    ) -> Self {
+        let mut display_picture = None;
+        let mut email = String::default();
+        let mut password = String::default();
         let mut remember_me = false;
         let mut remember_my_password = false;
-        let mut display_picture = None;
 
         let emails = sqlite.select_user_emails().unwrap_or_default();
-        if let Some(last_email) = emails.first() {
-            email = Some(last_email.to_owned());
+        if let Some(first_email) = emails.first() {
+            email = first_email.to_owned();
             remember_me = true;
 
-            if let Ok(entry) = Entry::new("meowsn", last_email)
+            if let Ok(entry) = Entry::new("meowsn", first_email)
                 && let Ok(passwd) = entry.get_password()
             {
                 password = passwd;
                 remember_my_password = true;
             }
+
+            if let Ok(user) = sqlite.select_user(&email)
+                && let Some(picture) = user.display_picture
+            {
+                display_picture = Some(picture)
+            }
         }
 
-        if let Some(ref email) = email
-            && let Ok(user) = sqlite.select_user(email)
-            && let Some(picture) = user.display_picture
-        {
-            display_picture = Some(Cow::Owned(picture))
-        }
-
+        let (sender, receiver) = std::sync::mpsc::channel();
         Self {
-            email,
             display_picture,
-            emails: combo_box::State::new(emails),
+            emails,
+            email,
             password,
-            status: Some(SignInStatus::Online),
             remember_me,
             remember_my_password,
+            selected_status: Status::Online,
             signing_in: false,
+            main_window_sender,
+            handle,
             sqlite,
+            sender,
+            receiver,
         }
     }
+}
 
-    pub fn view(&self) -> Element<'_, Message> {
-        container(
-            column![
-                if let Some(picture) = self.display_picture.clone() {
-                    bordered_container(widget::image(widget::image::Handle::from_bytes(Box::from(
-                        picture,
-                    ))))
-                } else {
-                    bordered_container(svg(crate::svg::default_display_picture()))
-                },
-                column![
-                    column![
-                        text("E-mail address:"),
-                        combo_box(
-                            &self.emails,
-                            "E-mail address",
-                            self.email.as_ref(),
-                            Message::EmailSelected,
-                        )
-                        .on_input(Message::EmailInput),
-                    ]
-                    .spacing(5),
-                    column![
-                        text("Password:"),
-                        text_input("Password", &self.password)
-                            .on_input(Message::PasswordChanged)
-                            .secure(true),
-                    ]
-                    .spacing(5)
-                ]
-                .spacing(10),
-                row![
-                    text("Status: "),
-                    PickListWithMenuWidth::new(
-                        SignInStatus::ALL,
-                        self.status.as_ref(),
-                        Message::StatusSelected
-                    )
-                    .style(|theme: &Theme, status| {
-                        match status {
-                            pick_list_with_menu_width::Status::Active => {
-                                let mut list = pick_list_with_menu_width::default(theme, status);
-                                list.background = Background::Color(Color::TRANSPARENT);
-                                list.border.width = 0.0;
-                                list
-                            }
-
-                            _ => {
-                                let mut list = pick_list_with_menu_width::default(theme, status);
-                                list.border.color = theme.extended_palette().secondary.strong.color;
-                                list.background = Background::from(
-                                    theme.extended_palette().background.weak.color,
-                                );
-                                list
-                            }
-                        }
-                    })
-                    .width(130)
-                    .menu_width(150.0)
-                ]
-                .spacing(3)
-                .align_y(Center),
-                column![
-                    row![
-                        checkbox("Remember Me", self.remember_me)
-                            .on_toggle(Message::RememberMeToggled),
-                        button("(Forget Me)")
-                            .style(button::text)
-                            .on_press(Message::ForgetMe)
-                    ]
-                    .spacing(15)
-                    .align_y(Center),
-                    checkbox("Remember My Password", self.remember_my_password)
-                        .on_toggle(Message::RememberMyPasswordToggled),
-                ],
-                space().height(5),
-                if self.signing_in {
-                    button("Sign In")
-                } else {
-                    button("Sign In").on_press(Message::SignIn)
-                },
-            ]
-            .spacing(10)
-            .align_x(Center),
-        )
-        .padding(50)
-        .center_x(Fill)
-        .into()
-    }
-
-    pub fn update(&mut self, message: Message) -> Option<Action> {
-        let mut action: Option<Action> = None;
-        match message {
-            Message::EmailInput(email) => {
-                self.email = Some(email);
-                self.display_picture = None;
-            }
-
-            Message::EmailSelected(email) => {
-                if let Ok(entry) = Entry::new("meowsn", &email)
-                    && let Ok(passwd) = entry.get_password()
-                {
-                    self.password = passwd;
-                    self.remember_my_password = true;
-                }
-
-                if let Ok(user) = self.sqlite.select_user(&email)
-                    && let Some(picture) = user.display_picture
-                {
-                    self.display_picture = Some(Cow::Owned(picture))
-                }
-
-                self.remember_me = true;
-                self.email = Some(email);
-            }
-
-            Message::PasswordChanged(password) => self.password = password,
-            Message::StatusSelected(status) => {
-                if let SignInStatus::PersonalSettings = status {
-                    action = Some(Action::PersonalSettings);
-                } else {
-                    self.status = Some(status);
-                }
-            }
-
-            Message::RememberMeToggled(remember_me) => self.remember_me = remember_me,
-            Message::RememberMyPasswordToggled(remember_my_password) => {
-                if remember_my_password {
-                    self.remember_me = true;
-                }
-
-                self.remember_my_password = remember_my_password;
-            }
-
-            Message::SignIn => {
-                if let Some(ref mut email) = self.email {
-                    *email = email.trim().to_string();
-                }
-
-                if self.email.as_ref().is_none_or(|email| email.is_empty())
-                    || self.password.is_empty()
-                {
-                    action = Some(Action::Dialog("Please type your e-mail address and password in their corresponding forms."
-                        .to_string()))
-                } else {
-                    self.signing_in = true;
+impl eframe::App for SignIn {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if let Ok(message) = self.receiver.try_recv() {
+            let Message::SignInResult(result) = message;
+            match result {
+                Ok(sign_in_return) => {
                     if self.remember_me {
-                        if let Some(ref email) = self.email {
-                            let _ = self.sqlite.insert_user_if_not_in_db(email);
-                        }
-
-                        if self.remember_my_password
-                            && let Some(ref email) = self.email
-                            && let Ok(entry) = Entry::new("meowsn", email)
-                        {
-                            let _ = entry.set_password(&self.password);
-                        }
+                        let _ = self.sqlite.insert_user_if_not_in_db(&self.email);
                     }
 
-                    action = Some(Action::SignIn);
-                }
-            }
-
-            Message::ForgetMe => {
-                if let Some(ref email) = self.email {
-                    let _ = self.sqlite.delete_user(email);
-                    if let Ok(entry) = Entry::new("meowsn", email) {
-                        let _ = entry.delete_credential();
+                    if self.remember_my_password
+                        && let Ok(entry) = Entry::new("meowsn", &self.email)
+                    {
+                        let _ = entry.set_password(&self.password);
                     }
+
+                    let _ = self
+                        .main_window_sender
+                        .send(crate::main_window::Message::SignIn(sign_in_return));
+
+                    ctx.request_repaint();
                 }
 
-                self.email = Some(String::new());
-                self.emails =
-                    combo_box::State::new(self.sqlite.select_user_emails().unwrap_or_default());
+                Err(error) => {
+                    let _ = self
+                        .main_window_sender
+                        .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                self.password = String::new();
-                self.remember_me = false;
-                self.remember_my_password = false;
-                self.display_picture = None;
-                self.status = Some(SignInStatus::Online);
-            }
-
-            Message::SignInFailed => {
-                self.signing_in = false;
+                    self.signing_in = false;
+                    ctx.request_repaint();
+                }
             }
         }
 
-        action
-    }
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame {
+                    fill: ctx.style().visuals.window_fill,
+                    ..Default::default()
+                }
+                .inner_margin(30.),
+            )
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("sign-in-screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        flex_direction: taffy::FlexDirection::Column,
+                        align_items: Some(taffy::AlignItems::Center),
+                        size: taffy::Size {
+                            width: percent(1.),
+                            height: auto(),
+                        },
+                        padding: length(8.),
+                        gap: length(15.),
+                        ..Default::default()
+                    })
+                    .show(|tui| {
+                        tui.add_with_border(|tui| {
+                            tui.ui(|ui| {
+                                ui.add(if let Some(picture) = self.display_picture.clone() {
+                                    egui::Image::from_bytes(
+                                        format!("bytes://{}.png", picture.hash),
+                                        picture.data,
+                                    )
+                                    .fit_to_exact_size(egui::Vec2::splat(100.))
+                                    .corner_radius(
+                                        ui.visuals().widgets.noninteractive.corner_radius,
+                                    )
+                                    .alt_text("User display picture")
+                                } else {
+                                    egui::Image::new(svg::default_display_picture())
+                                        .fit_to_exact_size(egui::Vec2::splat(100.))
+                                        .alt_text("Default display picture")
+                                })
+                            })
+                        });
 
-    pub fn get_sign_in_info(&self) -> (Arc<String>, Arc<String>, Option<SignInStatus>) {
-        (
-            Arc::new(self.email.clone().unwrap_or_default()),
-            Arc::new(self.password.clone()),
-            self.status.clone(),
-        )
+                        tui.style(taffy::Style {
+                            size: taffy::Size {
+                                width: length(250.),
+                                height: auto(),
+                            },
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                let label = ui.label("E-mail address:");
+                                ui.add_space(3.);
+                                ui.horizontal(|ui| {
+                                    ui.style_mut().spacing.item_spacing.x = 1.;
+                                    ui.style_mut().spacing.button_padding = egui::Vec2::splat(2.);
+
+                                    ui.add(
+                                        egui::text_edit::TextEdit::singleline(&mut self.email)
+                                            .hint_text("E-mail address")
+                                            .min_size(egui::vec2(227., 5.))
+                                            .desired_width(219.),
+                                    )
+                                    .labelled_by(label.id);
+
+                                    CustomFillComboBox::from_label("")
+                                        .selected_text("")
+                                        .width(3.)
+                                        .fill_color(ui.visuals().text_edit_bg_color())
+                                        .show_ui(ui, |ui| {
+                                            for email in &self.emails {
+                                                if ui
+                                                    .selectable_value(
+                                                        &mut self.email,
+                                                        email.clone(),
+                                                        email,
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    self.remember_me = true;
+                                                    if let Ok(entry) = Entry::new("meowsn", email)
+                                                        && let Ok(passwd) = entry.get_password()
+                                                    {
+                                                        self.password = passwd;
+                                                        self.remember_my_password = true;
+                                                    }
+
+                                                    if let Ok(user) = self.sqlite.select_user(email)
+                                                        && let Some(picture) = user.display_picture
+                                                    {
+                                                        self.display_picture = Some(picture);
+                                                    }
+                                                }
+                                            }
+
+                                            if ui
+                                                .selectable_value(
+                                                    &mut self.email,
+                                                    "".to_string(),
+                                                    "Sign in with a different e-mail address",
+                                                )
+                                                .clicked()
+                                            {
+                                                self.display_picture = None;
+                                                self.email.clear();
+                                                self.password.clear();
+
+                                                self.remember_me = false;
+                                                self.remember_my_password = false;
+                                            };
+                                        });
+                                });
+                            })
+                        });
+
+                        tui.style(taffy::Style {
+                            size: taffy::Size {
+                                width: length(250.),
+                                height: auto(),
+                            },
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                let label = ui.label("Password:");
+                                ui.add_space(3.);
+                                ui.add(
+                                    egui::text_edit::TextEdit::singleline(&mut self.password)
+                                        .hint_text("Password")
+                                        .password(true),
+                                )
+                                .labelled_by(label.id);
+                            })
+                        });
+
+                        tui.ui(|ui| {
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                status_selector(
+                                    ui,
+                                    &mut self.selected_status,
+                                    self.main_window_sender.clone(),
+                                );
+                            })
+                        });
+
+                        tui.ui(|ui| {
+                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.checkbox(&mut self.remember_me, "Remember Me");
+                                    ui.scope(|ui| {
+                                        ui.style_mut().text_styles.insert(
+                                            egui::TextStyle::Body,
+                                            FontId::new(12., FontFamily::Proportional),
+                                        );
+
+                                        if ui.link("(Forget Me)").clicked() {
+                                            let _ = self.sqlite.delete_user(&self.email);
+                                            if let Ok(entry) = Entry::new("meowsn", &self.email) {
+                                                let _ = entry.delete_credential();
+                                            }
+
+                                            self.emails = self
+                                                .sqlite
+                                                .select_user_emails()
+                                                .unwrap_or_default();
+
+                                            self.display_picture = None;
+                                            self.email.clear();
+                                            self.password.clear();
+
+                                            self.remember_me = false;
+                                            self.remember_my_password = false;
+                                        }
+                                    })
+                                });
+
+                                if ui
+                                    .checkbox(
+                                        &mut self.remember_my_password,
+                                        "Remember My Password",
+                                    )
+                                    .changed()
+                                    && self.remember_my_password
+                                {
+                                    self.remember_me = true;
+                                }
+                            })
+                        });
+
+                        tui.style(taffy::Style {
+                            size: taffy::Size {
+                                width: if !self.signing_in {
+                                    length(50.)
+                                } else {
+                                    auto()
+                                },
+                                height: auto(),
+                            },
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            if !self.signing_in {
+                                if ui.button("Sign In").clicked() {
+                                    if self.email.is_empty() || self.password.is_empty() {
+                                        let _ = self.main_window_sender.send(
+                                            crate::main_window::Message::OpenDialog(
+                                                "Please type your e-mail address and \
+                                            password in their corresponding forms."
+                                                    .to_string(),
+                                            ),
+                                        );
+
+                                        ctx.request_repaint();
+                                    } else {
+                                        self.signing_in = true;
+
+                                        let email = Arc::new(self.email.trim().to_string());
+                                        let password = Arc::new(self.password.clone());
+                                        let sqlite = self.sqlite.clone();
+
+                                        let status = match self.selected_status {
+                                            Status::Busy => MsnpStatus::Busy,
+                                            Status::Away => MsnpStatus::Away,
+                                            Status::AppearOffline => MsnpStatus::AppearOffline,
+                                            _ => MsnpStatus::Online,
+                                        };
+
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move {
+                                                sign_in_async(email, password, status, sqlite).await
+                                            },
+                                            self.sender.clone(),
+                                            Message::SignInResult,
+                                        );
+                                    }
+                                }
+                            } else {
+                                ui.spinner();
+                            }
+                        });
+                    })
+            });
     }
 }

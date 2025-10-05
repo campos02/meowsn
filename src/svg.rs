@@ -1,62 +1,52 @@
-use iced::widget::svg::Handle;
+use eframe::egui;
+use eframe::egui::ImageSource;
 use std::sync::LazyLock;
 
-static DEFAULT_DISPLAY_PICTURE: LazyLock<Handle> =
-    LazyLock::new(|| Handle::from_memory(include_bytes!("../assets/default_display_picture.svg")));
+static DEFAULT_DISPLAY_PICTURE: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture.svg"));
 
-static DEFAULT_DISPLAY_PICTURE_BUSY: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!("../assets/default_display_picture_busy.svg"))
-});
+static DEFAULT_DISPLAY_PICTURE_BUSY: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture_busy.svg"));
 
-static DEFAULT_DISPLAY_PICTURE_AWAY: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!("../assets/default_display_picture_away.svg"))
-});
+static DEFAULT_DISPLAY_PICTURE_AWAY: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture_away.svg"));
 
-static DEFAULT_DISPLAY_PICTURE_BLOCKED: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!(
-        "../assets/default_display_picture_blocked.svg"
-    ))
-});
+static DEFAULT_DISPLAY_PICTURE_BLOCKED: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture_blocked.svg"));
 
-static DEFAULT_DISPLAY_PICTURE_OFFLINE: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!(
-        "../assets/default_display_picture_offline.svg"
-    ))
-});
+static DEFAULT_DISPLAY_PICTURE_OFFLINE: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture_offline.svg"));
 
-static DEFAULT_DISPLAY_PICTURE_OFFLINE_BLOCKED: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_memory(include_bytes!(
-        "../assets/default_display_picture_offline_blocked.svg"
-    ))
-});
+static DEFAULT_DISPLAY_PICTURE_OFFLINE_BLOCKED: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/default_display_picture_offline_blocked.svg"));
 
-static ADD_CONTACT: LazyLock<Handle> =
-    LazyLock::new(|| Handle::from_memory(include_bytes!("../assets/add_contact.svg")));
+static ADD_CONTACT: LazyLock<ImageSource> =
+    LazyLock::new(|| egui::include_image!("../assets/add_contact.svg"));
 
-pub fn default_display_picture() -> Handle {
-    DEFAULT_DISPLAY_PICTURE.clone()
+pub fn default_display_picture() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE.to_owned()
 }
 
-pub fn default_display_picture_busy() -> Handle {
-    DEFAULT_DISPLAY_PICTURE_BUSY.clone()
+pub fn default_display_picture_busy() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE_BUSY.to_owned()
 }
 
-pub fn default_display_picture_away() -> Handle {
-    DEFAULT_DISPLAY_PICTURE_AWAY.clone()
+pub fn default_display_picture_away() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE_AWAY.to_owned()
 }
 
-pub fn default_display_picture_blocked() -> Handle {
-    DEFAULT_DISPLAY_PICTURE_BLOCKED.clone()
+pub fn default_display_picture_blocked() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE_BLOCKED.to_owned()
 }
 
-pub fn default_display_picture_offline() -> Handle {
-    DEFAULT_DISPLAY_PICTURE_OFFLINE.clone()
+pub fn default_display_picture_offline() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE_OFFLINE.to_owned()
 }
 
-pub fn default_display_picture_offline_blocked() -> Handle {
-    DEFAULT_DISPLAY_PICTURE_OFFLINE_BLOCKED.clone()
+pub fn default_display_picture_offline_blocked() -> ImageSource<'static> {
+    DEFAULT_DISPLAY_PICTURE_OFFLINE_BLOCKED.to_owned()
 }
 
-pub fn add_contact() -> Handle {
-    ADD_CONTACT.clone()
+pub fn add_contact() -> ImageSource<'static> {
+    ADD_CONTACT.to_owned()
 }
