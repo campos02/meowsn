@@ -119,6 +119,41 @@ impl Sqlite {
         &self,
         sender1: &str,
         sender2: &str,
+        limit: u32,
+    ) -> rusqlite::Result<Vec<message::Message>> {
+        if let Ok(conn) = self.pool.get() {
+            let mut stmt = conn.prepare(
+                "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
+                WHERE (sender = ?1 OR receiver = ?1) AND (receiver = ?2 OR sender = ?2) LIMIT ?3",
+            )?;
+
+            let messages = stmt.query_map(params![sender1, sender2, limit], |row| {
+                Ok(message::Message {
+                    sender: Arc::new(row.get(0)?),
+                    receiver: row.get(1).ok().map(Arc::new),
+                    is_nudge: row.get(2)?,
+                    text: row.get(3)?,
+                    bold: row.get(4)?,
+                    italic: row.get(5)?,
+                    underline: row.get(6)?,
+                    strikethrough: row.get(7)?,
+                    session_id: row.get(8).ok().map(Arc::new),
+                    color: "0".to_string(),
+                    is_history: true,
+                    errored: false,
+                })
+            });
+
+            return messages?.collect();
+        }
+
+        Err(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn select_all_messages(
+        &self,
+        sender1: &str,
+        sender2: &str,
     ) -> rusqlite::Result<Vec<message::Message>> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare(
@@ -152,14 +187,15 @@ impl Sqlite {
     pub fn select_messages_by_session_id(
         &self,
         session_id: &str,
+        limit: u32,
     ) -> rusqlite::Result<Vec<message::Message>> {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare(
                 "SELECT sender, receiver, is_nudge, text, bold, italic, underline, strikethrough, session_id FROM messages \
-                WHERE session_id = ?1",
+                WHERE session_id = ?1 LIMIT ?2",
             )?;
 
-            let messages = stmt.query_map([session_id], |row| {
+            let messages = stmt.query_map(params![session_id, limit], |row| {
                 Ok(message::Message {
                     sender: Arc::new(row.get(0)?),
                     receiver: row.get(1).ok().map(Arc::new),

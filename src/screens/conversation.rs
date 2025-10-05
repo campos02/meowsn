@@ -16,6 +16,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
+const INITIAL_HISTORY_LIMIT: u32 = 5;
+
 pub enum Message {
     SendMessageResult(message::Message, Result<(), SdkError>),
     ClearUserTyping,
@@ -63,7 +65,7 @@ impl Conversation {
     ) -> Self {
         let mut messages = Vec::new();
         if switchboard.participants.len() > 1
-            && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id)
+            && let Ok(message_history) = sqlite.select_messages_by_session_id(&session_id, INITIAL_HISTORY_LIMIT)
         {
             messages = message_history;
         }
@@ -82,7 +84,8 @@ impl Conversation {
             );
 
             if switchboard.participants.len() == 1
-                && let Ok(message_history) = sqlite.select_messages(&user_email, &participant)
+                && let Ok(message_history) =
+                    sqlite.select_messages(&user_email, &participant, INITIAL_HISTORY_LIMIT)
             {
                 messages = message_history;
             }
@@ -184,7 +187,7 @@ impl Conversation {
                             if self.last_participant.is_none()
                                 && self.participants.len() == 1
                                 && let Ok(message_history) =
-                                    self.sqlite.select_messages(&self.user_email, &email)
+                                    self.sqlite.select_messages(&self.user_email, &email, INITIAL_HISTORY_LIMIT)
                             {
                                 self.messages = message_history;
                             }
@@ -549,7 +552,11 @@ impl Conversation {
                         ui.add_space(10.);
 
                         if self.participants.len() < 2 {
-                            ui.link("Load your entire conversation history with this contact");
+                            if ui.link("Load your entire conversation history with this contact").clicked() {
+                                if let Some(participant) = self.participants.values().next() && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email) {
+                                    self.messages = message_history;
+                                }
+                            }
                         }
 
                         ui.separator();
@@ -678,7 +685,7 @@ impl Conversation {
                         ..Default::default()
                     })
                     .ui(|ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
+                        egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
                             for message in self.messages.iter() {
                                 ui.with_layout(
                                     egui::Layout::top_down_justified(egui::Align::LEFT),
@@ -922,7 +929,6 @@ impl Conversation {
                     })
                     .ui(|ui| {
                         egui::ScrollArea::vertical()
-                            .stick_to_bottom(true)
                             .show(ui, |ui| {
                                 let multiline = ui.add(
                                     egui::TextEdit::multiline(&mut self.new_message)
