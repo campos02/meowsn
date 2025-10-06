@@ -312,7 +312,7 @@ impl eframe::App for SignIn {
                         tui.style(taffy::Style {
                             size: taffy::Size {
                                 width: if !self.signing_in {
-                                    length(50.)
+                                    percent(0.2)
                                 } else {
                                     auto()
                                 },

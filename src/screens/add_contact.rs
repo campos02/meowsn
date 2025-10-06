@@ -45,7 +45,7 @@ impl AddContact {
                         flex_direction: taffy::FlexDirection::Column,
                         align_items: Some(taffy::AlignItems::Stretch),
                         size: taffy::Size {
-                            width: percent(1.),
+                            width: percent(0.9),
                             height: auto(),
                         },
                         padding: length(20.),
@@ -65,7 +65,7 @@ impl AddContact {
                         });
 
                         tui.ui(|ui| {
-                            let label = ui.label("Contact display name (leave empty to set it as their e-mail):");
+                            let label = ui.label("Contact display name (leave empty to use their e-mail):");
                             ui.add_space(3.);
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.display_name)
@@ -77,6 +77,10 @@ impl AddContact {
 
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
+                            size: taffy::Size {
+                                width: percent(0.2),
+                                height: auto(),
+                            },
                             ..Default::default()
                         })
                         .ui(|ui| {
