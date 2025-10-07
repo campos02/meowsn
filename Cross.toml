@@ -1,0 +1,2 @@
+[build]
+dockerfile = "meowsn.Dockerfile"
