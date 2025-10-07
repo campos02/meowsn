@@ -9,7 +9,7 @@ egui_extras = { version = "0.32.3", features = ["svg", "image"] }
 egui_taffy = "0.9.0"
 catppuccin-egui = { version = "5.6.0", default-features = false, features = ["egui32"] }
 tokio = { version = "1.47.1", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
-msnp11-sdk = "0.8.2"
+msnp11-sdk = "0.8.3"
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 dirs = "6.0.0"
 r2d2 = "0.8.10"
@@ -19,7 +19,7 @@ serde = { version = "1.0.227", features = ["derive"] }
 rfd = "0.15.4"
 image = { version = "0.25.8", features = ["png"] }
 notify-rust = "4.11.7"
-reqwest = { version = "0.12.23", features = ["json"] }
+reqwest = { version = "0.12.23", default-features = false, features = ["http2", "json", "rustls-tls", "charset"] }
 semver = "1.0.27"
 
 [profile.release]
