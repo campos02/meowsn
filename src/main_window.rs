@@ -302,7 +302,6 @@ impl eframe::App for MainWindow {
                                     .as_ref()
                                     .is_some_and(|participant| participant.email == contact.email)
                     }) {
-                        ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Visible(true));
                         ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
                     } else {
                         let contact_email = contact.email.clone();
@@ -354,7 +353,6 @@ impl eframe::App for MainWindow {
                                 self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
-                                true,
                             ),
                         );
 
@@ -460,23 +458,15 @@ impl eframe::App for MainWindow {
         }
 
         for (id, conversation) in &mut self.conversations {
-            let visible = conversation.visible();
-            let title = conversation.get_title();
-
             // Immediate might waste more CPU cycles but deferred is a real PITA in this type of application
             ctx.show_viewport_immediate(
                 *id,
                 egui::ViewportBuilder::default()
-                    .with_title(title)
+                    .with_title(conversation.get_title())
                     .with_inner_size([1000., 650.])
-                    .with_min_inner_size([800., 500.])
-                    .with_visible(visible),
+                    .with_min_inner_size([800., 500.]),
                 |ctx, _| {
                     conversation.conversation(ctx);
-                    if !conversation.visible() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    }
-
                     if ctx.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
                         let _ = self.sender.send(Message::CloseConversation(*id));

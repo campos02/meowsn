@@ -47,7 +47,6 @@ pub struct Conversation {
     strikethrough: bool,
     focused: bool,
     handle: Handle,
-    visible: bool,
 }
 
 impl Conversation {
@@ -62,7 +61,6 @@ impl Conversation {
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
-        visible: bool,
     ) -> Self {
         let messages = if switchboard.participants.len() > 1
             && let Ok(mut message_history) =
@@ -122,7 +120,6 @@ impl Conversation {
             strikethrough: false,
             focused: false,
             handle,
-            visible,
         }
     }
 
@@ -302,26 +299,12 @@ impl Conversation {
                                     .show();
 
                                 if let Some(session_id) = self.switchboards.keys().next() {
-                                    if !self.visible {
-                                        ctx.send_viewport_cmd_to(
-                                            egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::Visible(true),
-                                        );
-
-                                        self.visible = true;
-                                        ctx.send_viewport_cmd(
-                                            egui::ViewportCommand::RequestUserAttention(
-                                                egui::UserAttentionType::Informational,
-                                            ),
-                                        );
-                                    } else {
-                                        ctx.send_viewport_cmd_to(
-                                            egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::RequestUserAttention(
-                                                egui::UserAttentionType::Informational,
-                                            ),
-                                        );
-                                    }
+                                    ctx.send_viewport_cmd_to(
+                                        egui::ViewportId::from_hash_of(session_id),
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
                                 }
                             }
 
@@ -365,26 +348,12 @@ impl Conversation {
                                     .show();
 
                                 if let Some(session_id) = self.switchboards.keys().next() {
-                                    if !self.visible {
-                                        ctx.send_viewport_cmd_to(
-                                            egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::Visible(true),
-                                        );
-
-                                        self.visible = true;
-                                        ctx.send_viewport_cmd(
-                                            egui::ViewportCommand::RequestUserAttention(
-                                                egui::UserAttentionType::Informational,
-                                            ),
-                                        );
-                                    } else {
-                                        ctx.send_viewport_cmd_to(
-                                            egui::ViewportId::from_hash_of(session_id),
-                                            egui::ViewportCommand::RequestUserAttention(
-                                                egui::UserAttentionType::Informational,
-                                            ),
-                                        );
-                                    }
+                                    ctx.send_viewport_cmd_to(
+                                        egui::ViewportId::from_hash_of(session_id),
+                                        egui::ViewportCommand::RequestUserAttention(
+                                            egui::UserAttentionType::Informational,
+                                        ),
+                                    );
                                 }
                             }
 
@@ -1077,10 +1046,6 @@ impl Conversation {
                 .handle
                 .block_on(async { switchboard.disconnect().await });
         }
-    }
-
-    pub fn visible(&self) -> bool {
-        self.visible
     }
 
     pub fn get_title(&self) -> String {
