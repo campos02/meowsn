@@ -294,6 +294,7 @@ impl Contacts {
                                     self.main_window_sender.clone(),
                                     self.sqlite.clone(),
                                     self.handle.clone(),
+                                    viewport_id,
                                 ),
                             );
 
@@ -301,6 +302,10 @@ impl Contacts {
                                 viewport_id,
                                 egui::ViewportCommand::Minimized(true),
                             );
+
+                            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                                egui::UserAttentionType::Informational,
+                            ));
                         };
 
                         ctx.request_repaint();

@@ -47,6 +47,7 @@ pub struct Conversation {
     strikethrough: bool,
     focused: bool,
     handle: Handle,
+    viewport_id: egui::viewport::ViewportId,
 }
 
 impl Conversation {
@@ -61,6 +62,7 @@ impl Conversation {
         main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
+        viewport_id: egui::viewport::ViewportId,
     ) -> Self {
         let messages = if switchboard.participants.len() > 1
             && let Ok(mut message_history) =
@@ -120,6 +122,7 @@ impl Conversation {
             strikethrough: false,
             focused: false,
             handle,
+            viewport_id,
         }
     }
 
@@ -298,14 +301,12 @@ impl Conversation {
                                     .body(&message.text)
                                     .show();
 
-                                if let Some(session_id) = self.switchboards.keys().next() {
-                                    ctx.send_viewport_cmd_to(
-                                        egui::ViewportId::from_hash_of(session_id),
-                                        egui::ViewportCommand::RequestUserAttention(
-                                            egui::UserAttentionType::Informational,
-                                        ),
-                                    );
-                                }
+                                ctx.send_viewport_cmd_to(
+                                    self.viewport_id,
+                                    egui::ViewportCommand::RequestUserAttention(
+                                        egui::UserAttentionType::Informational,
+                                    ),
+                                );
                             }
 
                             self.messages.push(message);
@@ -347,14 +348,12 @@ impl Conversation {
                                     .body(&message.text)
                                     .show();
 
-                                if let Some(session_id) = self.switchboards.keys().next() {
-                                    ctx.send_viewport_cmd_to(
-                                        egui::ViewportId::from_hash_of(session_id),
-                                        egui::ViewportCommand::RequestUserAttention(
-                                            egui::UserAttentionType::Informational,
-                                        ),
-                                    );
-                                }
+                                ctx.send_viewport_cmd_to(
+                                    self.viewport_id,
+                                    egui::ViewportCommand::RequestUserAttention(
+                                        egui::UserAttentionType::Informational,
+                                    ),
+                                );
                             }
 
                             self.messages.push(message);

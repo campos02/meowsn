@@ -353,6 +353,7 @@ impl eframe::App for MainWindow {
                                 self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
+                                viewport_id,
                             ),
                         );
 
