@@ -5,13 +5,13 @@ use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
-use crate::screens::contacts::status_selector::{status_selector, Status};
+use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{length, percent};
-use egui_taffy::{taffy, tui, TuiBuilderLogic};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -260,7 +260,7 @@ impl Contacts {
                     }
                 }
 
-                msnp11_sdk::Event::TextMessage { email, message } => {
+                msnp11_sdk::Event::TextMessage { .. } | msnp11_sdk::Event::Nudge { .. } => {
                     if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
                         if let Some(conversation) =
                             conversations.values_mut().find(|conversation| {
@@ -280,96 +280,23 @@ impl Contacts {
                             })
                         {
                             conversation.add_switchboard(session_id.clone(), switchboard);
-                            conversation.handle_event(
-                                crate::main_window::Message::SwitchboardEvent(
-                                    session_id,
-                                    msnp11_sdk::Event::TextMessage { email, message },
-                                ),
-                                ctx,
-                            );
                         } else {
                             let viewport_id = egui::ViewportId::from_hash_of(&session_id);
-                            let mut conversation = conversation::Conversation::new(
-                                self.user_email.clone(),
-                                self.display_name.clone(),
-                                self.display_picture.clone(),
-                                self.contact_repository.clone(),
-                                session_id.clone(),
-                                switchboard,
-                                self.main_window_sender.clone(),
-                                self.sqlite.clone(),
-                                self.handle.clone(),
-                            );
-
-                            conversation.handle_event(
-                                crate::main_window::Message::SwitchboardEvent(
-                                    session_id,
-                                    msnp11_sdk::Event::TextMessage { email, message },
-                                ),
-                                ctx,
-                            );
-
-                            conversations.insert(viewport_id, conversation);
-                            ctx.send_viewport_cmd_to(
+                            conversations.insert(
                                 viewport_id,
-                                egui::ViewportCommand::Minimized(true),
-                            );
-                        };
-
-                        ctx.request_repaint();
-                    }
-                }
-
-                msnp11_sdk::Event::Nudge { email } => {
-                    if let Some(switchboard) = self.orphan_switchboards.remove(&session_id) {
-                        if let Some(conversation) =
-                            conversations.values_mut().find(|conversation| {
-                                conversation.get_participants().len() == 1
-                                    && switchboard.participants.iter().all(|participant| {
-                                        conversation.get_participants().contains_key(participant)
-                                    })
-                                    || conversation.get_participants().is_empty()
-                                        && switchboard.participants.iter().all(|sb_participant| {
-                                            conversation
-                                                .get_last_participant()
-                                                .as_ref()
-                                                .is_some_and(|participant| {
-                                                    *sb_participant == participant.email
-                                                })
-                                        })
-                            })
-                        {
-                            conversation.add_switchboard(session_id.clone(), switchboard);
-                            conversation.handle_event(
-                                crate::main_window::Message::SwitchboardEvent(
-                                    session_id,
-                                    msnp11_sdk::Event::Nudge { email },
+                                conversation::Conversation::new(
+                                    self.user_email.clone(),
+                                    self.display_name.clone(),
+                                    self.display_picture.clone(),
+                                    self.contact_repository.clone(),
+                                    session_id.clone(),
+                                    switchboard,
+                                    self.main_window_sender.clone(),
+                                    self.sqlite.clone(),
+                                    self.handle.clone(),
                                 ),
-                                ctx,
-                            );
-                        } else {
-                            let viewport_id = egui::ViewportId::from_hash_of(&session_id);
-                            let mut conversation = conversation::Conversation::new(
-                                self.user_email.clone(),
-                                self.display_name.clone(),
-                                self.display_picture.clone(),
-                                self.contact_repository.clone(),
-                                session_id.clone(),
-                                switchboard,
-                                self.main_window_sender.clone(),
-                                self.sqlite.clone(),
-                                self.handle.clone(),
                             );
 
-                            conversation.handle_event(
-                                crate::main_window::Message::SwitchboardEvent(
-                                    session_id,
-                                    msnp11_sdk::Event::Nudge { email },
-                                ),
-                                ctx,
-                            );
-
-                            conversations.insert(viewport_id, conversation);
                             ctx.send_viewport_cmd_to(
                                 viewport_id,
                                 egui::ViewportCommand::Minimized(true),
