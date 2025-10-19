@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "meowsn"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "catppuccin-egui",
  "dirs",

@@ -303,6 +303,9 @@ impl eframe::App for MainWindow {
                                     .is_some_and(|participant| participant.email == contact.email)
                     }) {
                         ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
+                        let _ = self
+                            .sender
+                            .send(Message::ContactChatWindowFocused(contact.email.clone()));
                     } else {
                         let contact_email = contact.email.clone();
                         let sender = self.sender.clone();

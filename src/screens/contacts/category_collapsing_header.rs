@@ -127,6 +127,7 @@ pub fn category_collapsing_header(
 
                         if label.double_clicked()
                             && contact.status.is_some()
+                            && !contact.opening_conversation
                             && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
                             contact.opening_conversation = true;
 
@@ -146,7 +147,8 @@ pub fn category_collapsing_header(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
                                     if ui.button("Send an Instant Message").clicked() 
-                                        && contact.status.is_some() 
+                                        && contact.status.is_some()
+                                        && !contact.opening_conversation
                                         && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
                                         contact.opening_conversation = true;
 

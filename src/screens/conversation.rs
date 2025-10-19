@@ -93,6 +93,10 @@ impl Conversation {
                         ..Contact::default()
                     }),
             );
+
+            let _ = main_window_sender.send(crate::main_window::Message::ContactChatWindowFocused(
+                participant.clone(),
+            ));
         }
 
         let mut switchboards = HashMap::new();
@@ -176,6 +180,12 @@ impl Conversation {
                                         display_name: email.clone(),
                                         ..Contact::default()
                                     }),
+                            );
+
+                            let _ = self.main_window_sender.send(
+                                crate::main_window::Message::ContactChatWindowFocused(
+                                    email.clone(),
+                                ),
                             );
 
                             if self.last_participant.is_none()
@@ -412,12 +422,6 @@ impl Conversation {
                             .await
                     });
                 }
-
-                let _ = self.main_window_sender.send(
-                    crate::main_window::Message::ContactChatWindowFocused(
-                        participant.email.clone(),
-                    ),
-                );
             }
         }
 
