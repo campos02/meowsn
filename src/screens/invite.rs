@@ -2,34 +2,32 @@ use crate::helpers::run_future::run_future;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{Client, MsnpList};
+use msnp11_sdk::Switchboard;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
-pub struct AddContact {
+pub struct Invite {
     email: String,
-    display_name: String,
-    client: Arc<Client>,
-    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    switchboard: Arc<Switchboard>,
+    conversation_sender: std::sync::mpsc::Sender<crate::screens::conversation::Message>,
     handle: Handle,
 }
 
-impl AddContact {
+impl Invite {
     pub fn new(
-        client: Arc<Client>,
-        contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+        switchboard: Arc<Switchboard>,
+        conversation_sender: std::sync::mpsc::Sender<crate::screens::conversation::Message>,
         handle: Handle,
     ) -> Self {
         Self {
             email: String::default(),
-            display_name: String::default(),
-            client,
-            contacts_sender,
+            switchboard,
+            conversation_sender,
             handle,
         }
     }
 
-    pub fn add_contact(&mut self, ctx: &egui::Context) {
+    pub fn invite(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame {
@@ -39,7 +37,7 @@ impl AddContact {
                 .inner_margin(5.),
             )
             .show(ctx, |ui| {
-                tui(ui, ui.id().with("add-contact-screen"))
+                tui(ui, ui.id().with("invite-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,
@@ -54,22 +52,11 @@ impl AddContact {
                     })
                     .show(|tui| {
                         tui.ui(|ui| {
-                            let label = ui.label("Contact e-mail address:");
+                            let label = ui.label("Enter e-mail address:");
                             ui.add_space(3.);
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.email)
-                                    .hint_text("Contact e-mail")
-                                    .min_size(egui::Vec2::new(340., 5.)),
-                            )
-                            .labelled_by(label.id);
-                        });
-
-                        tui.ui(|ui| {
-                            let label = ui.label("Contact display name (leave empty to use their e-mail):");
-                            ui.add_space(3.);
-                            ui.add(
-                                egui::text_edit::TextEdit::singleline(&mut self.display_name)
-                                    .hint_text("Contact display name")
+                                    .hint_text("E-mail address")
                                     .min_size(egui::Vec2::new(340., 5.)),
                             )
                             .labelled_by(label.id);
@@ -86,30 +73,28 @@ impl AddContact {
                         .ui(|ui| {
                             ui.horizontal(|ui| {
                                 if ui.button("Ok").clicked() {
-                                    let contacts_sender = self.contacts_sender.clone();
-                                    let client = self.client.clone();
+                                    let conversation_sender = self.conversation_sender.clone();
+                                    let switchboard = self.switchboard.clone();
                                     let email = self.email.clone();
 
-                                    let display_name = if !self.display_name.is_empty() {
-                                        self.display_name.clone()
-                                    } else {
-                                        self.email.clone()
-                                    };
-
                                     if !email.trim().is_empty() {
-                                        run_future(self.handle.clone(),
-                                           async move { client.add_contact(&email, &display_name, MsnpList::ForwardList).await },
-                                           contacts_sender,
-                                           |result| {
-                                               crate::screens::contacts::contacts::Message::AddContactResult(Box::new(result))
-                                       });
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move { switchboard.invite(&email).await },
+                                            conversation_sender,
+                                            crate::screens::conversation::Message::InviteResult,
+                                        );
                                     }
 
-                                    let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                    let _ = self
+                                        .conversation_sender
+                                        .send(crate::screens::conversation::Message::CloseInvite);
                                 }
 
                                 if ui.button("Cancel").clicked() {
-                                    let _ = self.contacts_sender.send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                                    let _ = self
+                                        .conversation_sender
+                                        .send(crate::screens::conversation::Message::CloseInvite);
                                 }
                             })
                         })
@@ -118,8 +103,8 @@ impl AddContact {
 
         if ctx.input(|i| i.viewport().close_requested()) {
             let _ = self
-                .contacts_sender
-                .send(crate::screens::contacts::contacts::Message::CloseAddContact);
+                .conversation_sender
+                .send(crate::screens::conversation::Message::CloseInvite);
         }
     }
 }

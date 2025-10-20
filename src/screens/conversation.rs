@@ -20,8 +20,10 @@ const INITIAL_HISTORY_LIMIT: u32 = 3;
 
 pub enum Message {
     SendMessageResult(message::Message, Result<(), SdkError>),
+    InviteResult(Result<(), SdkError>),
     ClearUserTyping,
     ClearParticipantTyping,
+    CloseInvite,
 }
 
 pub struct Conversation {
@@ -48,6 +50,7 @@ pub struct Conversation {
     focused: bool,
     handle: Handle,
     viewport_id: egui::viewport::ViewportId,
+    invite_window: Option<super::invite::Invite>,
 }
 
 impl Conversation {
@@ -127,6 +130,7 @@ impl Conversation {
             focused: false,
             handle,
             viewport_id,
+            invite_window: None,
         }
     }
 
@@ -437,8 +441,19 @@ impl Conversation {
                     self.messages.push(message);
                 }
 
+                Message::InviteResult(result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    }
+                }
+
                 Message::ClearUserTyping => self.user_typing = false,
                 Message::ClearParticipantTyping => self.participant_typing = None,
+                Message::CloseInvite => self.invite_window = None,
             }
         }
 
@@ -522,8 +537,27 @@ impl Conversation {
                         ..Default::default()
                     })
                     .ui(|ui| {
-                        ui.label(job);
-                        ui.add_space(10.);
+                        ui.horizontal(|ui| {
+                            ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);
+                            if ui.button("Invite").clicked() {
+                                if self.invite_window.is_some() {
+                                    ctx.send_viewport_cmd_to(
+                                        egui::ViewportId::from_hash_of(format!("{:?}-invite", self.viewport_id)),
+                                        egui::ViewportCommand::Focus,
+                                    );
+                                } else if let Some(switchboard) = self.switchboards.values().next().cloned() {
+                                    self.invite_window =
+                                        Some(super::invite::Invite::new(
+                                            switchboard,
+                                            self.sender.clone(),
+                                            self.handle.clone(),
+                                        ));
+                                }
+                            }
+
+                            ui.label(job);
+                        });
+                        ui.add_space(5.);
 
                         if self.participants.len() < 2
                             && ui.link("Load your entire conversation history with this contact").clicked()
@@ -1020,6 +1054,21 @@ impl Conversation {
                     });
                 });
         });
+
+        if let Some(invite) = &mut self.invite_window {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of(format!("{:?}-invite", self.viewport_id)),
+                egui::ViewportBuilder::default()
+                    .with_title("Invite someone into this conversation")
+                    .with_inner_size([400., 135.])
+                    .with_maximize_button(false)
+                    .with_minimize_button(false)
+                    .with_resizable(false),
+                |ctx, _| {
+                    invite.invite(ctx);
+                },
+            );
+        }
     }
 
     pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {
