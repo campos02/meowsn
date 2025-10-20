@@ -669,7 +669,7 @@ impl eframe::App for Contacts {
                 egui::ViewportId::from_hash_of("add-contact"),
                 egui::ViewportBuilder::default()
                     .with_title("Add contact")
-                    .with_inner_size([400., 200.])
+                    .with_inner_size([400., 215.])
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),

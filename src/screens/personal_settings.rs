@@ -53,7 +53,7 @@ impl PersonalSettings {
                             width: percent(1.),
                             height: auto(),
                         },
-                        padding: length(30.),
+                        padding: length(25.),
                         gap: length(15.),
                         ..Default::default()
                     })
@@ -114,12 +114,13 @@ impl PersonalSettings {
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
                             size: taffy::Size {
-                                width: length(40.),
+                                width: percent(0.15),
                                 height: auto(),
                             },
                             ..Default::default()
                         })
                         .ui(|ui| {
+                            ui.style_mut().spacing.button_padding = egui::Vec2::new(8., 5.);
                             if ui.button("Save").clicked() {
                                 self.display_name
                                     .as_mut()
@@ -159,10 +160,10 @@ impl PersonalSettings {
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
                             size: taffy::Size {
-                                width: length(160.),
+                                width: percent(0.42),
                                 height: auto(),
                             },
-                            padding: percent(0.1),
+                            padding: percent(0.07),
                             ..Default::default()
                         })
                         .label(format!("meowsn v{}", env!("CARGO_PKG_VERSION")));

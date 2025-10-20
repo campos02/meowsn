@@ -818,10 +818,6 @@ impl Conversation {
                     })
                     .ui(|ui| {
                         ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 6.5);
-                        ui.style_mut()
-                            .text_styles
-                            .insert(egui::TextStyle::Button, FontId::proportional(12.));
-
                         ui.horizontal(|ui| {
                             if ui.button("Nudge").clicked()
                                 && let Some(switchboard) = self.switchboards.values().next()

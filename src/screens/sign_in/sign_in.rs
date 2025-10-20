@@ -272,7 +272,7 @@ impl eframe::App for SignIn {
                                     ui.scope(|ui| {
                                         ui.style_mut().text_styles.insert(
                                             egui::TextStyle::Body,
-                                            FontId::new(12., FontFamily::Proportional),
+                                            FontId::new(12.8, FontFamily::Proportional),
                                         );
 
                                         if ui.link("(Forget Me)").clicked() {

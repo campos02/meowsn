@@ -6,6 +6,7 @@ use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::{contacts, conversation, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
+use crate::visuals;
 use eframe::egui;
 use eframe::egui::CornerRadius;
 use egui_taffy::taffy::prelude::{auto, length, percent};
@@ -91,10 +92,11 @@ impl MainWindow {
 
 impl eframe::App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let old = ctx.style().visuals.clone();
         if ctx.style().visuals.dark_mode {
-            catppuccin_egui::set_theme(ctx, catppuccin_egui::MOCHA);
+            ctx.set_visuals(visuals::dark_mode(old));
         } else {
-            catppuccin_egui::set_theme(ctx, catppuccin_egui::LATTE);
+            ctx.set_visuals(visuals::light_mode(old));
         }
 
         ctx.style_mut(|style| {

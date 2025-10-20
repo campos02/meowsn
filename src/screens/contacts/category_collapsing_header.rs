@@ -83,7 +83,7 @@ pub fn category_collapsing_header(
                             &contact.display_name,
                             0.,
                             TextFormat {
-                                font_id: FontId::proportional(13.),
+                                font_id: FontId::proportional(14.),
                                 color: ui.visuals().text_color(),
                                 ..Default::default()
                             },
@@ -93,7 +93,7 @@ pub fn category_collapsing_header(
                             && !personal_message.is_empty()
                         {
                             contact_job.append(" - ", 0., TextFormat {
-                                font_id: FontId::proportional(13.),
+                                font_id: FontId::proportional(14.),
                                 color: ui.visuals().weak_text_color(),
                                 ..Default::default()
                             });
@@ -102,7 +102,7 @@ pub fn category_collapsing_header(
                                 personal_message,
                                 0.,
                                 TextFormat {
-                                    font_id: FontId::proportional(13.),
+                                    font_id: FontId::proportional(14.),
                                     color: ui.visuals().weak_text_color(),
                                     ..Default::default()
                                 },
