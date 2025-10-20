@@ -121,7 +121,7 @@ pub fn category_collapsing_header(
                         )
                         .truncate());
 
-                        if label.clicked() {
+                        if label.clicked() || label.secondary_clicked() {
                             *selected_contact = Some(contact.email.clone());
                         }
 

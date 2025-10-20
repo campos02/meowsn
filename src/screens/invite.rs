@@ -1,4 +1,5 @@
 use crate::helpers::run_future::run_future;
+use crate::screens::conversation::conversation;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
@@ -9,14 +10,14 @@ use tokio::runtime::Handle;
 pub struct Invite {
     email: String,
     switchboard: Arc<Switchboard>,
-    conversation_sender: std::sync::mpsc::Sender<crate::screens::conversation::Message>,
+    conversation_sender: std::sync::mpsc::Sender<conversation::Message>,
     handle: Handle,
 }
 
 impl Invite {
     pub fn new(
         switchboard: Arc<Switchboard>,
-        conversation_sender: std::sync::mpsc::Sender<crate::screens::conversation::Message>,
+        conversation_sender: std::sync::mpsc::Sender<conversation::Message>,
         handle: Handle,
     ) -> Self {
         Self {
@@ -82,19 +83,19 @@ impl Invite {
                                             self.handle.clone(),
                                             async move { switchboard.invite(&email).await },
                                             conversation_sender,
-                                            crate::screens::conversation::Message::InviteResult,
+                                            conversation::Message::InviteResult,
                                         );
                                     }
 
                                     let _ = self
                                         .conversation_sender
-                                        .send(crate::screens::conversation::Message::CloseInvite);
+                                        .send(conversation::Message::CloseInvite);
                                 }
 
                                 if ui.button("Cancel").clicked() {
                                     let _ = self
                                         .conversation_sender
-                                        .send(crate::screens::conversation::Message::CloseInvite);
+                                        .send(conversation::Message::CloseInvite);
                                 }
                             })
                         })
@@ -104,7 +105,7 @@ impl Invite {
         if ctx.input(|i| i.viewport().close_requested()) {
             let _ = self
                 .conversation_sender
-                .send(crate::screens::conversation::Message::CloseInvite);
+                .send(conversation::Message::CloseInvite);
         }
     }
 }

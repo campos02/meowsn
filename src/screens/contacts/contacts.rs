@@ -6,7 +6,7 @@ use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::{Status, status_selector};
-use crate::screens::conversation;
+use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;

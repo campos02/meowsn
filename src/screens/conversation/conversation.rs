@@ -4,12 +4,15 @@ use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
 use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
+use crate::screens::conversation::contacts_display_pictures::contacts_display_pictures;
+use crate::screens::conversation::messages::messages;
+use crate::screens::invite;
 use crate::sqlite::Sqlite;
 use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
-use eframe::egui::{FontId, FontSelection, TextFormat};
-use egui_taffy::taffy::prelude::{auto, fr, length, line, percent, repeat, span};
+use eframe::egui::{FontId, TextFormat};
+use egui_taffy::taffy::prelude::{auto, fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{SdkError, Switchboard};
 use std::collections::HashMap;
@@ -50,7 +53,7 @@ pub struct Conversation {
     focused: bool,
     handle: Handle,
     viewport_id: egui::viewport::ViewportId,
-    invite_window: Option<super::invite::Invite>,
+    invite_window: Option<invite::Invite>,
 }
 
 impl Conversation {
@@ -547,7 +550,7 @@ impl Conversation {
                                     );
                                 } else if let Some(switchboard) = self.switchboards.values().next().cloned() {
                                     self.invite_window =
-                                        Some(super::invite::Invite::new(
+                                        Some(invite::Invite::new(
                                             switchboard,
                                             self.sender.clone(),
                                             self.handle.clone(),
@@ -570,251 +573,8 @@ impl Conversation {
                         ui.separator();
                     });
 
-                    if self.participants.len() < 2 {
-                        tui.style(taffy::Style {
-                            justify_self: Some(taffy::JustifySelf::End),
-                            grid_row: span(2),
-                            ..Default::default()
-                        })
-                        .add_with_border(|tui| {
-                            tui.ui(|ui| {
-                                if let Some(participant) = self.participants.values().next() {
-                                    ui.add(
-                                        if let Some(picture) = participant.display_picture.clone() {
-                                            egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
-                                                .fit_to_exact_size(egui::Vec2::splat(90.))
-                                                .corner_radius(
-                                                    ui.visuals()
-                                                        .widgets
-                                                        .noninteractive
-                                                        .corner_radius,
-                                                )
-                                                .alt_text("Contact display picture")
-                                        } else {
-                                            egui::Image::new(svg::default_display_picture())
-                                                .fit_to_exact_size(egui::Vec2::splat(90.))
-                                                .alt_text("Default display picture")
-                                        },
-                                    )
-                                } else if let Some(participant) = &self.last_participant {
-                                    ui.add(
-                                        if let Some(picture) = participant.display_picture.clone() {
-                                            egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
-                                                .fit_to_exact_size(egui::Vec2::splat(90.))
-                                                .corner_radius(
-                                                    ui.visuals()
-                                                        .widgets
-                                                        .noninteractive
-                                                        .corner_radius,
-                                                )
-                                                .alt_text("Contact display picture")
-                                        } else {
-                                            egui::Image::new(svg::default_display_picture())
-                                                .fit_to_exact_size(egui::Vec2::splat(90.))
-                                                .alt_text("Default display picture")
-                                        },
-                                    )
-                                } else {
-                                    ui.add(
-                                        egui::Image::new(svg::default_display_picture())
-                                            .fit_to_exact_size(egui::Vec2::splat(90.))
-                                            .alt_text("Default display picture"),
-                                    )
-                                }
-                            })
-                        });
-                    } else {
-                        tui.style(taffy::Style {
-                            justify_self: Some(taffy::JustifySelf::Start),
-                            grid_row: span(3),
-                            display: taffy::Display::Grid,
-                            grid_template_columns: vec![fr(1.), fr(1.)],
-                            grid_template_rows: vec![repeat("auto-fill", vec![length(43.)])],
-                            align_items: Some(taffy::AlignItems::Center),
-                            gap: length(5.),
-                            ..Default::default()
-                        })
-                        .add(|tui| {
-                            for participant in self.participants.values() {
-                                tui.style(taffy::Style {
-                                    justify_self: Some(taffy::JustifySelf::Start),
-                                    size: taffy::Size {
-                                        width: length(45.),
-                                        height: auto(),
-                                    },
-                                    margin: percent(-0.9),
-                                    ..Default::default()
-                                })
-                                .add_with_border(|tui| {
-                                    tui.ui(|ui| {
-                                        ui.add(
-                                            if let Some(picture) =
-                                                participant.display_picture.clone()
-                                            {
-                                                egui::Image::from_bytes(
-                                                    format!("bytes://{}.png", picture.hash), picture.data
-                                                )
-                                                .fit_to_exact_size(egui::Vec2::splat(44.))
-                                                .corner_radius(
-                                                    ui.visuals()
-                                                        .widgets
-                                                        .noninteractive
-                                                        .corner_radius,
-                                                )
-                                                .alt_text("Contact display picture")
-                                            } else {
-                                                egui::Image::new(svg::default_display_picture())
-                                                    .fit_to_exact_size(egui::Vec2::splat(44.))
-                                                    .alt_text("Default display picture")
-                                            },
-                                        )
-                                    });
-                                });
-
-                                tui.style(taffy::Style {
-                                    margin: percent(-0.9),
-                                    max_size: percent(1.),
-                                    ..Default::default()
-                                })
-                                .ui_add(
-                                    egui::Label::new(participant.display_name.as_str()).truncate(),
-                                );
-                            }
-                        })
-                    }
-
-                    tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::Start),
-                        size: taffy::Size {
-                            width: percent(0.93),
-                            height: auto(),
-                        },
-                        grid_row: span(2),
-                        ..Default::default()
-                    })
-                    .ui(|ui| {
-                        egui::ScrollArea::vertical().auto_shrink(false).stick_to_bottom(true).show(ui, |ui| {
-                            for message in self.messages.iter() {
-                                ui.with_layout(
-                                    egui::Layout::top_down_justified(egui::Align::LEFT),
-                                    |ui| {
-                                        let display_name = if let Some(participant) =
-                                            self.participants.get(&message.sender)
-                                        {
-                                            &participant.display_name
-                                        } else if let Some(participant) = &self.last_participant
-                                            && participant.email == message.sender
-                                        {
-                                            &*participant.display_name
-                                        } else if message.sender == self.user_email {
-                                            &self.user_display_name
-                                        } else {
-                                            &message.sender
-                                        };
-
-                                        if message.is_history {
-                                            ui.style_mut().visuals.override_text_color =
-                                                Some(egui::Color32::GRAY);
-                                        }
-
-                                        if !message.is_nudge && !message.errored {
-                                            let id = ui
-                                                .label(format!("{} said:", display_name))
-                                                .id;
-
-                                            ui.indent(id, |ui| {
-                                                let mut job = LayoutJob::default();
-                                                job.append(
-                                                    &message.text.replace("\r\n", "\n"),
-                                                    0.,
-                                                    TextFormat {
-                                                        font_id: if message.bold {
-                                                            FontId::new(
-                                                                FontSelection::Default
-                                                                    .resolve(ui.style())
-                                                                    .size,
-                                                                egui::FontFamily::Name(
-                                                                    "Bold".into(),
-                                                                ),
-                                                            )
-                                                        } else {
-                                                            FontSelection::Default
-                                                                .resolve(ui.style())
-                                                        },
-                                                        color: ui.visuals().text_color(),
-                                                        italics: message.italic,
-                                                        underline: if message.underline {
-                                                            ui.visuals().window_stroke
-                                                        } else {
-                                                            Default::default()
-                                                        },
-                                                        strikethrough: if message.strikethrough {
-                                                            ui.visuals().window_stroke
-                                                        } else {
-                                                            Default::default()
-                                                        },
-                                                        ..Default::default()
-                                                    },
-                                                );
-
-                                                ui.label(job);
-                                            });
-                                        } else if message.errored {
-                                            ui.add_sized([20., 10.], egui::Separator::default());
-                                            let id = ui
-                                                .label("The following message could not be delivered to all recipients:")
-                                                .id;
-
-                                            ui.indent(id, |ui| {
-                                                let mut job = LayoutJob::default();
-                                                job.append(
-                                                    &message.text.replace("\r\n", "\n"),
-                                                    0.,
-                                                    TextFormat {
-                                                        font_id: if message.bold {
-                                                            FontId::new(
-                                                                FontSelection::Default
-                                                                    .resolve(ui.style())
-                                                                    .size,
-                                                                egui::FontFamily::Name(
-                                                                    "Bold".into(),
-                                                                ),
-                                                            )
-                                                        } else {
-                                                            FontSelection::Default
-                                                                .resolve(ui.style())
-                                                        },
-                                                        color: egui::Color32::GRAY,
-                                                        italics: message.italic,
-                                                        underline: if message.underline {
-                                                            ui.visuals().window_stroke
-                                                        } else {
-                                                            Default::default()
-                                                        },
-                                                        strikethrough: if message.strikethrough {
-                                                            ui.visuals().window_stroke
-                                                        } else {
-                                                            Default::default()
-                                                        },
-                                                        ..Default::default()
-                                                    },
-                                                );
-
-                                                ui.label(job);
-                                                ui.add_sized([20., 10.], egui::Separator::default());
-                                            });
-                                        } else {
-                                            ui.add_sized([20., 10.], egui::Separator::default());
-                                            ui.label(&message.text);
-                                            ui.add_sized([20., 10.], egui::Separator::default());
-                                        }
-                                    },
-                                );
-
-                                ui.add_space(5.);
-                            }
-                        });
-                    });
+                    contacts_display_pictures(tui, &self.participants, self.last_participant.clone());
+                    messages(tui, &self.participants, self.last_participant.clone(), self.user_email.clone(), self.user_display_name.clone(), &self.messages);
 
                     tui.style(taffy::Style {
                         justify_self: Some(taffy::JustifySelf::Start),
