@@ -14,7 +14,7 @@ pub fn messages(
     last_participant: Option<Contact>,
     user_email: Arc<String>,
     user_display_name: Arc<String>,
-    messages: &Vec<message::Message>,
+    messages: &[message::Message],
 ) {
     tui.style(taffy::Style {
         justify_self: Some(taffy::JustifySelf::Start),

@@ -485,7 +485,11 @@ impl Conversation {
                 })
                 .show(|tui| {
                     let mut job = LayoutJob::default();
-                    job.append("To: ", 0., TextFormat::default());
+                    job.append("To: ", 0., TextFormat {
+                        font_id: FontId::proportional(14.),
+                        color: tui.egui_ui().visuals().text_color(),
+                        ..Default::default()
+                    });
 
                     if self.participants.len() == 1
                         && let Some(contact) = self.participants.values().next()
@@ -494,6 +498,8 @@ impl Conversation {
                             &contact.display_name,
                             0.,
                             TextFormat {
+                                font_id: FontId::proportional(14.),
+                                color: tui.egui_ui().visuals().text_color(),
                                 ..Default::default()
                             },
                         );
@@ -502,6 +508,8 @@ impl Conversation {
                             &format!(" <{}>", contact.email),
                             0.,
                             TextFormat {
+                                font_id: FontId::proportional(14.),
+                                color: tui.egui_ui().visuals().text_color(),
                                 ..Default::default()
                             },
                         );
@@ -510,6 +518,8 @@ impl Conversation {
                             &format!("{} participants", self.participants.len()),
                             0.,
                             TextFormat {
+                                font_id: FontId::proportional(14.),
+                                color: tui.egui_ui().visuals().text_color(),
                                 ..Default::default()
                             },
                         );
@@ -518,6 +528,8 @@ impl Conversation {
                             &contact.display_name,
                             0.,
                             TextFormat {
+                                font_id: FontId::proportional(14.),
+                                color: tui.egui_ui().visuals().text_color(),
                                 ..Default::default()
                             },
                         );
@@ -526,6 +538,8 @@ impl Conversation {
                             &format!(" <{}>", contact.email),
                             0.,
                             TextFormat {
+                                font_id: FontId::proportional(14.),
+                                color: tui.egui_ui().visuals().text_color(),
                                 ..Default::default()
                             },
                         );

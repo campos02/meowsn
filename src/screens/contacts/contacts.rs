@@ -617,7 +617,7 @@ impl eframe::App for Contacts {
                         });
 
                         tui.style(taffy::Style {
-                            padding: length(10.),
+                            padding: length(5.),
                             size: taffy::Size {
                                 width: percent(1.),
                                 height: percent(0.8),
