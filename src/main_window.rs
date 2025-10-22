@@ -408,7 +408,7 @@ impl eframe::App for MainWindow {
             ctx.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("dialog"),
                 egui::ViewportBuilder::default()
-                    .with_title("meowsn")
+                    .with_title("meowsn :3")
                     .with_inner_size([300., 100.])
                     .with_maximize_button(false)
                     .with_minimize_button(false)

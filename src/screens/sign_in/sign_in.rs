@@ -171,19 +171,23 @@ impl eframe::App for SignIn {
                         })
                         .ui(|ui| {
                             ui.add_enabled_ui(!self.signing_in, |ui| {
+                                ui.style_mut().spacing.item_spacing.y = 0.;
                                 let label = ui.label("E-mail address:");
-                                ui.add_space(3.);
+
                                 ui.horizontal(|ui| {
                                     ui.style_mut().spacing.item_spacing.x = 1.;
                                     ui.style_mut().spacing.button_padding = egui::Vec2::splat(2.);
 
-                                    ui.add(
-                                        egui::text_edit::TextEdit::singleline(&mut self.email)
-                                            .hint_text("E-mail address")
-                                            .min_size(egui::vec2(227., 5.))
-                                            .desired_width(219.),
-                                    )
-                                    .labelled_by(label.id);
+                                    ui.vertical(|ui| {
+                                        ui.add_space(5.);
+                                        ui.add(
+                                            egui::text_edit::TextEdit::singleline(&mut self.email)
+                                                .hint_text("E-mail address")
+                                                .min_size(egui::vec2(227., 5.))
+                                                .desired_width(219.),
+                                        )
+                                        .labelled_by(label.id);
+                                    });
 
                                     CustomFillComboBox::from_label("")
                                         .selected_text("")
@@ -244,8 +248,9 @@ impl eframe::App for SignIn {
                         })
                         .ui(|ui| {
                             ui.add_enabled_ui(!self.signing_in, |ui| {
+                                ui.style_mut().spacing.item_spacing.y = 4.3;
                                 let label = ui.label("Password:");
-                                ui.add_space(3.);
+
                                 ui.add(
                                     egui::text_edit::TextEdit::singleline(&mut self.password)
                                         .hint_text("Password")
