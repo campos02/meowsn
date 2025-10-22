@@ -20,6 +20,7 @@ image = { version = "0.25.8", features = ["png"] }
 notify-rust = "4.11.7"
 reqwest = { version = "0.12.24", default-features = false, features = ["http2", "json", "rustls-tls", "charset"] }
 semver = "1.0.27"
+regex = "1.12.2"
 
 [profile.release]
 codegen-units = 1

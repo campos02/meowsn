@@ -5,6 +5,7 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, FontSelection, TextFormat};
 use egui_taffy::taffy::prelude::{auto, percent, span};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,6 +17,10 @@ pub fn messages(
     user_display_name: Arc<String>,
     messages: &[message::Message],
 ) {
+    let url_regex = Regex::new(
+        r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
+    );
+
     tui.style(taffy::Style {
         justify_self: Some(taffy::JustifySelf::Start),
         size: taffy::Size {
@@ -47,7 +52,11 @@ pub fn messages(
 
                             if message.is_history {
                                 ui.style_mut().visuals.override_text_color =
-                                    Some(egui::Color32::GRAY);
+                                    Some(if ui.visuals().dark_mode {
+                                        egui::Color32::GRAY
+                                    } else {
+                                        egui::Color32::from_gray(120)
+                                    });
                             }
 
                             if !message.is_nudge && !message.errored {
@@ -56,41 +65,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    let mut job = LayoutJob::default();
-                                    job.append(
-                                        &message.text.replace("\r\n", "\n"),
-                                        0.,
-                                        TextFormat {
-                                            font_id: if message.bold {
-                                                FontId::new(
-                                                    FontSelection::Default
-                                                        .resolve(ui.style())
-                                                        .size,
-                                                    egui::FontFamily::Name(
-                                                        "Bold".into(),
-                                                    ),
-                                                )
-                                            } else {
-                                                FontSelection::Default
-                                                    .resolve(ui.style())
-                                            },
-                                            color: ui.visuals().text_color(),
-                                            italics: message.italic,
-                                            underline: if message.underline {
-                                                ui.visuals().window_stroke
-                                            } else {
-                                                Default::default()
-                                            },
-                                            strikethrough: if message.strikethrough {
-                                                ui.visuals().window_stroke
-                                            } else {
-                                                Default::default()
-                                            },
-                                            ..Default::default()
-                                        },
-                                    );
-
-                                    ui.label(job);
+                                    display_text_message(ui, message, &url_regex, ui.visuals().text_color());
                                 });
                             } else if message.errored {
                                 ui.add_sized([20., 10.], egui::Separator::default());
@@ -99,44 +74,16 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    let mut job = LayoutJob::default();
-                                    job.append(
-                                        &message.text.replace("\r\n", "\n"),
-                                        0.,
-                                        TextFormat {
-                                            font_id: if message.bold {
-                                                FontId::new(
-                                                    FontSelection::Default
-                                                        .resolve(ui.style())
-                                                        .size,
-                                                    egui::FontFamily::Name(
-                                                        "Bold".into(),
-                                                    ),
-                                                )
-                                            } else {
-                                                FontSelection::Default
-                                                    .resolve(ui.style())
-                                            },
-                                            color: egui::Color32::GRAY,
-                                            italics: message.italic,
-                                            underline: if message.underline {
-                                                ui.visuals().window_stroke
-                                            } else {
-                                                Default::default()
-                                            },
-                                            strikethrough: if message.strikethrough {
-                                                ui.visuals().window_stroke
-                                            } else {
-                                                Default::default()
-                                            },
-                                            ..Default::default()
-                                        },
-                                    );
-
-                                    ui.label(job);
-                                    ui.add_sized([20., 10.], egui::Separator::default());
+                                    display_text_message(ui, message, &url_regex, if ui.visuals().dark_mode {
+                                        egui::Color32::GRAY
+                                    } else {
+                                        egui::Color32::from_gray(120)
+                                    });
                                 });
+
+                                ui.add_sized([20., 10.], egui::Separator::default());
                             } else {
+                                // Nudge
                                 ui.add_sized([20., 10.], egui::Separator::default());
                                 ui.label(&message.text);
                                 ui.add_sized([20., 10.], egui::Separator::default());
@@ -148,4 +95,55 @@ pub fn messages(
                 }
             });
         });
+}
+
+fn display_text_message(
+    ui: &mut egui::Ui,
+    message: &message::Message,
+    url_regex: &Result<Regex, regex::Error>,
+    text_color: egui::Color32,
+) {
+    ui.style_mut().spacing.item_spacing.x = 0.;
+    ui.horizontal_wrapped(|ui| {
+        for word in message.text.split(" ") {
+            let mut job = LayoutJob::default();
+            job.append(
+                word,
+                0.,
+                TextFormat {
+                    font_id: if message.bold {
+                        FontId::new(
+                            FontSelection::Default.resolve(ui.style()).size,
+                            egui::FontFamily::Name("Bold".into()),
+                        )
+                    } else {
+                        FontSelection::Default.resolve(ui.style())
+                    },
+                    color: text_color,
+                    italics: message.italic,
+                    underline: if message.underline {
+                        ui.visuals().window_stroke
+                    } else {
+                        Default::default()
+                    },
+                    strikethrough: if message.strikethrough {
+                        ui.visuals().window_stroke
+                    } else {
+                        Default::default()
+                    },
+                    ..Default::default()
+                },
+            );
+
+            if let Ok(url_regex) = &url_regex
+                && url_regex.is_match(word)
+            {
+                ui.hyperlink_to(job, word);
+            } else {
+                ui.label(job);
+            }
+
+            ui.label(" ");
+        }
+    });
 }
