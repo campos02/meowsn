@@ -12,7 +12,7 @@ use eframe::egui;
 use eframe::egui::CornerRadius;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{Client, SdkError, Switchboard};
+use msnp11_sdk::{Client, MsnpStatus, SdkError, Switchboard};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Handle;
@@ -31,6 +31,7 @@ pub enum Message {
     NotificationServerEvent(msnp11_sdk::Event),
     SwitchboardEvent(Arc<String>, msnp11_sdk::Event),
     UserDisplayPictureChanged(DisplayPicture),
+    UserStatusChanged(MsnpStatus),
     ContactDisplayPictureEvent {
         email: String,
         data: Arc<[u8]>,
@@ -41,6 +42,7 @@ pub enum Message {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
         user_display_picture: Option<DisplayPicture>,
+        user_status: MsnpStatus,
         contact_repository: ContactRepository,
         contact: Contact,
         client: Arc<Client>,
@@ -50,6 +52,7 @@ pub enum Message {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
         user_display_picture: Option<DisplayPicture>,
+        user_status: MsnpStatus,
         contact_repository: ContactRepository,
         result: Result<Arc<Switchboard>, SdkError>,
     },
@@ -247,6 +250,12 @@ impl eframe::App for MainWindow {
                     }
                 }
 
+                Message::UserStatusChanged(status) => {
+                    for conversation in self.conversations.values_mut() {
+                        conversation.handle_event(Message::UserStatusChanged(status.clone()), ctx);
+                    }
+                }
+
                 Message::ContactDisplayPictureEvent { email, data } => {
                     if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(
@@ -293,6 +302,7 @@ impl eframe::App for MainWindow {
                     user_email,
                     user_display_name,
                     user_display_picture,
+                    user_status,
                     contact_repository,
                     contact,
                     client,
@@ -321,6 +331,7 @@ impl eframe::App for MainWindow {
                                 user_email: user_email.clone(),
                                 user_display_name: user_display_name.clone(),
                                 user_display_picture: user_display_picture.clone(),
+                                user_status: user_status.clone(),
                                 contact_repository: contact_repository.clone(),
                                 result: result.map(Arc::from),
                             },
@@ -332,6 +343,7 @@ impl eframe::App for MainWindow {
                     user_email,
                     user_display_name,
                     user_display_picture,
+                    user_status,
                     contact_repository,
                     result,
                 } => {
@@ -353,6 +365,7 @@ impl eframe::App for MainWindow {
                                 user_email,
                                 user_display_name,
                                 user_display_picture,
+                                user_status,
                                 contact_repository,
                                 session_id.clone(),
                                 switchboard,

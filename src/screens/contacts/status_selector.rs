@@ -116,19 +116,26 @@ pub fn status_selector(
 
         _ => {
             if *selected_status != old_status {
-                let status = match selected_status {
+                let msnp_status = match selected_status {
                     Status::Busy => MsnpStatus::Busy,
                     Status::Away => MsnpStatus::Away,
                     Status::AppearOffline => MsnpStatus::AppearOffline,
                     _ => MsnpStatus::Online,
                 };
 
+                let mut status = msnp_status.clone();
                 let client = client.clone();
+
                 run_future(
                     handle.clone(),
-                    async move { client.set_presence(status).await },
+                    async move { client.set_presence(msnp_status).await },
                     contacts_sender,
-                    crate::screens::contacts::contacts::Message::StatusResult,
+                    move |result| {
+                        crate::screens::contacts::contacts::Message::StatusResult(
+                            std::mem::replace(&mut status, MsnpStatus::Online),
+                            result,
+                        )
+                    },
                 )
             }
         }

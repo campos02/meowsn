@@ -19,7 +19,7 @@ use tokio::runtime::Handle;
 
 pub enum Message {
     DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
-    StatusResult(Result<(), SdkError>),
+    StatusResult(MsnpStatus, Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
     BlockResult(Arc<String>, Result<(), SdkError>),
     UnblockResult(Arc<String>, Result<(), SdkError>),
@@ -281,6 +281,13 @@ impl Contacts {
                         {
                             conversation.add_switchboard(session_id.clone(), switchboard);
                         } else {
+                            let user_status = match self.selected_status {
+                                Status::Busy => MsnpStatus::Busy,
+                                Status::Away => MsnpStatus::Away,
+                                Status::AppearOffline => MsnpStatus::AppearOffline,
+                                _ => MsnpStatus::Online,
+                            };
+
                             let viewport_id = egui::ViewportId::from_hash_of(&session_id);
                             conversations.insert(
                                 viewport_id,
@@ -288,6 +295,7 @@ impl Contacts {
                                     self.user_email.clone(),
                                     self.display_name.clone(),
                                     self.display_picture.clone(),
+                                    user_status,
                                     self.contact_repository.clone(),
                                     session_id.clone(),
                                     switchboard,
@@ -368,13 +376,17 @@ impl eframe::App for Contacts {
                     }
                 }
 
-                Message::StatusResult(result) => {
+                Message::StatusResult(status, result) => {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
                         ctx.request_repaint();
+                    } else {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::UserStatusChanged(status));
                     }
                 }
 

@@ -2,6 +2,7 @@ use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
+use crate::screens::contacts::status_selector::Status;
 use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
@@ -23,7 +24,7 @@ pub fn category_collapsing_header(
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     user_display_picture: Option<DisplayPicture>,
-    user_status: crate::screens::contacts::status_selector::Status,
+    user_status: Status,
     contact_repository: ContactRepository,
     client: Arc<Client>,
 ) {
@@ -145,16 +146,24 @@ pub fn category_collapsing_header(
                             *selected_contact = Some(contact.email.clone());
                         }
 
+                        let msnp_user_status = match user_status {
+                            Status::Busy => MsnpStatus::Busy,
+                            Status::Away => MsnpStatus::Away,
+                            Status::AppearOffline => MsnpStatus::AppearOffline,
+                            _ => MsnpStatus::Online,
+                        };
+
                         if label.double_clicked()
                             && contact.status.is_some()
                             && !contact.opening_conversation
-                            && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
+                            && user_status != Status::AppearOffline {
                             contact.opening_conversation = true;
 
                             let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                 user_email: user_email.clone(),
                                 user_display_name: user_display_name.clone(),
                                 user_display_picture: user_display_picture.clone(),
+                                user_status: msnp_user_status.clone(),
                                 contact_repository: contact_repository.clone(),
                                 contact: contact.clone(),
                                 client: client.clone(),
@@ -169,13 +178,14 @@ pub fn category_collapsing_header(
                                     if ui.button("Send an Instant Message").clicked() 
                                         && contact.status.is_some()
                                         && !contact.opening_conversation
-                                        && user_status != crate::screens::contacts::status_selector::Status::AppearOffline {
+                                        && user_status != Status::AppearOffline {
                                         contact.opening_conversation = true;
 
                                         let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
                                             user_email,
                                             user_display_name,
                                             user_display_picture,
+                                            user_status: msnp_user_status,
                                             contact_repository,
                                             contact: contact.clone(),
                                             client: client.clone(),

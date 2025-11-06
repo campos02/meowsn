@@ -14,7 +14,7 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{auto, fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{SdkError, Switchboard};
+use msnp11_sdk::{MsnpStatus, SdkError, Switchboard};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -39,6 +39,7 @@ pub struct Conversation {
     message_buffer: Vec<message::Message>,
     new_message: String,
     user_display_picture: Option<DisplayPicture>,
+    user_status: MsnpStatus,
     contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
@@ -62,6 +63,7 @@ impl Conversation {
         user_email: Arc<String>,
         user_display_name: Arc<String>,
         user_display_picture: Option<DisplayPicture>,
+        user_status: MsnpStatus,
         contact_repository: ContactRepository,
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
@@ -119,6 +121,7 @@ impl Conversation {
             message_buffer: Vec::new(),
             new_message: "".to_string(),
             user_display_picture,
+            user_status,
             contact_repository,
             sqlite,
             participant_typing: None,
@@ -300,23 +303,25 @@ impl Conversation {
 
                             let _ = self.sqlite.insert_message(&message);
                             if !self.focused {
-                                let _ = notify_rust::Notification::new()
-                                    .summary(&format!(
-                                        "{} said:",
-                                        if let Some(participant) =
-                                            self.participants.get(&message.sender)
-                                        {
-                                            &participant.display_name
-                                        } else if let Some(participant) = &self.last_participant
-                                            && participant.email == message.sender
-                                        {
-                                            &*participant.display_name
-                                        } else {
-                                            &message.sender
-                                        }
-                                    ))
-                                    .body(&message.text)
-                                    .show();
+                                if self.user_status != MsnpStatus::Busy {
+                                    let _ = notify_rust::Notification::new()
+                                        .summary(&format!(
+                                            "{} said:",
+                                            if let Some(participant) =
+                                                self.participants.get(&message.sender)
+                                            {
+                                                &participant.display_name
+                                            } else if let Some(participant) = &self.last_participant
+                                                && participant.email == message.sender
+                                            {
+                                                &*participant.display_name
+                                            } else {
+                                                &message.sender
+                                            }
+                                        ))
+                                        .body(&message.text)
+                                        .show();
+                                }
 
                                 ctx.send_viewport_cmd_to(
                                     self.viewport_id,
@@ -360,10 +365,12 @@ impl Conversation {
 
                             let _ = self.sqlite.insert_message(&message);
                             if !self.focused {
-                                let _ = notify_rust::Notification::new()
-                                    .summary("New message")
-                                    .body(&message.text)
-                                    .show();
+                                if self.user_status != MsnpStatus::Busy {
+                                    let _ = notify_rust::Notification::new()
+                                        .summary("New message")
+                                        .body(&message.text)
+                                        .show();
+                                }
 
                                 ctx.send_viewport_cmd_to(
                                     self.viewport_id,
@@ -384,6 +391,10 @@ impl Conversation {
 
             crate::main_window::Message::UserDisplayPictureChanged(picture) => {
                 self.user_display_picture = Some(picture);
+            }
+
+            crate::main_window::Message::UserStatusChanged(status) => {
+                self.user_status = status;
             }
 
             crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
