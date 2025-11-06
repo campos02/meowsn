@@ -39,7 +39,7 @@ pub fn category_collapsing_header(
                     let user_display_picture = user_display_picture.clone();
                     let contact_repository = contact_repository.clone();
                     let client = client.clone();
-                    
+
                     ui.horizontal(|ui| {
                         let mut alt_text = "Contact is offline";
                         ui.add(
@@ -117,9 +117,29 @@ pub fn category_collapsing_header(
                             .is_some_and(|selected_contact| {
                                 *selected_contact == contact.email
                             }),
-                            contact_job
+                            contact_job.clone()
                         )
-                        .truncate());
+                        .truncate())
+                        .on_hover_text(
+                            format!("{} ({})\n<{}>\nRight click for contact options.", contact_job.text, match contact.status.clone() {
+                                Some(status) => match status.status {
+                                    MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                        "Busy"
+                                    }
+
+                                    MsnpStatus::Away
+                                    | MsnpStatus::BeRightBack
+                                    | MsnpStatus::OutToLunch => {
+                                        "Away"
+                                    }
+
+                                    MsnpStatus::Idle => "Idle",
+                                    _ => "Online"
+                                }
+
+                                None => "Offline"
+                            }, contact.email),
+                        );
 
                         if label.clicked() || label.secondary_clicked() {
                             *selected_contact = Some(contact.email.clone());
@@ -209,8 +229,10 @@ pub fn category_collapsing_header(
                     });
                 }
             }
-        }).header_response.clicked()
-        && let Some(contact) = selected_contact && contacts.contains_key(contact) {
+        })
+        .header_response
+        .on_hover_text(format!("{} contacts", name))
+        .clicked() && let Some(contact) = selected_contact && contacts.contains_key(contact) {
             *selected_contact = None;
         }
 }

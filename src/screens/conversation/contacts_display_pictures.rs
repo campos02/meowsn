@@ -27,12 +27,13 @@ pub fn contacts_display_pictures(
                         )
                         .fit_to_exact_size(egui::Vec2::splat(90.))
                         .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
-                        .alt_text("Contact display picture")
+                        .alt_text(format!("Display picture for {}", participant.display_name))
                     } else {
                         egui::Image::new(svg::default_display_picture())
                             .fit_to_exact_size(egui::Vec2::splat(90.))
-                            .alt_text("Default display picture")
+                            .alt_text(format!("Display picture for {}", participant.display_name))
                     })
+                    .on_hover_text(format!("Display picture for {}", participant.display_name))
                 } else if let Some(participant) = &last_participant {
                     ui.add(if let Some(picture) = participant.display_picture.clone() {
                         egui::Image::from_bytes(
@@ -41,12 +42,13 @@ pub fn contacts_display_pictures(
                         )
                         .fit_to_exact_size(egui::Vec2::splat(90.))
                         .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
-                        .alt_text("Contact display picture")
+                        .alt_text(format!("Display picture for {}", participant.display_name))
                     } else {
                         egui::Image::new(svg::default_display_picture())
                             .fit_to_exact_size(egui::Vec2::splat(90.))
-                            .alt_text("Default display picture")
+                            .alt_text(format!("Display picture for {}", participant.display_name))
                     })
+                    .on_hover_text(format!("Display picture for {}", participant.display_name))
                 } else {
                     ui.add(
                         egui::Image::new(svg::default_display_picture())
@@ -87,12 +89,16 @@ pub fn contacts_display_pictures(
                             )
                             .fit_to_exact_size(egui::Vec2::splat(44.))
                             .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
-                            .alt_text("Contact display picture")
+                            .alt_text(format!("Display picture for {}", participant.display_name))
                         } else {
                             egui::Image::new(svg::default_display_picture())
                                 .fit_to_exact_size(egui::Vec2::splat(44.))
-                                .alt_text("Default display picture")
+                                .alt_text(format!(
+                                    "Display picture for {}",
+                                    participant.display_name
+                                ))
                         })
+                        .on_hover_text(format!("Display picture for {}", participant.display_name))
                     });
                 });
 

@@ -79,7 +79,9 @@ pub fn status_selector(
                 Status::SignOut,
                 Status::SignOut.to_string(),
             );
-        });
+        })
+        .response
+        .on_hover_text("Change your status, display picture or sign out.\nTo change display name click Personal Settings.");
 
     match selected_status {
         Status::ChangeDisplayPicture => {

@@ -47,7 +47,9 @@ pub fn status_selector(
                 Status::PersonalSettings,
                 Status::PersonalSettings.to_string(),
             );
-        });
+        })
+        .response
+        .on_hover_text("Select the status you will have after signing in");
 
     if *selected_status == Status::PersonalSettings {
         *selected_status = old_status;

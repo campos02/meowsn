@@ -138,7 +138,7 @@ fn display_text_message(
             if let Ok(url_regex) = &url_regex
                 && url_regex.is_match(word)
             {
-                ui.hyperlink_to(job, word);
+                ui.hyperlink_to(job, word).on_hover_text(word);
             } else {
                 ui.label(job);
             }

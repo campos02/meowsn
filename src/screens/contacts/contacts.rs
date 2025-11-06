@@ -552,14 +552,16 @@ impl eframe::App for Contacts {
                                         self.client.clone(),
                                     );
 
-                                    let personal_message_edit = ui.add(
-                                        egui::text_edit::TextEdit::singleline(
-                                            &mut self.personal_message,
+                                    let personal_message_edit = ui
+                                        .add(
+                                            egui::text_edit::TextEdit::singleline(
+                                                &mut self.personal_message,
+                                            )
+                                            .hint_text("<Type a personal message>")
+                                            .min_size(egui::vec2(180., 5.))
+                                            .frame(self.show_personal_message_frame),
                                         )
-                                        .hint_text("<Type a personal message>")
-                                        .min_size(egui::vec2(180., 5.))
-                                        .frame(self.show_personal_message_frame),
-                                    );
+                                        .on_hover_text("Type a personal message");
 
                                     if personal_message_edit.lost_focus()
                                         && ui.input(|i| i.key_pressed(egui::Key::Enter))
@@ -598,7 +600,11 @@ impl eframe::App for Contacts {
                                         .alt_text("Add a contact"),
                                 );
 
-                                if ui.link("Add a Contact").clicked() {
+                                if ui
+                                    .link("Add a Contact")
+                                    .on_hover_text("Add a contact to your list")
+                                    .clicked()
+                                {
                                     if self.add_contact_window.is_some() {
                                         ctx.send_viewport_cmd_to(
                                             egui::ViewportId::from_hash_of("add-contact"),

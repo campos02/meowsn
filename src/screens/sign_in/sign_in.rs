@@ -157,8 +157,9 @@ impl eframe::App for SignIn {
                                 } else {
                                     egui::Image::new(svg::default_display_picture())
                                         .fit_to_exact_size(egui::Vec2::splat(100.))
-                                        .alt_text("Default display picture")
+                                        .alt_text("User display picture")
                                 })
+                                .on_hover_text("User display picture")
                             })
                         });
 
@@ -186,7 +187,8 @@ impl eframe::App for SignIn {
                                                 .min_size(egui::vec2(227., 5.))
                                                 .desired_width(219.),
                                         )
-                                        .labelled_by(label.id);
+                                        .labelled_by(label.id)
+                                        .on_hover_text("Enter your e-mail address");
                                     });
 
                                     CustomFillComboBox::from_label("")
@@ -234,7 +236,11 @@ impl eframe::App for SignIn {
                                                 self.remember_me = false;
                                                 self.remember_my_password = false;
                                             };
-                                        });
+                                        })
+                                        .response
+                                        .on_hover_text(
+                                            "Select a saved account or sign in with a new one",
+                                        );
                                 });
                             })
                         });
@@ -256,7 +262,8 @@ impl eframe::App for SignIn {
                                         .hint_text("Password")
                                         .password(true),
                                 )
-                                .labelled_by(label.id);
+                                .labelled_by(label.id)
+                                .on_hover_text("Enter your password");
                             })
                         });
 
@@ -273,14 +280,19 @@ impl eframe::App for SignIn {
                         tui.ui(|ui| {
                             ui.add_enabled_ui(!self.signing_in, |ui| {
                                 ui.horizontal(|ui| {
-                                    ui.checkbox(&mut self.remember_me, "Remember Me");
+                                    ui.checkbox(&mut self.remember_me, "Remember Me")
+                                        .on_hover_text("Save your e-mail address");
                                     ui.scope(|ui| {
                                         ui.style_mut().text_styles.insert(
                                             egui::TextStyle::Body,
                                             FontId::new(12.8, FontFamily::Proportional),
                                         );
 
-                                        if ui.link("(Forget Me)").clicked() {
+                                        if ui
+                                            .link("(Forget Me)")
+                                            .on_hover_text("Delete your sign in information")
+                                            .clicked()
+                                        {
                                             let _ = self.sqlite.delete_user(&self.email);
                                             if let Ok(entry) = Entry::new("meowsn", &self.email) {
                                                 let _ = entry.delete_credential();
@@ -306,6 +318,7 @@ impl eframe::App for SignIn {
                                         &mut self.remember_my_password,
                                         "Remember My Password",
                                     )
+                                    .on_hover_text("Save your password")
                                     .changed()
                                     && self.remember_my_password
                                 {
@@ -317,7 +330,7 @@ impl eframe::App for SignIn {
                         tui.style(taffy::Style {
                             size: taffy::Size {
                                 width: if !self.signing_in {
-                                    percent(0.2)
+                                    length(56.)
                                 } else {
                                     auto()
                                 },
@@ -327,7 +340,11 @@ impl eframe::App for SignIn {
                         })
                         .ui(|ui| {
                             if !self.signing_in {
-                                if ui.button("Sign In").clicked() {
+                                if ui
+                                    .button("Sign In")
+                                    .on_hover_text("Click here to sign in")
+                                    .clicked()
+                                {
                                     if self.email.is_empty() || self.password.is_empty() {
                                         let _ = self.main_window_sender.send(
                                             crate::main_window::Message::OpenDialog(

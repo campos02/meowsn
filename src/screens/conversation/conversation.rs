@@ -556,7 +556,9 @@ impl Conversation {
                     .ui(|ui| {
                         ui.horizontal(|ui| {
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);
-                            if ui.button("Invite").clicked() {
+                            if ui.button("Invite")
+                                .on_hover_text("Invite someone into this conversation")
+                                .clicked() {
                                 if self.invite_window.is_some() {
                                     ctx.send_viewport_cmd_to(
                                         egui::ViewportId::from_hash_of(format!("{:?}-invite", self.viewport_id)),
@@ -627,7 +629,9 @@ impl Conversation {
                     .ui(|ui| {
                         ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 6.5);
                         ui.horizontal(|ui| {
-                            if ui.button("Nudge").clicked()
+                            if ui.button("Nudge")
+                                .on_hover_text("Send a nudge to this contact")
+                                .clicked()
                                 && let Some(switchboard) = self.switchboards.values().next()
                             {
                                 let mut message = message::Message {
@@ -687,10 +691,17 @@ impl Conversation {
                                 .text_styles
                                 .insert(egui::TextStyle::Button, FontId::monospace(16.));
 
-                            ui.toggle_value(&mut self.bold, "B");
-                            ui.toggle_value(&mut self.italic, "I");
-                            ui.toggle_value(&mut self.underline, "U");
-                            ui.toggle_value(&mut self.strikethrough, "S");
+                            ui.toggle_value(&mut self.bold, "B")
+                                .on_hover_text("Toggle bold");
+
+                            ui.toggle_value(&mut self.italic, "I")
+                                .on_hover_text("Toggle italic");
+
+                            ui.toggle_value(&mut self.underline, "U")
+                                .on_hover_text("Toggle underline");
+
+                            ui.toggle_value(&mut self.strikethrough, "S")
+                                .on_hover_text("Toggle strikethrough");
                         });
                     });
 
@@ -715,6 +726,9 @@ impl Conversation {
                                             egui::Key::Enter,
                                         ))),
                                 );
+
+                                let multiline = multiline
+                                    .on_hover_text_at_pointer("Enter your message here and press Enter to send it");
 
                                 if multiline.changed()
                                     && !self.user_typing
@@ -822,8 +836,9 @@ impl Conversation {
                             } else {
                                 egui::Image::new(svg::default_display_picture())
                                     .fit_to_exact_size(egui::Vec2::splat(90.))
-                                    .alt_text("Default display picture")
+                                    .alt_text("User display picture")
                             })
+                            .on_hover_text("User display picture");
                         });
                     });
                 });

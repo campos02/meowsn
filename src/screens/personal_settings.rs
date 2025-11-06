@@ -70,6 +70,7 @@ impl PersonalSettings {
                                         .min_size(egui::Vec2::new(340., 5.)),
                                 )
                                 .labelled_by(label.id)
+                                .on_hover_text("Change your display name")
                             } else {
                                 let mut buffer = "";
                                 ui.add_enabled(
@@ -90,7 +91,8 @@ impl PersonalSettings {
                                     .hint_text("Server")
                                     .min_size(egui::Vec2::new(340., 5.)),
                             )
-                            .labelled_by(label.id);
+                            .labelled_by(label.id)
+                            .on_hover_text("Enter the main server address");
                         });
 
                         tui.ui(|ui| {
@@ -101,7 +103,8 @@ impl PersonalSettings {
                                     .hint_text("Nexus URL")
                                     .min_size(egui::Vec2::new(340., 5.)),
                             )
-                            .labelled_by(label.id);
+                            .labelled_by(label.id)
+                            .on_hover_text("Enter the Nexus URL used in authentication");
                         });
 
                         tui.ui(|ui| {
@@ -121,7 +124,7 @@ impl PersonalSettings {
                         })
                         .ui(|ui| {
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(8., 5.);
-                            if ui.button("Save").clicked() {
+                            if ui.button("Save").on_hover_text("Save settings").clicked() {
                                 self.display_name
                                     .as_mut()
                                     .map(|display_name| display_name.trim().to_string());
