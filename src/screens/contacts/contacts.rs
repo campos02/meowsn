@@ -8,7 +8,7 @@ use crate::screens::contacts::category_collapsing_header::category_collapsing_he
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
-use crate::svg;
+use crate::{settings, svg};
 use eframe::egui;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
@@ -120,6 +120,56 @@ impl Contacts {
                     self.offline_contacts.insert(email, contact);
                 }
 
+                msnp11_sdk::Event::InitialPresenceUpdate {
+                    email,
+                    display_name,
+                    presence,
+                } => {
+                    let mut contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
+                        Some(contact)
+                    } else {
+                        self.offline_contacts.get_mut(&email)
+                    };
+
+                    let mut previous_status = None;
+                    if let Some(contact) = &mut contact {
+                        if let Some(msn_object) = &presence.msn_object
+                            && msn_object.object_type == 3
+                        {
+                            contact.display_picture = if let Ok(picture) =
+                                self.sqlite.select_display_picture_data(&msn_object.sha1d)
+                            {
+                                Some(DisplayPicture {
+                                    data: picture,
+                                    hash: Arc::new(msn_object.sha1d.clone()),
+                                })
+                            } else {
+                                None
+                            }
+                        }
+
+                        if let Some(presence) = &contact.status {
+                            previous_status = Some(presence.status.clone());
+                        }
+
+                        contact.display_name = Arc::new(display_name);
+                        contact.status = Some(Arc::new(presence));
+
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(contact));
+                    }
+
+                    if let Some(contact) = contact.cloned()
+                        && previous_status.is_none()
+                    {
+                        self.contact_repository
+                            .update_contacts(std::slice::from_ref(&contact));
+
+                        self.offline_contacts.remove(&email);
+                        self.online_contacts.insert(contact.email.clone(), contact);
+                    }
+                }
+
                 msnp11_sdk::Event::PresenceUpdate {
                     email,
                     display_name,
@@ -162,6 +212,14 @@ impl Contacts {
                     if let Some(contact) = contact.cloned()
                         && previous_status.is_none()
                     {
+                        let settings = settings::get_settings().unwrap_or_default();
+                        if settings.notify_sign_ins {
+                            let _ = notify_rust::Notification::new()
+                                .summary("New sign in")
+                                .body(&format!("{} has just signed in", contact.display_name))
+                                .show();
+                        }
+
                         self.contact_repository
                             .update_contacts(std::slice::from_ref(&contact));
 

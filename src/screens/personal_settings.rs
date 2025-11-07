@@ -13,6 +13,7 @@ pub struct PersonalSettings {
     server: String,
     nexus_url: String,
     check_for_updates: bool,
+    notify_sign_ins: bool,
     client: Option<Arc<Client>>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     handle: Handle,
@@ -31,6 +32,7 @@ impl PersonalSettings {
             server: settings.server,
             nexus_url: settings.nexus_url,
             check_for_updates: settings.check_for_updates,
+            notify_sign_ins: settings.notify_sign_ins,
             client,
             main_window_sender,
             handle,
@@ -112,6 +114,11 @@ impl PersonalSettings {
                                 &mut self.check_for_updates,
                                 "Check for updates on startup",
                             );
+
+                            ui.checkbox(
+                                &mut self.notify_sign_ins,
+                                "Notify me when contacts come online",
+                            );
                         });
 
                         tui.style(taffy::Style {
@@ -133,6 +140,7 @@ impl PersonalSettings {
                                         server: self.server.clone(),
                                         nexus_url: self.nexus_url.clone(),
                                         check_for_updates: self.check_for_updates,
+                                        notify_sign_ins: self.notify_sign_ins,
                                     };
 
                                     let _ = settings::save_settings(&settings);
@@ -162,6 +170,7 @@ impl PersonalSettings {
                                     self.server = defaults.server;
                                     self.nexus_url = defaults.nexus_url;
                                     self.check_for_updates = defaults.check_for_updates;
+                                    self.notify_sign_ins = defaults.notify_sign_ins;
                                 }
                             });
                         });
