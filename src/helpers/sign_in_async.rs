@@ -57,7 +57,6 @@ pub async fn sign_in_async(
     };
 
     client.set_personal_message(&personal_message).await?;
-
     Ok(SignInReturn {
         email,
         status,

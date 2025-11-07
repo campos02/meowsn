@@ -106,6 +106,14 @@ fn display_text_message(
     ui.style_mut().spacing.item_spacing.x = 0.;
     ui.horizontal_wrapped(|ui| {
         for word in message.text.split(" ") {
+            let is_url = if let Ok(url_regex) = &url_regex
+                && url_regex.is_match(word)
+            {
+                true
+            } else {
+                false
+            };
+
             let mut job = LayoutJob::default();
             job.append(
                 word,
@@ -119,7 +127,11 @@ fn display_text_message(
                     } else {
                         FontSelection::Default.resolve(ui.style())
                     },
-                    color: text_color,
+                    color: if is_url {
+                        ui.style().visuals.hyperlink_color
+                    } else {
+                        text_color
+                    },
                     italics: message.italic,
                     underline: if message.underline {
                         ui.visuals().window_stroke
@@ -135,9 +147,7 @@ fn display_text_message(
                 },
             );
 
-            if let Ok(url_regex) = &url_regex
-                && url_regex.is_match(word)
-            {
+            if is_url {
                 ui.hyperlink_to(job, word).on_hover_text(word);
             } else {
                 ui.label(job);
