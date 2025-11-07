@@ -116,49 +116,58 @@ impl PersonalSettings {
 
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
-                            size: taffy::Size {
-                                width: percent(0.15),
-                                height: auto(),
-                            },
                             ..Default::default()
                         })
                         .ui(|ui| {
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(8., 5.);
-                            if ui.button("Save").on_hover_text("Save settings").clicked() {
-                                self.display_name
-                                    .as_mut()
-                                    .map(|display_name| display_name.trim().to_string());
+                            ui.horizontal(|ui| {
+                                if ui.button("Save").on_hover_text("Save settings").clicked() {
+                                    self.display_name
+                                        .as_mut()
+                                        .map(|display_name| display_name.trim().to_string());
 
-                                self.server = self.server.trim().to_string();
-                                self.nexus_url = self.nexus_url.trim().to_string();
+                                    self.server = self.server.trim().to_string();
+                                    self.nexus_url = self.nexus_url.trim().to_string();
 
-                                let settings = Settings {
-                                    server: self.server.clone(),
-                                    nexus_url: self.nexus_url.clone(),
-                                    check_for_updates: self.check_for_updates,
-                                };
+                                    let settings = Settings {
+                                        server: self.server.clone(),
+                                        nexus_url: self.nexus_url.clone(),
+                                        check_for_updates: self.check_for_updates,
+                                    };
 
-                                let _ = settings::save_settings(&settings);
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                    let _ = settings::save_settings(&settings);
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
 
-                                if let Some(display_name) = self.display_name.clone()
-                                    && let Some(client) = self.client.clone()
-                                {
-                                    let new_display_name = display_name.clone();
-                                    run_future(
-                                        self.handle.clone(),
-                                        async move { client.set_display_name(&display_name).await },
-                                        self.main_window_sender.clone(),
-                                        move |result| {
-                                            crate::main_window::Message::DisplayNameChangeResult(
-                                                new_display_name.clone(),
-                                                result,
-                                            )
-                                        },
-                                    );
+                                    if let Some(display_name) = self.display_name.clone()
+                                        && let Some(client) = self.client.clone()
+                                    {
+                                        let new_display_name = display_name.clone();
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move { client.set_display_name(&display_name).await },
+                                            self.main_window_sender.clone(),
+                                            move |result| {
+                                                crate::main_window::Message::DisplayNameChangeResult(
+                                                    new_display_name.clone(),
+                                                    result,
+                                                )
+                                            },
+                                        );
+                                    }
                                 }
-                            }
+
+                                if ui.button("Restore Defaults")
+                                    .on_hover_text("Restore default settings").clicked() {
+                                    let defaults = Settings::default();
+                                    self.server = defaults.server;
+                                    self.nexus_url = defaults.nexus_url;
+                                    self.check_for_updates = defaults.check_for_updates;
+                                }
+                            });
                         });
+
+                        tui.add_empty();
+                        tui.add_empty();
 
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
