@@ -213,7 +213,7 @@ impl Contacts {
                         && previous_status.is_none()
                     {
                         let settings = settings::get_settings().unwrap_or_default();
-                        if settings.notify_sign_ins {
+                        if settings.notify_sign_ins && self.selected_status != Status::Busy {
                             let _ = notify_rust::Notification::new()
                                 .summary("New sign in")
                                 .body(&format!("{} has just signed in", contact.display_name))
