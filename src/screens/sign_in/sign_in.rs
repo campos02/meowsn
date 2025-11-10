@@ -1,5 +1,5 @@
 use crate::helpers::run_future::run_future;
-use crate::helpers::sign_in_async::sign_in_async;
+use crate::helpers::sign_in_async::{SignInError, sign_in_async};
 use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::screens::sign_in::status_selector::{Status, status_selector};
@@ -11,12 +11,13 @@ use eframe::egui::{FontFamily, FontId};
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
-use msnp11_sdk::{MsnpStatus, SdkError};
+use msnp11_sdk::MsnpStatus;
 use std::sync::Arc;
 use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
 
 pub enum Message {
-    SignInResult(Result<SignInReturn, SdkError>),
+    SignInResult(Result<SignInReturn, SignInError>),
 }
 
 pub struct SignIn {
@@ -27,7 +28,7 @@ pub struct SignIn {
     remember_me: bool,
     remember_my_password: bool,
     selected_status: Status,
-    signing_in: bool,
+    sign_in_cancellation_token: Option<CancellationToken>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     handle: Handle,
     sqlite: Sqlite,
@@ -75,7 +76,7 @@ impl SignIn {
             remember_me,
             remember_my_password,
             selected_status: Status::Online,
-            signing_in: false,
+            sign_in_cancellation_token: None,
             main_window_sender,
             handle,
             sqlite,
@@ -108,12 +109,17 @@ impl eframe::App for SignIn {
                     ctx.request_repaint();
                 }
 
-                Err(error) => {
+                Err(SignInError::SdkError(error)) => {
                     let _ = self
                         .main_window_sender
                         .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                    self.signing_in = false;
+                    self.sign_in_cancellation_token = None;
+                    ctx.request_repaint();
+                }
+
+                Err(SignInError::Cancelled) => {
+                    self.sign_in_cancellation_token = None;
                     ctx.request_repaint();
                 }
             }
@@ -171,7 +177,7 @@ impl eframe::App for SignIn {
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                            ui.add_enabled_ui(self.sign_in_cancellation_token.is_none(), |ui| {
                                 ui.style_mut().spacing.item_spacing.y = 0.;
                                 let label = ui.label("E-mail address:");
 
@@ -253,7 +259,7 @@ impl eframe::App for SignIn {
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                            ui.add_enabled_ui(self.sign_in_cancellation_token.is_none(), |ui| {
                                 ui.style_mut().spacing.item_spacing.y = 4.3;
                                 let label = ui.label("Password:");
 
@@ -268,7 +274,7 @@ impl eframe::App for SignIn {
                         });
 
                         tui.ui(|ui| {
-                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                            ui.add_enabled_ui(self.sign_in_cancellation_token.is_none(), |ui| {
                                 status_selector(
                                     ui,
                                     &mut self.selected_status,
@@ -278,7 +284,7 @@ impl eframe::App for SignIn {
                         });
 
                         tui.ui(|ui| {
-                            ui.add_enabled_ui(!self.signing_in, |ui| {
+                            ui.add_enabled_ui(self.sign_in_cancellation_token.is_none(), |ui| {
                                 ui.horizontal(|ui| {
                                     ui.checkbox(&mut self.remember_me, "Remember Me")
                                         .on_hover_text("Save your e-mail address");
@@ -329,58 +335,73 @@ impl eframe::App for SignIn {
 
                         tui.style(taffy::Style {
                             size: taffy::Size {
-                                width: if !self.signing_in {
-                                    length(56.)
-                                } else {
-                                    auto()
-                                },
+                                width: length(56.),
                                 height: auto(),
                             },
                             ..Default::default()
                         })
                         .ui(|ui| {
-                            if !self.signing_in {
-                                if ui
-                                    .button("Sign In")
-                                    .on_hover_text("Click here to sign in")
-                                    .clicked()
-                                {
-                                    if self.email.is_empty() || self.password.is_empty() {
-                                        let _ = self.main_window_sender.send(
-                                            crate::main_window::Message::OpenDialog(
-                                                "Please type your e-mail address and \
-                                            password in their corresponding forms."
-                                                    .to_string(),
-                                            ),
-                                        );
+                            if let Some(token) = &self.sign_in_cancellation_token {
+                                ui.vertical_centered(|ui| {
+                                    ui.spinner();
+                                    ui.add_space(10.);
 
-                                        ctx.request_repaint();
-                                    } else {
-                                        self.signing_in = true;
-
-                                        let email = Arc::new(self.email.trim().to_string());
-                                        let password = Arc::new(self.password.clone());
-                                        let sqlite = self.sqlite.clone();
-
-                                        let status = match self.selected_status {
-                                            Status::Busy => MsnpStatus::Busy,
-                                            Status::Away => MsnpStatus::Away,
-                                            Status::AppearOffline => MsnpStatus::AppearOffline,
-                                            _ => MsnpStatus::Online,
-                                        };
-
-                                        run_future(
-                                            self.handle.clone(),
-                                            async move {
-                                                sign_in_async(email, password, status, sqlite).await
-                                            },
-                                            self.sender.clone(),
-                                            Message::SignInResult,
-                                        );
+                                    if ui
+                                        .button("Cancel")
+                                        .on_hover_text("Cancel sign in")
+                                        .clicked()
+                                    {
+                                        token.cancel();
                                     }
+                                });
+                            } else if ui
+                                .button("Sign In")
+                                .on_hover_text("Click here to sign in")
+                                .clicked()
+                            {
+                                if self.email.is_empty() || self.password.is_empty() {
+                                    let _ = self.main_window_sender.send(
+                                        crate::main_window::Message::OpenDialog(
+                                            "Please type your e-mail address and \
+                                        password in their corresponding forms."
+                                                .to_string(),
+                                        ),
+                                    );
+
+                                    ctx.request_repaint();
+                                } else {
+                                    let token = CancellationToken::new();
+
+                                    let email = Arc::new(self.email.trim().to_string());
+                                    let password = Arc::new(self.password.clone());
+                                    let sqlite = self.sqlite.clone();
+
+                                    let status = match self.selected_status {
+                                        Status::Busy => MsnpStatus::Busy,
+                                        Status::Away => MsnpStatus::Away,
+                                        Status::AppearOffline => MsnpStatus::AppearOffline,
+                                        _ => MsnpStatus::Online,
+                                    };
+
+                                    let sign_in_token = token.clone();
+                                    run_future(
+                                        self.handle.clone(),
+                                        async move {
+                                            sign_in_async(
+                                                email,
+                                                password,
+                                                status,
+                                                sqlite,
+                                                sign_in_token,
+                                            )
+                                            .await
+                                        },
+                                        self.sender.clone(),
+                                        Message::SignInResult,
+                                    );
+
+                                    self.sign_in_cancellation_token = Some(token);
                                 }
-                            } else {
-                                ui.spinner();
                             }
                         });
                     })

@@ -27,7 +27,7 @@ fn common_main() -> eframe::Result {
     rt.spawn(async move { helpers::notify_new_version::notify_new_version().await });
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("meowsn :3")
+            .with_title("meowsn")
             .with_inner_size([350., 600.])
             .with_min_inner_size([350., 500.])
             .with_icon(
