@@ -2658,9 +2658,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13db31add3e8692758a456b69690ee4cc9b93beee8d6c008ddb73d77d0cfd3b9"
+checksum = "4773e2aad4ccf5f948e32b6f0accd2a1e1b5a7eb63deb1de40d68989b5445644"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -2673,6 +2673,7 @@ dependencies = [
  "reqwest",
  "serde",
  "sha1_smol",
+ "thiserror 2.0.17",
  "tokio",
  "uniffi",
  "urlencoding",
@@ -3931,9 +3932,9 @@ dependencies = [
 
 [[package]]
 name = "rfd"
-version = "0.15.4"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef2bee61e6cffa4635c72d7d81a84294e28f0930db0ddcb0f66d10244674ebed"
+checksum = "a15ad77d9e70a92437d8f74c35d99b4e4691128df018833e99f90bcd36152672"
 dependencies = [
  "ashpd",
  "block2 0.6.1",
@@ -3950,7 +3951,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

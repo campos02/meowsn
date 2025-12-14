@@ -12,7 +12,7 @@ use crate::{settings, svg};
 use eframe::egui;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{Client, MsnpList, MsnpStatus, PersonalMessage, SdkError};
+use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -21,10 +21,10 @@ pub enum Message {
     DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
     StatusResult(MsnpStatus, Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
-    BlockResult(Arc<String>, Result<(), SdkError>),
-    UnblockResult(Arc<String>, Result<(), SdkError>),
-    DeleteResult(Arc<String>, Result<(), SdkError>),
-    AddContactResult(Box<Result<msnp11_sdk::Event, SdkError>>),
+    BlockResult(Arc<String>, Result<(), ContactError>),
+    UnblockResult(Arc<String>, Result<(), ContactError>),
+    DeleteResult(Arc<String>, Result<(), ContactError>),
+    AddContactResult(Box<Result<msnp11_sdk::Event, ContactError>>),
     CloseAddContact,
 }
 

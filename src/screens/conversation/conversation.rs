@@ -14,7 +14,7 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{auto, fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{MsnpStatus, SdkError, Switchboard};
+use msnp11_sdk::{MessagingError, MsnpStatus, SdkError, Switchboard};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -22,7 +22,7 @@ use tokio::runtime::Handle;
 const INITIAL_HISTORY_LIMIT: u32 = 3;
 
 pub enum Message {
-    SendMessageResult(message::Message, Result<(), SdkError>),
+    SendMessageResult(message::Message, Result<(), MessagingError>),
     InviteResult(Result<(), SdkError>),
     ClearUserTyping,
     ClearParticipantTyping,
