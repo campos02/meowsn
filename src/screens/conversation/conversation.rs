@@ -12,7 +12,7 @@ use crate::svg;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
-use egui_taffy::taffy::prelude::{auto, fr, length, line, percent};
+use egui_taffy::taffy::prelude::{fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{MessagingError, MsnpStatus, SdkError, Switchboard};
 use std::collections::HashMap;
@@ -471,12 +471,70 @@ impl Conversation {
             }
         }
 
+        egui::SidePanel::right("display_pictures")
+            .frame(egui::Frame {
+                inner_margin: egui::Margin {
+                    top: 15,
+                    bottom: 15,
+                    left: 5,
+                    right: 15,
+                },
+                fill: ctx.style().visuals.window_fill,
+                ..Default::default()
+            })
+            .default_width(120.)
+            .show_separator_line(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("conversation_screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        size: percent(1.),
+                        display: taffy::Display::Grid,
+                        justify_items: Some(taffy::JustifyItems::Stretch),
+                        grid_template_rows: vec![fr(1.), length(100.)],
+                        ..Default::default()
+                    })
+                    .show(|tui| {
+                        contacts_display_pictures(
+                            tui,
+                            &self.participants,
+                            self.last_participant.clone(),
+                        );
+
+                        tui.style(taffy::Style {
+                            size: length(90.),
+                            grid_row: line(2),
+                            ..Default::default()
+                        })
+                        .add_with_border(|tui| {
+                            tui.ui(|ui| {
+                                ui.add(if let Some(picture) = self.user_display_picture.clone() {
+                                    egui::Image::from_bytes(
+                                        format!("bytes://{}.png", picture.hash),
+                                        picture.data,
+                                    )
+                                    .fit_to_exact_size(egui::Vec2::splat(90.))
+                                    .corner_radius(
+                                        ui.visuals().widgets.noninteractive.corner_radius,
+                                    )
+                                    .alt_text("User display picture")
+                                } else {
+                                    egui::Image::new(svg::default_display_picture())
+                                        .fit_to_exact_size(egui::Vec2::splat(90.))
+                                        .alt_text("User display picture")
+                                })
+                                .on_hover_text("User display picture");
+                            });
+                        });
+                    });
+            });
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            tui(ui, ui.id().with("conversation-screen"))
+            tui(ui, ui.id().with("conversation_screen"))
                 .reserve_available_space()
                 .style(taffy::Style {
                     display: taffy::Display::Grid,
-                    grid_template_columns: vec![fr(1.), length(50.)],
                     grid_template_rows: vec![
                         length(50.),
                         length(27.),
@@ -556,15 +614,7 @@ impl Conversation {
                         );
                     }
 
-                    tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::Start),
-                        size: taffy::Size {
-                            width: percent(0.93),
-                            height: auto(),
-                        },
-                        ..Default::default()
-                    })
-                    .ui(|ui| {
+                    tui.ui(|ui| {
                         ui.horizontal(|ui| {
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);
                             if ui.button("Invite")
@@ -600,15 +650,16 @@ impl Conversation {
                         ui.separator();
                     });
 
-                    contacts_display_pictures(tui, &self.participants, self.last_participant.clone());
-                    messages(tui, &self.participants, self.last_participant.clone(), self.user_email.clone(), self.user_display_name.clone(), &self.messages);
+                    messages(
+                        tui,
+                        &self.participants,
+                        self.last_participant.clone(),
+                        self.user_email.clone(),
+                        self.user_display_name.clone(),
+                        &self.messages
+                    );
 
                     tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::Start),
-                        size: taffy::Size {
-                            width: percent(0.93),
-                            height: auto(),
-                        },
                         grid_row: line(4),
                         ..Default::default()
                     })
@@ -633,7 +684,6 @@ impl Conversation {
                     );
 
                     tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::Stretch),
                         grid_row: line(5),
                         ..Default::default()
                     })
@@ -717,11 +767,6 @@ impl Conversation {
                     });
 
                     tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::Start),
-                        size: taffy::Size {
-                            width: percent(0.93),
-                            height: auto(),
-                        },
                         grid_row: line(6),
                         ..Default::default()
                     })
@@ -829,29 +874,6 @@ impl Conversation {
                                 }
                             });
                     });
-
-                    tui.style(taffy::Style {
-                        justify_self: Some(taffy::JustifySelf::End),
-                        grid_row: line(6),
-                        ..Default::default()
-                    })
-                    .add_with_border(|tui| {
-                        tui.ui(|ui| {
-                            ui.add(if let Some(picture) = self.user_display_picture.clone() {
-                                egui::Image::from_bytes(format!("bytes://{}.png", picture.hash), picture.data)
-                                    .fit_to_exact_size(egui::Vec2::splat(90.))
-                                    .corner_radius(
-                                        ui.visuals().widgets.noninteractive.corner_radius,
-                                    )
-                                    .alt_text("User display picture")
-                            } else {
-                                egui::Image::new(svg::default_display_picture())
-                                    .fit_to_exact_size(egui::Vec2::splat(90.))
-                                    .alt_text("User display picture")
-                            })
-                            .on_hover_text("User display picture");
-                        });
-                    });
                 });
         });
 
@@ -909,9 +931,7 @@ impl Conversation {
             title.push_str(" - Conversation");
             title
         } else if let Some(last_participant) = &self.last_participant {
-            let mut title = (*last_participant.display_name).clone();
-            title.push_str(" - Conversation");
-            title
+            format!("{} - Conversation", *last_participant.display_name)
         } else {
             "Conversation".to_string()
         }

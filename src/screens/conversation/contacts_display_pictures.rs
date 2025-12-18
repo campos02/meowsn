@@ -1,7 +1,7 @@
 use crate::models::contact::Contact;
 use crate::svg;
 use eframe::egui;
-use egui_taffy::taffy::prelude::{auto, fr, length, percent, repeat, span};
+use egui_taffy::taffy::prelude::{fr, length, line, repeat};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,8 +13,7 @@ pub fn contacts_display_pictures(
 ) {
     if participants.len() < 2 {
         tui.style(taffy::Style {
-            justify_self: Some(taffy::JustifySelf::End),
-            grid_row: span(2),
+            size: length(90.),
             ..Default::default()
         })
         .add_with_border(|tui| {
@@ -60,24 +59,20 @@ pub fn contacts_display_pictures(
         });
     } else {
         tui.style(taffy::Style {
-            justify_self: Some(taffy::JustifySelf::Start),
-            grid_row: span(3),
             display: taffy::Display::Grid,
-            grid_template_columns: vec![fr(1.), fr(1.)],
+            grid_template_columns: vec![length(45.), fr(1.)],
             grid_template_rows: vec![repeat("auto-fill", vec![length(43.)])],
             align_items: Some(taffy::AlignItems::Center),
-            gap: length(5.),
+            gap: taffy::Size {
+                width: length(5.),
+                height: length(10.),
+            },
             ..Default::default()
         })
         .add(|tui| {
             for participant in participants.values() {
                 tui.style(taffy::Style {
                     justify_self: Some(taffy::JustifySelf::Start),
-                    size: taffy::Size {
-                        width: length(45.),
-                        height: auto(),
-                    },
-                    margin: percent(-0.9),
                     ..Default::default()
                 })
                 .add_with_border(|tui| {
@@ -103,8 +98,7 @@ pub fn contacts_display_pictures(
                 });
 
                 tui.style(taffy::Style {
-                    margin: percent(-0.9),
-                    max_size: percent(1.),
+                    grid_column: line(2),
                     ..Default::default()
                 })
                 .ui_add(egui::Label::new(participant.display_name.as_str()).truncate());

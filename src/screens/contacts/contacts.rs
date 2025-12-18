@@ -700,71 +700,73 @@ impl eframe::App for Contacts {
                     });
             });
 
-        egui::CentralPanel::default().frame(egui::Frame {
-            inner_margin: egui::Margin {
-                top: 0,
-                bottom: 15,
-                left: 15,
-                right: 15,
-            },
-            fill: ctx.style().visuals.window_fill,
-            ..Default::default()
-        }).show(ctx, |ui| {
-            tui(ui, ui.id().with("contacts_screen"))
-                .reserve_available_space()
-                .style(taffy::Style {
-                    flex_direction: taffy::FlexDirection::Column,
-                    size: percent(1.),
-                    ..Default::default()
-                })
-                .show(|tui| {
-                    tui.style(taffy::Style {
-                        padding: length(5.),
-                        size: taffy::Size {
-                            width: percent(1.),
-                            height: percent(0.8),
-                        },
+        egui::CentralPanel::default()
+            .frame(egui::Frame {
+                inner_margin: egui::Margin {
+                    top: 0,
+                    bottom: 15,
+                    left: 15,
+                    right: 15,
+                },
+                fill: ctx.style().visuals.window_fill,
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                tui(ui, ui.id().with("contacts_screen"))
+                    .reserve_available_space()
+                    .style(taffy::Style {
+                        flex_direction: taffy::FlexDirection::Column,
+                        size: percent(1.),
                         ..Default::default()
                     })
-                    .ui(|ui| {
-                        egui::ScrollArea::vertical()
-                            .auto_shrink(false)
-                            .show(ui, |ui| {
-                                category_collapsing_header(
-                                    ui,
-                                    "Online",
-                                    &mut self.selected_contact,
-                                    &mut self.online_contacts,
-                                    self.main_window_sender.clone(),
-                                    self.sender.clone(),
-                                    self.handle.clone(),
-                                    self.user_email.clone(),
-                                    self.display_name.clone(),
-                                    self.display_picture.clone(),
-                                    self.selected_status,
-                                    self.contact_repository.clone(),
-                                    self.client.clone(),
-                                );
+                    .show(|tui| {
+                        tui.style(taffy::Style {
+                            padding: length(5.),
+                            size: taffy::Size {
+                                width: percent(1.),
+                                height: percent(0.8),
+                            },
+                            ..Default::default()
+                        })
+                        .ui(|ui| {
+                            egui::ScrollArea::vertical()
+                                .auto_shrink(false)
+                                .show(ui, |ui| {
+                                    category_collapsing_header(
+                                        ui,
+                                        "Online",
+                                        &mut self.selected_contact,
+                                        &mut self.online_contacts,
+                                        self.main_window_sender.clone(),
+                                        self.sender.clone(),
+                                        self.handle.clone(),
+                                        self.user_email.clone(),
+                                        self.display_name.clone(),
+                                        self.display_picture.clone(),
+                                        self.selected_status,
+                                        self.contact_repository.clone(),
+                                        self.client.clone(),
+                                    );
 
-                                category_collapsing_header(
-                                    ui,
-                                    "Offline",
-                                    &mut self.selected_contact,
-                                    &mut self.offline_contacts,
-                                    self.main_window_sender.clone(),
-                                    self.sender.clone(),
-                                    self.handle.clone(),
-                                    self.user_email.clone(),
-                                    self.display_name.clone(),
-                                    self.display_picture.clone(),
-                                    self.selected_status,
-                                    self.contact_repository.clone(),
-                                    self.client.clone(),
-                                );
-                            });
-                    });
-                })
-        });
+                                    category_collapsing_header(
+                                        ui,
+                                        "Offline",
+                                        &mut self.selected_contact,
+                                        &mut self.offline_contacts,
+                                        self.main_window_sender.clone(),
+                                        self.sender.clone(),
+                                        self.handle.clone(),
+                                        self.user_email.clone(),
+                                        self.display_name.clone(),
+                                        self.display_picture.clone(),
+                                        self.selected_status,
+                                        self.contact_repository.clone(),
+                                        self.client.clone(),
+                                    );
+                                });
+                        });
+                    })
+            });
 
         if let Some(add_contact) = &mut self.add_contact_window {
             ctx.show_viewport_immediate(
