@@ -69,7 +69,7 @@ impl PersonalSettings {
                                     true,
                                     egui::text_edit::TextEdit::singleline(display_name)
                                         .hint_text("Display name")
-                                        .min_size(egui::Vec2::new(340., 5.)),
+                                        .min_size(egui::Vec2::new(348., 5.)),
                                 )
                                 .labelled_by(label.id)
                                 .on_hover_text("Change your display name")
@@ -79,7 +79,7 @@ impl PersonalSettings {
                                     false,
                                     egui::text_edit::TextEdit::singleline(&mut buffer)
                                         .hint_text("Display name")
-                                        .min_size(egui::Vec2::new(340., 5.)),
+                                        .min_size(egui::Vec2::new(348., 5.)),
                                 )
                                 .labelled_by(label.id)
                             }
@@ -91,7 +91,7 @@ impl PersonalSettings {
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.server)
                                     .hint_text("Server")
-                                    .min_size(egui::Vec2::new(340., 5.)),
+                                    .min_size(egui::Vec2::new(348., 5.)),
                             )
                             .labelled_by(label.id)
                             .on_hover_text("Enter the main server address");
@@ -103,7 +103,7 @@ impl PersonalSettings {
                             ui.add(
                                 egui::text_edit::TextEdit::singleline(&mut self.nexus_url)
                                     .hint_text("Nexus URL")
-                                    .min_size(egui::Vec2::new(340., 5.)),
+                                    .min_size(egui::Vec2::new(348., 5.)),
                             )
                             .labelled_by(label.id)
                             .on_hover_text("Enter the Nexus URL used in authentication");
@@ -181,7 +181,7 @@ impl PersonalSettings {
                         tui.style(taffy::Style {
                             align_self: Some(taffy::AlignItems::Center),
                             size: taffy::Size {
-                                width: percent(0.42),
+                                width: percent(0.44),
                                 height: auto(),
                             },
                             padding: percent(0.07),
