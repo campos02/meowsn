@@ -349,7 +349,7 @@ impl Contacts {
                             let viewport_id = egui::ViewportId::from_hash_of(&session_id);
                             conversations.insert(
                                 viewport_id,
-                                conversation::Conversation::new(
+                                conversation::Conversation::new_with_switchboard(
                                     self.user_email.clone(),
                                     self.display_name.clone(),
                                     self.display_picture.clone(),

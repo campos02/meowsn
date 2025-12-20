@@ -14,7 +14,7 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
-use msnp11_sdk::{MessagingError, MsnpStatus, SdkError, Switchboard};
+use msnp11_sdk::{Client, MessagingError, MsnpStatus, SdkError, Switchboard};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -23,6 +23,7 @@ const INITIAL_HISTORY_LIMIT: u32 = 3;
 
 pub enum Message {
     SendMessageResult(message::Message, Result<(), MessagingError>),
+    CreateSessionResult(Result<Arc<Switchboard>, SdkError>),
     InviteResult(Result<(), SdkError>),
     ClearUserTyping,
     ClearParticipantTyping,
@@ -60,6 +61,73 @@ pub struct Conversation {
 impl Conversation {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        user_email: Arc<String>,
+        user_display_name: Arc<String>,
+        user_display_picture: Option<DisplayPicture>,
+        user_status: MsnpStatus,
+        contact: Contact,
+        contact_repository: ContactRepository,
+        client: Arc<Client>,
+        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        sqlite: Sqlite,
+        handle: Handle,
+        viewport_id: egui::viewport::ViewportId,
+    ) -> Self {
+        let messages = if let Ok(mut message_history) =
+            sqlite.select_messages(&user_email, &contact.email, INITIAL_HISTORY_LIMIT)
+        {
+            message_history.reverse();
+            message_history
+        } else {
+            Vec::new()
+        };
+
+        let _ = main_window_sender.send(crate::main_window::Message::ContactChatWindowFocused(
+            contact.email.clone(),
+        ));
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let client = client.clone();
+        let email = contact.email.clone();
+
+        run_future(
+            handle.clone(),
+            async move { client.create_session(&email).await },
+            sender.clone(),
+            move |result| Message::CreateSessionResult(result.map(Arc::from)),
+        );
+
+        Self {
+            user_email,
+            user_display_name,
+            switchboards: HashMap::new(),
+            participants: BTreeMap::new(),
+            last_participant: Some(contact.clone()),
+            messages,
+            message_buffer: Vec::new(),
+            new_message: "".to_string(),
+            user_display_picture,
+            user_status,
+            contact_repository,
+            sqlite,
+            participant_typing: None,
+            main_window_sender,
+            sender,
+            receiver,
+            user_typing: false,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            focused: false,
+            handle,
+            viewport_id,
+            invite_window: None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_switchboard(
         user_email: Arc<String>,
         user_display_name: Arc<String>,
         user_display_picture: Option<DisplayPicture>,
@@ -428,10 +496,10 @@ impl Conversation {
 
         if !previous_focus && self.focused {
             for participant in self.participants.values() {
-                if let Some(status) = &participant.status
+                if participant.display_picture.is_none()
+                    && let Some(status) = &participant.status
                     && let Some(msn_object_string) = status.msn_object_string.clone()
                     && let Some(switchboard) = self.switchboards.values().next().cloned()
-                    && participant.display_picture.is_none()
                 {
                     let email = participant.email.clone();
                     self.handle.spawn(async move {
@@ -454,6 +522,46 @@ impl Conversation {
 
                     self.messages.push(message);
                 }
+
+                Message::CreateSessionResult(result) => match result {
+                    Ok(switchboard) => {
+                        if let Ok(session_id) = self.handle.block_on(switchboard.get_session_id()) {
+                            let session_id = Arc::new(session_id);
+                            self.switchboards
+                                .insert(session_id.clone(), switchboard.clone());
+
+                            let sender = self.main_window_sender.clone();
+                            let session_id = session_id.clone();
+                            let ctx = ctx.clone();
+
+                            self.handle.block_on(async {
+                                switchboard.add_event_handler_closure(move |event| {
+                                    let sender = sender.clone();
+                                    let session_id = session_id.clone();
+                                    let ctx = ctx.clone();
+
+                                    async move {
+                                        let _ = sender.send(
+                                            crate::main_window::Message::SwitchboardEvent(
+                                                session_id, event,
+                                            ),
+                                        );
+
+                                        ctx.request_repaint();
+                                    }
+                                });
+                            });
+                        }
+                    }
+
+                    Err(error) => {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+
+                        ctx.request_repaint();
+                    }
+                },
 
                 Message::InviteResult(result) => {
                     if let Err(error) = result {
@@ -554,11 +662,15 @@ impl Conversation {
                 })
                 .show(|tui| {
                     let mut job = LayoutJob::default();
-                    job.append("To: ", 0., TextFormat {
-                        font_id: FontId::proportional(14.),
-                        color: tui.egui_ui().visuals().text_color(),
-                        ..Default::default()
-                    });
+                    job.append(
+                        "To: ",
+                        0.,
+                        TextFormat {
+                            font_id: FontId::proportional(14.),
+                            color: tui.egui_ui().visuals().text_color(),
+                            ..Default::default()
+                        },
+                    );
 
                     if self.participants.len() == 1
                         && let Some(contact) = self.participants.values().next()
@@ -617,21 +729,27 @@ impl Conversation {
                     tui.ui(|ui| {
                         ui.horizontal(|ui| {
                             ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);
-                            if ui.button("Invite")
+                            if ui
+                                .button("Invite")
                                 .on_hover_text("Invite someone into this conversation")
-                                .clicked() {
+                                .clicked()
+                            {
                                 if self.invite_window.is_some() {
                                     ctx.send_viewport_cmd_to(
-                                        egui::ViewportId::from_hash_of(format!("{:?}-invite", self.viewport_id)),
+                                        egui::ViewportId::from_hash_of(format!(
+                                            "{:?}-invite",
+                                            self.viewport_id
+                                        )),
                                         egui::ViewportCommand::Focus,
                                     );
-                                } else if let Some(switchboard) = self.switchboards.values().next().cloned() {
-                                    self.invite_window =
-                                        Some(invite::Invite::new(
-                                            switchboard,
-                                            self.sender.clone(),
-                                            self.handle.clone(),
-                                        ));
+                                } else if let Some(switchboard) =
+                                    self.switchboards.values().next().cloned()
+                                {
+                                    self.invite_window = Some(invite::Invite::new(
+                                        switchboard,
+                                        self.sender.clone(),
+                                        self.handle.clone(),
+                                    ));
                                 }
                             }
 
@@ -640,9 +758,13 @@ impl Conversation {
                         ui.add_space(5.);
 
                         if self.participants.len() < 2
-                            && ui.link("Load your entire conversation history with this contact").clicked()
+                            && ui
+                                .link("Load your entire conversation history with this contact")
+                                .clicked()
                             && let Some(participant) = self.participants.values().next()
-                            && let Ok(message_history) = self.sqlite.select_all_messages(&self.user_email, &participant.email)
+                            && let Ok(message_history) = self
+                                .sqlite
+                                .select_all_messages(&self.user_email, &participant.email)
                         {
                             self.messages = message_history;
                         }
@@ -656,7 +778,7 @@ impl Conversation {
                         self.last_participant.clone(),
                         self.user_email.clone(),
                         self.user_display_name.clone(),
-                        &self.messages
+                        &self.messages,
                     );
 
                     tui.style(taffy::Style {
@@ -690,10 +812,10 @@ impl Conversation {
                     .ui(|ui| {
                         ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 6.5);
                         ui.horizontal(|ui| {
-                            if ui.button("Nudge")
+                            if ui
+                                .button("Nudge")
                                 .on_hover_text("Send a nudge to this contact")
                                 .clicked()
-                                && let Some(switchboard) = self.switchboards.values().next()
                             {
                                 let mut message = message::Message {
                                     sender: self.user_email.clone(),
@@ -721,27 +843,33 @@ impl Conversation {
                                     errored: false,
                                 };
 
-                                if !self.participants.is_empty() {
-                                    let switchboard = switchboard.clone();
-                                    run_future(
-                                        self.handle.clone(),
-                                        async move { switchboard.send_nudge().await },
-                                        self.sender.clone(),
-                                        move |result| {
-                                            Message::SendMessageResult(
-                                                std::mem::take(&mut message),
-                                                result,
-                                            )
-                                        },
-                                    );
+                                if let Some(switchboard) = self.switchboards.values().next() {
+                                    if !self.participants.is_empty() {
+                                        let switchboard = switchboard.clone();
+                                        run_future(
+                                            self.handle.clone(),
+                                            async move { switchboard.send_nudge().await },
+                                            self.sender.clone(),
+                                            move |result| {
+                                                Message::SendMessageResult(
+                                                    std::mem::take(&mut message),
+                                                    result,
+                                                )
+                                            },
+                                        );
+                                    } else {
+                                        self.message_buffer.push(message);
+                                        if let Some(last_participant) =
+                                            self.last_participant.clone()
+                                        {
+                                            let switchboard = switchboard.clone();
+                                            self.handle.spawn(async move {
+                                                switchboard.invite(&last_participant.email).await
+                                            });
+                                        }
+                                    }
                                 } else {
                                     self.message_buffer.push(message);
-                                    if let Some(last_participant) = self.last_participant.clone() {
-                                        let switchboard = switchboard.clone();
-                                        self.handle.spawn(async move {
-                                            switchboard.invite(&last_participant.email).await
-                                        });
-                                    }
                                 }
                             }
 
@@ -771,80 +899,82 @@ impl Conversation {
                         ..Default::default()
                     })
                     .ui(|ui| {
-                        egui::ScrollArea::vertical()
-                            .show(ui, |ui| {
-                                let multiline = ui.add(
-                                    egui::TextEdit::multiline(&mut self.new_message)
-                                        .desired_rows(5)
-                                        .desired_width(f32::INFINITY)
-                                        .return_key(Some(egui::KeyboardShortcut::new(
-                                            egui::Modifiers::SHIFT,
-                                            egui::Key::Enter,
-                                        ))),
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            let multiline = ui.add(
+                                egui::TextEdit::multiline(&mut self.new_message)
+                                    .desired_rows(5)
+                                    .desired_width(f32::INFINITY)
+                                    .return_key(Some(egui::KeyboardShortcut::new(
+                                        egui::Modifiers::SHIFT,
+                                        egui::Key::Enter,
+                                    ))),
+                            );
+
+                            let multiline = multiline.on_hover_text_at_pointer(
+                                "Enter your message here and press Enter to send it",
+                            );
+
+                            if multiline.changed()
+                                && !self.user_typing
+                                && let Some(switchboard) = self.switchboards.values().next()
+                            {
+                                self.user_typing = true;
+                                self.handle.block_on(async {
+                                    let _ = switchboard.send_typing_user(&self.user_email).await;
+                                });
+
+                                run_future(
+                                    self.handle.clone(),
+                                    async {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
+                                            .await
+                                    },
+                                    self.sender.clone(),
+                                    |_| Message::ClearUserTyping,
                                 );
+                            }
 
-                                let multiline = multiline
-                                    .on_hover_text_at_pointer("Enter your message here and press Enter to send it");
+                            if multiline.has_focus()
+                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                && !self.new_message.trim().is_empty()
+                            {
+                                let mut message = message::Message {
+                                    sender: self.user_email.clone(),
+                                    receiver: if self.participants.len() == 1 {
+                                        self.participants
+                                            .values()
+                                            .next()
+                                            .map(|participant| participant.email.clone())
+                                    } else if self.participants.is_empty() {
+                                        self.last_participant
+                                            .as_ref()
+                                            .map(|participant| participant.email.clone())
+                                    } else {
+                                        None
+                                    },
+                                    is_nudge: false,
+                                    text: self.new_message.replace("\n", "\r\n"),
+                                    bold: self.bold,
+                                    italic: self.italic,
+                                    underline: self.underline,
+                                    strikethrough: self.strikethrough,
+                                    session_id: None,
+                                    color: "0".to_string(),
+                                    is_history: false,
+                                    errored: false,
+                                };
 
-                                if multiline.changed()
-                                    && !self.user_typing
-                                    && let Some(switchboard) = self.switchboards.values().next()
-                                {
-                                    self.user_typing = true;
-                                    self.handle.block_on(async {
-                                        let _ =
-                                            switchboard.send_typing_user(&self.user_email).await;
-                                    });
+                                let plain_text = msnp11_sdk::PlainText {
+                                    bold: message.bold,
+                                    italic: message.italic,
+                                    underline: message.underline,
+                                    strikethrough: message.strikethrough,
+                                    color: message.color.clone(),
+                                    text: message.text.clone(),
+                                };
 
-                                    run_future(
-                                        self.handle.clone(),
-                                        async { tokio::time::sleep(tokio::time::Duration::from_secs(5)).await },
-                                        self.sender.clone(),
-                                        |_| Message::ClearUserTyping
-                                    );
-                                }
-
-                                if multiline.has_focus()
-                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                    && let Some(switchboard) = self.switchboards.values().next()
-                                    && !self.new_message.trim().is_empty()
-                                {
-                                    let mut message = message::Message {
-                                        sender: self.user_email.clone(),
-                                        receiver: if self.participants.len() == 1 {
-                                            self.participants
-                                                .values()
-                                                .next()
-                                                .map(|participant| participant.email.clone())
-                                        } else if self.participants.is_empty() {
-                                            self.last_participant
-                                                .as_ref()
-                                                .map(|participant| participant.email.clone())
-                                        } else {
-                                            None
-                                        },
-                                        is_nudge: false,
-                                        text: self.new_message.replace("\n", "\r\n"),
-                                        bold: self.bold,
-                                        italic: self.italic,
-                                        underline: self.underline,
-                                        strikethrough: self.strikethrough,
-                                        session_id: None,
-                                        color: "0".to_string(),
-                                        is_history: false,
-                                        errored: false,
-                                    };
-
-                                    let plain_text = msnp11_sdk::PlainText {
-                                        bold: message.bold,
-                                        italic: message.italic,
-                                        underline: message.underline,
-                                        strikethrough: message.strikethrough,
-                                        color: message.color.clone(),
-                                        text: message.text.clone(),
-                                    };
-
-                                    self.new_message = "".to_string();
+                                self.new_message = "".to_string();
+                                if let Some(switchboard) = self.switchboards.values().next() {
                                     if !self.participants.is_empty() {
                                         let switchboard = switchboard.clone();
                                         run_future(
@@ -871,8 +1001,11 @@ impl Conversation {
                                             });
                                         }
                                     }
+                                } else {
+                                    self.message_buffer.push(message);
                                 }
-                            });
+                            }
+                        });
                     });
                 });
         });

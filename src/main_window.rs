@@ -1,16 +1,14 @@
 use crate::contact_repository::ContactRepository;
-use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
-use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::conversation::conversation;
 use crate::screens::{contacts, personal_settings, sign_in};
 use crate::sqlite::Sqlite;
 use crate::visuals;
 use eframe::egui;
 use eframe::egui::CornerRadius;
-use msnp11_sdk::{Client, MsnpStatus, SdkError, Switchboard};
+use msnp11_sdk::{Client, MsnpStatus, SdkError};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Handle;
@@ -44,15 +42,6 @@ pub enum Message {
         contact_repository: ContactRepository,
         contact: Contact,
         client: Arc<Client>,
-    },
-
-    CreateSessionResult {
-        user_email: Arc<String>,
-        user_display_name: Arc<String>,
-        user_display_picture: Option<DisplayPicture>,
-        user_status: MsnpStatus,
-        contact_repository: ContactRepository,
-        result: Result<Arc<Switchboard>, SdkError>,
     },
 
     CloseConversation(egui::ViewportId),
@@ -318,45 +307,7 @@ impl eframe::App for MainWindow {
                             .sender
                             .send(Message::ContactChatWindowFocused(contact.email.clone()));
                     } else {
-                        let contact_email = contact.email.clone();
-                        let sender = self.sender.clone();
-
-                        run_future(
-                            self.handle.clone(),
-                            async move { client.create_session(&contact_email).await },
-                            sender,
-                            move |result| Message::CreateSessionResult {
-                                user_email: user_email.clone(),
-                                user_display_name: user_display_name.clone(),
-                                user_display_picture: user_display_picture.clone(),
-                                user_status: user_status.clone(),
-                                contact_repository: contact_repository.clone(),
-                                result: result.map(Arc::from),
-                            },
-                        );
-                    }
-                }
-
-                Message::CreateSessionResult {
-                    user_email,
-                    user_display_name,
-                    user_display_picture,
-                    user_status,
-                    contact_repository,
-                    result,
-                } => {
-                    if let Ok(switchboard) = result
-                        && let Ok(session_id) = self.handle.block_on(switchboard.get_session_id())
-                    {
-                        let switchboard = SwitchboardAndParticipants {
-                            switchboard,
-                            participants: Vec::new(),
-                        };
-
-                        let session_id = Arc::new(session_id);
-                        let viewport_id = egui::ViewportId::from_hash_of(&session_id);
-                        let inner_switchboard = switchboard.switchboard.clone();
-
+                        let viewport_id = egui::ViewportId::from_hash_of(contact.guid.clone());
                         self.conversations.insert(
                             viewport_id,
                             conversation::Conversation::new(
@@ -364,33 +315,15 @@ impl eframe::App for MainWindow {
                                 user_display_name,
                                 user_display_picture,
                                 user_status,
+                                contact,
                                 contact_repository,
-                                session_id.clone(),
-                                switchboard,
+                                client,
                                 self.sender.clone(),
                                 self.sqlite.clone(),
                                 self.handle.clone(),
                                 viewport_id,
                             ),
                         );
-
-                        let sender = self.sender.clone();
-                        let ctx = ctx.clone();
-
-                        self.handle.block_on(async {
-                            inner_switchboard.add_event_handler_closure(move |event| {
-                                let sender = sender.clone();
-                                let session_id = session_id.clone();
-                                let ctx = ctx.clone();
-
-                                async move {
-                                    let _ =
-                                        sender.send(Message::SwitchboardEvent(session_id, event));
-
-                                    ctx.request_repaint();
-                                }
-                            });
-                        });
                     }
                 }
 
