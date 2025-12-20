@@ -132,6 +132,13 @@ pub fn dark_mode(old: egui::Visuals) -> egui::Visuals {
             ..old.popup_shadow
         },
         dark_mode: true,
+        text_cursor: style::TextCursorStyle {
+            stroke: egui::Stroke {
+                color: text,
+                ..old.text_cursor.stroke
+            },
+            ..old.text_cursor
+        },
         ..old
     }
 }

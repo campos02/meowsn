@@ -32,7 +32,7 @@ pub fn category_collapsing_header(
         .default_open(true)
         .show(ui, |ui| {
             if contacts.is_empty() {
-                ui.label("No contacts in this category");
+                ui.label(" No contacts in this category");
             } else {
                 for contact in contacts.values_mut() {
                     let user_email = user_email.clone();

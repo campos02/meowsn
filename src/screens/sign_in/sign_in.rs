@@ -227,6 +227,7 @@ impl eframe::App for SignIn {
                                                 }
                                             }
 
+                                            ui.separator();
                                             if ui
                                                 .selectable_value(
                                                     &mut self.email,
