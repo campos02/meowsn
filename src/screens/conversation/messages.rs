@@ -6,12 +6,12 @@ use eframe::egui::{FontId, FontSelection, TextFormat};
 use egui_taffy::taffy::prelude::{auto, percent, span};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub fn messages(
     tui: &mut Tui,
-    participants: &HashMap<Arc<String>, Contact>,
+    participants: &BTreeMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
     user_email: Arc<String>,
     user_display_name: Arc<String>,

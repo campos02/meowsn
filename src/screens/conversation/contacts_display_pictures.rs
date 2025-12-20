@@ -3,12 +3,12 @@ use crate::svg;
 use eframe::egui;
 use egui_taffy::taffy::prelude::{fr, length, line, repeat};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub fn contacts_display_pictures(
     tui: &mut Tui,
-    participants: &HashMap<Arc<String>, Contact>,
+    participants: &BTreeMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
 ) {
     if participants.len() < 2 {

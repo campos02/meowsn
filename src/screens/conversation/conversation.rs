@@ -15,7 +15,7 @@ use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{MessagingError, MsnpStatus, SdkError, Switchboard};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -33,7 +33,7 @@ pub struct Conversation {
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     switchboards: HashMap<Arc<String>, Arc<Switchboard>>,
-    participants: HashMap<Arc<String>, Contact>,
+    participants: BTreeMap<Arc<String>, Contact>,
     last_participant: Option<Contact>,
     messages: Vec<message::Message>,
     message_buffer: Vec<message::Message>,
@@ -89,7 +89,7 @@ impl Conversation {
             Vec::new()
         };
 
-        let mut participants = HashMap::with_capacity(switchboard.participants.len());
+        let mut participants = BTreeMap::new();
         for participant in &switchboard.participants {
             participants.insert(
                 participant.clone(),
@@ -893,7 +893,7 @@ impl Conversation {
         }
     }
 
-    pub fn get_participants(&self) -> &HashMap<Arc<String>, Contact> {
+    pub fn get_participants(&self) -> &BTreeMap<Arc<String>, Contact> {
         &self.participants
     }
 

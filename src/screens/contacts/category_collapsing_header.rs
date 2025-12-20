@@ -8,7 +8,7 @@ use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat, Ui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -17,7 +17,7 @@ pub fn category_collapsing_header(
     ui: &mut Ui,
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
-    contacts: &mut HashMap<Arc<String>, Contact>,
+    contacts: &mut BTreeMap<Arc<String>, Contact>,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
     handle: Handle,

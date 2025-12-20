@@ -13,7 +13,7 @@ use eframe::egui;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -36,8 +36,8 @@ pub struct Contacts {
     selected_status: Status,
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
-    online_contacts: HashMap<Arc<String>, Contact>,
-    offline_contacts: HashMap<Arc<String>, Contact>,
+    online_contacts: BTreeMap<Arc<String>, Contact>,
+    offline_contacts: BTreeMap<Arc<String>, Contact>,
     contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
     client: Arc<Client>,
@@ -72,8 +72,8 @@ impl Contacts {
             main_window_sender,
             selected_status,
             show_personal_message_frame: false,
-            online_contacts: HashMap::new(),
-            offline_contacts: HashMap::new(),
+            online_contacts: BTreeMap::new(),
+            offline_contacts: BTreeMap::new(),
             contact_repository: ContactRepository::new(),
             selected_contact: None,
             client: sign_in_return.client,
