@@ -1,11 +1,12 @@
+use crate::models::config::Config;
 use crate::models::tab::Tab;
 use msnp11_sdk::Client;
 use std::sync::Arc;
 
-pub async fn get_tabs(
+pub async fn get_config(
     client: Arc<Client>,
     config_url: String,
-) -> Result<Vec<Tab>, Box<dyn std::error::Error + Sync + Send>> {
+) -> Result<Config, Box<dyn std::error::Error + Sync + Send>> {
     let config = client.get_config(&config_url).await?;
     let client = reqwest::Client::new();
 
@@ -20,5 +21,8 @@ pub async fn get_tabs(
         });
     }
 
-    Ok(tabs)
+    Ok(Config {
+        tabs,
+        msn_today_url: config.msn_today_url,
+    })
 }

@@ -1,5 +1,5 @@
 use crate::contact_repository::ContactRepository;
-use crate::helpers::get_tabs::get_tabs;
+use crate::helpers::get_config::get_config;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
@@ -10,7 +10,7 @@ use crate::screens::contacts::category_collapsing_header::category_collapsing_he
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
-use crate::{settings, svg};
+use crate::{models, settings, svg};
 use eframe::egui;
 use eframe::egui::OpenUrl;
 use egui_taffy::taffy::prelude::{length, percent};
@@ -28,7 +28,7 @@ pub enum Message {
     UnblockResult(Arc<String>, Result<(), ContactError>),
     DeleteResult(Arc<String>, Result<(), ContactError>),
     AddContactResult(Box<Result<msnp11_sdk::Event, ContactError>>),
-    GetTabsResult(Result<Vec<Tab>, Box<dyn std::error::Error + Sync + Send>>),
+    GetConfigResult(Result<models::config::Config, Box<dyn std::error::Error + Sync + Send>>),
     CloseAddContact,
 }
 
@@ -49,6 +49,7 @@ pub struct Contacts {
     receiver: std::sync::mpsc::Receiver<Message>,
     sqlite: Sqlite,
     tabs: Vec<Tab>,
+    msn_today_url: Option<String>,
     add_contact_window: Option<crate::screens::add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     handle: Handle,
@@ -72,9 +73,9 @@ impl Contacts {
         let settings = settings::get_settings().unwrap_or_default();
         run_future(
             handle.clone(),
-            get_tabs(sign_in_return.client.clone(), settings.config_server),
+            get_config(sign_in_return.client.clone(), settings.config_server),
             sender.clone(),
-            Message::GetTabsResult,
+            Message::GetConfigResult,
         );
 
         Self {
@@ -94,6 +95,7 @@ impl Contacts {
             receiver,
             sqlite,
             tabs: Vec::new(),
+            msn_today_url: None,
             add_contact_window: None,
             orphan_switchboards: HashMap::new(),
             handle,
@@ -587,9 +589,10 @@ impl eframe::App for Contacts {
                     }
                 },
 
-                Message::GetTabsResult(result) => {
-                    if let Ok(tabs) = result {
-                        self.tabs = tabs;
+                Message::GetConfigResult(result) => {
+                    if let Ok(config) = result {
+                        self.tabs = config.tabs;
+                        self.msn_today_url = Some(config.msn_today_url);
                     }
                 }
 
@@ -624,7 +627,11 @@ impl eframe::App for Contacts {
                             ..Default::default()
                         })
                         .add(|tui| {
-                            tui.add_with_border(|tui| {
+                            tui.style(taffy::Style {
+                                size: length(60.),
+                                ..Default::default()
+                            })
+                            .add_with_border(|tui| {
                                 tui.ui(|ui| {
                                     ui.add(if let Some(picture) = self.display_picture.clone() {
                                         egui::Image::from_bytes(
@@ -641,12 +648,11 @@ impl eframe::App for Contacts {
                                             .fit_to_exact_size(egui::Vec2::splat(60.))
                                             .alt_text("Default display picture")
                                     })
-                                })
+                                });
                             });
 
                             tui.ui(|ui| {
                                 ui.vertical(|ui| {
-                                    ui.add_space(5.);
                                     status_selector(
                                         ui,
                                         self.user_email.clone(),
@@ -694,12 +700,21 @@ impl eframe::App for Contacts {
                                     self.show_personal_message_frame = personal_message_edit
                                         .hovered()
                                         || personal_message_edit.has_focus();
+
+                                    ui.add_space(3.);
+                                    if let Some(msn_today_url) = &self.msn_today_url {
+                                        ui.hyperlink_to(" MSN Today", msn_today_url)
+                                            .on_hover_text("MSN Today");
+                                    }
                                 });
-                            })
+                            });
                         });
 
-                        tui.ui(|ui| ui.add_space(8.));
                         tui.ui(|ui| {
+                            ui.add_space(5.);
+                            ui.separator();
+                            ui.add_space(2.);
+
                             ui.horizontal(|ui| {
                                 ui.add(
                                     egui::Image::new(svg::add_contact())
@@ -726,7 +741,7 @@ impl eframe::App for Contacts {
                                             ));
                                     }
                                 }
-                            })
+                            });
                         });
                     });
             });

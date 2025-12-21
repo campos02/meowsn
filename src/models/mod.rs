@@ -1,3 +1,4 @@
+pub mod config;
 pub mod contact;
 pub mod display_picture;
 pub mod message;
