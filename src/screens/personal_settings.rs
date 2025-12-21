@@ -184,6 +184,7 @@ impl PersonalSettings {
                                     let defaults = Settings::default();
                                     self.server = defaults.server;
                                     self.nexus_url = defaults.nexus_url;
+                                    self.config_server = defaults.config_server;
                                     self.check_for_updates = defaults.check_for_updates;
                                     self.notify_sign_ins = defaults.notify_sign_ins;
                                 }

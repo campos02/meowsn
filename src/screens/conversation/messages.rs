@@ -24,7 +24,7 @@ pub fn messages(
     tui.style(taffy::Style {
         justify_self: Some(taffy::JustifySelf::Start),
         size: taffy::Size {
-            width: percent(0.93),
+            width: percent(1.),
             height: auto(),
         },
         grid_row: span(2),
@@ -68,7 +68,7 @@ pub fn messages(
                                     display_text_message(ui, message, &url_regex, ui.visuals().text_color());
                                 });
                             } else if message.errored {
-                                ui.add_sized([20., 10.], egui::Separator::default());
+                                ui.separator();
                                 let id = ui
                                     .label("The following message could not be delivered to all recipients:")
                                     .id;
@@ -81,12 +81,12 @@ pub fn messages(
                                     });
                                 });
 
-                                ui.add_sized([20., 10.], egui::Separator::default());
+                                ui.separator();
                             } else {
                                 // Nudge
-                                ui.add_sized([20., 10.], egui::Separator::default());
+                                ui.separator();
                                 ui.label(&message.text);
-                                ui.add_sized([20., 10.], egui::Separator::default());
+                                ui.separator();
                             }
                         },
                     );

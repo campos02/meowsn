@@ -343,7 +343,10 @@ impl Conversation {
 
                                 run_future(
                                     self.handle.clone(),
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(5)),
+                                    async {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
+                                            .await;
+                                    },
                                     self.sender.clone(),
                                     |_| Message::ClearParticipantTyping,
                                 );
@@ -752,8 +755,8 @@ impl Conversation {
 
                             ui.label(job);
                         });
-                        ui.add_space(5.);
 
+                        ui.add_space(5.);
                         if self.participants.len() < 2
                             && ui
                                 .link("Load your entire conversation history with this contact")
@@ -922,7 +925,10 @@ impl Conversation {
 
                                 run_future(
                                     self.handle.clone(),
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(5)),
+                                    async {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
+                                            .await;
+                                    },
                                     self.sender.clone(),
                                     |_| Message::ClearUserTyping,
                                 );
