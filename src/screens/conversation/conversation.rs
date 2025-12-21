@@ -6,6 +6,7 @@ use crate::models::message;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::screens::conversation::contacts_display_pictures::contacts_display_pictures;
 use crate::screens::conversation::messages::messages;
+use crate::screens::conversation::new_message_editor::new_message_editor;
 use crate::screens::invite;
 use crate::sqlite::Sqlite;
 use crate::svg;
@@ -805,208 +806,22 @@ impl Conversation {
                         },
                     );
 
-                    tui.style(taffy::Style {
-                        grid_row: line(5),
-                        ..Default::default()
-                    })
-                    .ui(|ui| {
-                        ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 6.5);
-                        ui.horizontal(|ui| {
-                            if ui
-                                .button("Nudge")
-                                .on_hover_text("Send a nudge to this contact")
-                                .clicked()
-                            {
-                                let mut message = message::Message {
-                                    sender: self.user_email.clone(),
-                                    receiver: if self.participants.len() == 1 {
-                                        self.participants
-                                            .values()
-                                            .next()
-                                            .map(|participant| participant.email.clone())
-                                    } else if self.participants.is_empty() {
-                                        self.last_participant
-                                            .as_ref()
-                                            .map(|participant| participant.email.clone())
-                                    } else {
-                                        None
-                                    },
-                                    is_nudge: true,
-                                    text: "You just sent a nudge!".to_string(),
-                                    bold: false,
-                                    italic: false,
-                                    underline: false,
-                                    strikethrough: false,
-                                    session_id: None,
-                                    color: "0".to_string(),
-                                    is_history: false,
-                                    errored: false,
-                                };
-
-                                if let Some(switchboard) = self.switchboards.values().next() {
-                                    if !self.participants.is_empty() {
-                                        let switchboard = switchboard.clone();
-                                        run_future(
-                                            self.handle.clone(),
-                                            async move { switchboard.send_nudge().await },
-                                            self.sender.clone(),
-                                            move |result| {
-                                                Message::SendMessageResult(
-                                                    std::mem::take(&mut message),
-                                                    result,
-                                                )
-                                            },
-                                        );
-                                    } else {
-                                        self.message_buffer.push(message);
-                                        if let Some(last_participant) =
-                                            self.last_participant.clone()
-                                        {
-                                            let switchboard = switchboard.clone();
-                                            self.handle.spawn(async move {
-                                                switchboard.invite(&last_participant.email).await
-                                            });
-                                        }
-                                    }
-                                } else {
-                                    self.message_buffer.push(message);
-                                }
-                            }
-
-                            ui.add_space(5.);
-
-                            ui.style_mut().spacing.button_padding = egui::Vec2::new(10., 5.);
-                            ui.style_mut()
-                                .text_styles
-                                .insert(egui::TextStyle::Button, FontId::monospace(16.));
-
-                            ui.toggle_value(&mut self.bold, "B")
-                                .on_hover_text("Toggle bold");
-
-                            ui.toggle_value(&mut self.italic, "I")
-                                .on_hover_text("Toggle italic");
-
-                            ui.toggle_value(&mut self.underline, "U")
-                                .on_hover_text("Toggle underline");
-
-                            ui.toggle_value(&mut self.strikethrough, "S")
-                                .on_hover_text("Toggle strikethrough");
-                        });
-                    });
-
-                    tui.style(taffy::Style {
-                        grid_row: line(6),
-                        ..Default::default()
-                    })
-                    .ui(|ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            let multiline = ui.add(
-                                egui::TextEdit::multiline(&mut self.new_message)
-                                    .desired_rows(5)
-                                    .desired_width(f32::INFINITY)
-                                    .return_key(Some(egui::KeyboardShortcut::new(
-                                        egui::Modifiers::SHIFT,
-                                        egui::Key::Enter,
-                                    ))),
-                            );
-
-                            let multiline = multiline.on_hover_text_at_pointer(
-                                "Enter your message here and press Enter to send it",
-                            );
-
-                            if multiline.changed()
-                                && !self.user_typing
-                                && let Some(switchboard) = self.switchboards.values().next()
-                            {
-                                self.user_typing = true;
-                                self.handle.block_on(async {
-                                    let _ = switchboard.send_typing_user(&self.user_email).await;
-                                });
-
-                                run_future(
-                                    self.handle.clone(),
-                                    async {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
-                                            .await;
-                                    },
-                                    self.sender.clone(),
-                                    |_| Message::ClearUserTyping,
-                                );
-                            }
-
-                            if multiline.has_focus()
-                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                && !self.new_message.trim().is_empty()
-                            {
-                                let mut message = message::Message {
-                                    sender: self.user_email.clone(),
-                                    receiver: if self.participants.len() == 1 {
-                                        self.participants
-                                            .values()
-                                            .next()
-                                            .map(|participant| participant.email.clone())
-                                    } else if self.participants.is_empty() {
-                                        self.last_participant
-                                            .as_ref()
-                                            .map(|participant| participant.email.clone())
-                                    } else {
-                                        None
-                                    },
-                                    is_nudge: false,
-                                    text: self.new_message.replace("\n", "\r\n"),
-                                    bold: self.bold,
-                                    italic: self.italic,
-                                    underline: self.underline,
-                                    strikethrough: self.strikethrough,
-                                    session_id: None,
-                                    color: "0".to_string(),
-                                    is_history: false,
-                                    errored: false,
-                                };
-
-                                let plain_text = msnp11_sdk::PlainText {
-                                    bold: message.bold,
-                                    italic: message.italic,
-                                    underline: message.underline,
-                                    strikethrough: message.strikethrough,
-                                    color: message.color.clone(),
-                                    text: message.text.clone(),
-                                };
-
-                                self.new_message = "".to_string();
-                                if let Some(switchboard) = self.switchboards.values().next() {
-                                    if !self.participants.is_empty() {
-                                        let switchboard = switchboard.clone();
-                                        run_future(
-                                            self.handle.clone(),
-                                            async move {
-                                                switchboard.send_text_message(&plain_text).await
-                                            },
-                                            self.sender.clone(),
-                                            move |result| {
-                                                Message::SendMessageResult(
-                                                    std::mem::take(&mut message),
-                                                    result,
-                                                )
-                                            },
-                                        );
-                                    } else {
-                                        self.message_buffer.push(message);
-                                        if let Some(last_participant) =
-                                            self.last_participant.clone()
-                                        {
-                                            let switchboard = switchboard.clone();
-                                            self.handle.spawn(async move {
-                                                switchboard.invite(&last_participant.email).await
-                                            });
-                                        }
-                                    }
-                                } else {
-                                    self.message_buffer.push(message);
-                                }
-                            }
-                        });
-                    });
+                    new_message_editor(
+                        tui,
+                        &self.participants,
+                        &self.last_participant,
+                        self.user_email.clone(),
+                        &self.switchboards,
+                        self.sender.clone(),
+                        self.handle.clone(),
+                        &mut self.message_buffer,
+                        &mut self.user_typing,
+                        &mut self.bold,
+                        &mut self.italic,
+                        &mut self.underline,
+                        &mut self.strikethrough,
+                        &mut self.new_message,
+                    );
                 });
         });
 
