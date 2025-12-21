@@ -69,13 +69,10 @@ impl Contacts {
             _ => Status::Online,
         };
 
-        let client = sign_in_return.client.clone();
+        let settings = settings::get_settings().unwrap_or_default();
         run_future(
             handle.clone(),
-            get_tabs(
-                client,
-                "http://conf.msgrsvcs.ctsrv.gay/Config/MsgrConfig.asmx",
-            ),
+            get_tabs(sign_in_return.client.clone(), settings.config_server),
             sender.clone(),
             Message::GetTabsResult,
         );

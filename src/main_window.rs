@@ -408,7 +408,7 @@ impl eframe::App for MainWindow {
                 egui::ViewportId::from_hash_of("personal-settings"),
                 egui::ViewportBuilder::default()
                     .with_title("Personal settings")
-                    .with_inner_size([400., 400.])
+                    .with_inner_size([400., 480.])
                     .with_maximize_button(false)
                     .with_resizable(false),
                 move |ctx, _| {

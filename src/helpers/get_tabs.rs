@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 pub async fn get_tabs(
     client: Arc<Client>,
-    config_url: &str,
+    config_url: String,
 ) -> Result<Vec<Tab>, Box<dyn std::error::Error + Sync + Send>> {
-    let config = client.get_config(config_url).await?;
+    let config = client.get_config(&config_url).await?;
     let client = reqwest::Client::new();
 
     let mut tabs = Vec::with_capacity(config.tabs.len());

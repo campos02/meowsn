@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub server: String,
     pub nexus_url: String,
+    pub config_server: String,
     pub check_for_updates: bool,
     pub notify_sign_ins: bool,
 }
@@ -13,6 +14,7 @@ impl Default for Settings {
         Self {
             server: "ms.msgrsvcs.ctsrv.gay".to_string(),
             nexus_url: "https://pp.login.ugnet.gay/rdr/pprdr.asp".to_string(),
+            config_server: "https://conf.msgrsvcs.ctsrv.gay/Config/MsgrConfig.asmx".to_string(),
             check_for_updates: true,
             notify_sign_ins: true,
         }

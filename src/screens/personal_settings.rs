@@ -12,6 +12,7 @@ pub struct PersonalSettings {
     display_name: Option<String>,
     server: String,
     nexus_url: String,
+    config_server: String,
     check_for_updates: bool,
     notify_sign_ins: bool,
     client: Option<Arc<Client>>,
@@ -31,6 +32,7 @@ impl PersonalSettings {
             display_name,
             server: settings.server,
             nexus_url: settings.nexus_url,
+            config_server: settings.config_server,
             check_for_updates: settings.check_for_updates,
             notify_sign_ins: settings.notify_sign_ins,
             client,
@@ -110,6 +112,18 @@ impl PersonalSettings {
                         });
 
                         tui.ui(|ui| {
+                            let label = ui.label("Configuration server URL:");
+                            ui.add_space(3.);
+                            ui.add(
+                                egui::text_edit::TextEdit::singleline(&mut self.config_server)
+                                    .hint_text("Configuration server URL")
+                                    .min_size(egui::Vec2::new(348., 5.)),
+                            )
+                            .labelled_by(label.id)
+                            .on_hover_text("Enter the configuration server URL (used to get tabs)");
+                        });
+
+                        tui.ui(|ui| {
                             ui.checkbox(
                                 &mut self.check_for_updates,
                                 "Check for updates on startup",
@@ -139,6 +153,7 @@ impl PersonalSettings {
                                     let settings = Settings {
                                         server: self.server.clone(),
                                         nexus_url: self.nexus_url.clone(),
+                                        config_server: self.config_server.clone(),
                                         check_for_updates: self.check_for_updates,
                                         notify_sign_ins: self.notify_sign_ins,
                                     };
@@ -175,6 +190,7 @@ impl PersonalSettings {
                             });
                         });
 
+                        tui.add_empty();
                         tui.add_empty();
                         tui.add_empty();
 
