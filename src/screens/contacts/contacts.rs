@@ -317,6 +317,17 @@ impl Contacts {
                     }
                 }
 
+                msnp11_sdk::Event::ServerMaintenanceScheduled { time_remaining } => {
+                    let _ = self
+                        .main_window_sender
+                        .send(crate::main_window::Message::OpenDialog(format!(
+                            "The server will shut down for maintenance in {} minutes",
+                            time_remaining
+                        )));
+
+                    ctx.request_repaint();
+                }
+
                 _ => (),
             },
 
