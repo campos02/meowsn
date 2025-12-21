@@ -628,7 +628,7 @@ impl eframe::App for Contacts {
                         })
                         .add(|tui| {
                             tui.style(taffy::Style {
-                                size: length(60.),
+                                size: length(62.),
                                 ..Default::default()
                             })
                             .add_with_border(|tui| {

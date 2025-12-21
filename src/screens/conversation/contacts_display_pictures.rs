@@ -13,7 +13,7 @@ pub fn contacts_display_pictures(
 ) {
     if participants.len() < 2 {
         tui.style(taffy::Style {
-            size: length(90.),
+            size: length(92.),
             ..Default::default()
         })
         .add_with_border(|tui| {

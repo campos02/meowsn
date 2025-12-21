@@ -612,7 +612,7 @@ impl Conversation {
                         );
 
                         tui.style(taffy::Style {
-                            size: length(90.),
+                            size: length(92.),
                             grid_row: line(2),
                             ..Default::default()
                         })
