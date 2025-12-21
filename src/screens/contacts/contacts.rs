@@ -1,15 +1,18 @@
 use crate::contact_repository::ContactRepository;
+use crate::helpers::get_tabs::get_tabs;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
+use crate::models::tab::Tab;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
 use crate::{settings, svg};
 use eframe::egui;
+use eframe::egui::OpenUrl;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
@@ -25,6 +28,7 @@ pub enum Message {
     UnblockResult(Arc<String>, Result<(), ContactError>),
     DeleteResult(Arc<String>, Result<(), ContactError>),
     AddContactResult(Box<Result<msnp11_sdk::Event, ContactError>>),
+    GetTabsResult(Result<Vec<Tab>, Box<dyn std::error::Error + Sync + Send>>),
     CloseAddContact,
 }
 
@@ -44,6 +48,7 @@ pub struct Contacts {
     sender: std::sync::mpsc::Sender<Message>,
     receiver: std::sync::mpsc::Receiver<Message>,
     sqlite: Sqlite,
+    tabs: Vec<Tab>,
     add_contact_window: Option<crate::screens::add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     handle: Handle,
@@ -64,6 +69,17 @@ impl Contacts {
             _ => Status::Online,
         };
 
+        let client = sign_in_return.client.clone();
+        run_future(
+            handle.clone(),
+            get_tabs(
+                client,
+                "http://conf.msgrsvcs.ctsrv.gay/Config/MsgrConfig.asmx",
+            ),
+            sender.clone(),
+            Message::GetTabsResult,
+        );
+
         Self {
             user_email: sign_in_return.email,
             display_name: Arc::new(String::from("")),
@@ -80,6 +96,7 @@ impl Contacts {
             sender,
             receiver,
             sqlite,
+            tabs: Vec::new(),
             add_contact_window: None,
             orphan_switchboards: HashMap::new(),
             handle,
@@ -562,6 +579,12 @@ impl eframe::App for Contacts {
                     }
                 },
 
+                Message::GetTabsResult(result) => {
+                    if let Ok(tabs) = result {
+                        self.tabs = tabs;
+                    }
+                }
+
                 Message::CloseAddContact => self.add_contact_window = None,
             }
         }
@@ -597,7 +620,7 @@ impl eframe::App for Contacts {
                                 tui.ui(|ui| {
                                     ui.add(if let Some(picture) = self.display_picture.clone() {
                                         egui::Image::from_bytes(
-                                            format!("bytes://{}.png", picture.hash),
+                                            format!("bytes://{}", picture.hash),
                                             picture.data,
                                         )
                                         .fit_to_exact_size(egui::Vec2::splat(60.))
@@ -700,12 +723,56 @@ impl eframe::App for Contacts {
                     });
             });
 
+        if !self.tabs.is_empty() {
+            egui::SidePanel::left("tabs")
+                .default_width(45.)
+                .resizable(false)
+                .show_separator_line(false)
+                .frame(egui::Frame {
+                    inner_margin: egui::Margin {
+                        top: 10,
+                        bottom: 15,
+                        left: 15,
+                        right: 0,
+                    },
+                    fill: ctx.style().visuals.window_fill,
+                    ..Default::default()
+                })
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(false)
+                        .show(ui, |ui| {
+                            for tab in &self.tabs {
+                                if ui
+                                    .button(
+                                        egui::Image::from_bytes(
+                                            format!("bytes://{}", tab.msn_tab.name),
+                                            tab.image.clone(),
+                                        )
+                                        .fit_to_exact_size(egui::Vec2::splat(25.))
+                                        .alt_text(&tab.msn_tab.tooltip),
+                                    )
+                                    .on_hover_text(&tab.msn_tab.tooltip)
+                                    .clicked()
+                                {
+                                    ui.ctx().open_url(OpenUrl {
+                                        url: tab.msn_tab.content_url.clone(),
+                                        new_tab: true,
+                                    });
+                                }
+
+                                ui.add_space(3.);
+                            }
+                        });
+                });
+        }
+
         egui::CentralPanel::default()
             .frame(egui::Frame {
                 inner_margin: egui::Margin {
                     top: 0,
                     bottom: 15,
-                    left: 15,
+                    left: if !self.tabs.is_empty() { 0 } else { 15 },
                     right: 15,
                 },
                 fill: ctx.style().visuals.window_fill,
@@ -721,7 +788,6 @@ impl eframe::App for Contacts {
                     })
                     .show(|tui| {
                         tui.style(taffy::Style {
-                            padding: length(5.),
                             size: taffy::Size {
                                 width: percent(1.),
                                 height: percent(0.8),

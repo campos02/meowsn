@@ -152,7 +152,7 @@ impl eframe::App for SignIn {
                             tui.ui(|ui| {
                                 ui.add(if let Some(picture) = self.display_picture.clone() {
                                     egui::Image::from_bytes(
-                                        format!("bytes://{}.png", picture.hash),
+                                        format!("bytes://{}", picture.hash),
                                         picture.data,
                                     )
                                     .fit_to_exact_size(egui::Vec2::splat(100.))
@@ -387,16 +387,13 @@ impl eframe::App for SignIn {
                                     let sign_in_token = token.clone();
                                     run_future(
                                         self.handle.clone(),
-                                        async move {
-                                            sign_in_async(
-                                                email,
-                                                password,
-                                                status,
-                                                sqlite,
-                                                sign_in_token,
-                                            )
-                                            .await
-                                        },
+                                        sign_in_async(
+                                            email,
+                                            password,
+                                            status,
+                                            sqlite,
+                                            sign_in_token,
+                                        ),
                                         self.sender.clone(),
                                         Message::SignInResult,
                                     );

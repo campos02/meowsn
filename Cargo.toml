@@ -9,7 +9,7 @@ egui_extras = { version = "0.33.0", features = ["svg", "image"] }
 egui_taffy = "0.10.0"
 tokio = { version = "1.48.0", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
 tokio-util = "0.7.17"
-msnp11-sdk = "0.11.0"
+msnp11-sdk = { version = "0.11.0", features = ["config"] }
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 dirs = "6.0.0"
 r2d2 = "0.8.10"

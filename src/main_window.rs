@@ -206,7 +206,6 @@ impl eframe::App for MainWindow {
 
                 Message::SwitchboardEvent(session_id, event) => {
                     if let msnp11_sdk::Event::DisplayPicture { email, data } = event {
-                        let data = data.into_boxed_slice();
                         let data = Arc::from(data);
 
                         let _ = self

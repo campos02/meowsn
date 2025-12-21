@@ -1,3 +1,4 @@
+pub mod get_tabs;
 pub mod notify_new_version;
 pub mod pick_display_picture;
 pub mod run_future;

@@ -343,10 +343,7 @@ impl Conversation {
 
                                 run_future(
                                     self.handle.clone(),
-                                    async {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
-                                            .await
-                                    },
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(5)),
                                     self.sender.clone(),
                                     |_| Message::ClearParticipantTyping,
                                 );
@@ -619,7 +616,7 @@ impl Conversation {
                             tui.ui(|ui| {
                                 ui.add(if let Some(picture) = self.user_display_picture.clone() {
                                     egui::Image::from_bytes(
-                                        format!("bytes://{}.png", picture.hash),
+                                        format!("bytes://{}", picture.hash),
                                         picture.data,
                                     )
                                     .fit_to_exact_size(egui::Vec2::splat(90.))
@@ -925,10 +922,7 @@ impl Conversation {
 
                                 run_future(
                                     self.handle.clone(),
-                                    async {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
-                                            .await
-                                    },
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(5)),
                                     self.sender.clone(),
                                     |_| Message::ClearUserTyping,
                                 );

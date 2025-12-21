@@ -27,7 +27,6 @@ pub async fn pick_display_picture(
     let _ = sqlite.insert_display_picture(&bytes, &hash);
     let _ = sqlite.update_user_display_picture(&email, &hash);
 
-    let bytes = bytes.into_boxed_slice();
     Ok(DisplayPicture {
         data: Arc::from(bytes),
         hash: Arc::new(hash),

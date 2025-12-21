@@ -20,13 +20,10 @@ pub fn contacts_display_pictures(
             tui.ui(|ui| {
                 if let Some(participant) = participants.values().next() {
                     ui.add(if let Some(picture) = participant.display_picture.clone() {
-                        egui::Image::from_bytes(
-                            format!("bytes://{}.png", picture.hash),
-                            picture.data,
-                        )
-                        .fit_to_exact_size(egui::Vec2::splat(90.))
-                        .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
-                        .alt_text(format!("Display picture for {}", participant.display_name))
+                        egui::Image::from_bytes(format!("bytes://{}", picture.hash), picture.data)
+                            .fit_to_exact_size(egui::Vec2::splat(90.))
+                            .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
+                            .alt_text(format!("Display picture for {}", participant.display_name))
                     } else {
                         egui::Image::new(svg::default_display_picture())
                             .fit_to_exact_size(egui::Vec2::splat(90.))
@@ -35,13 +32,10 @@ pub fn contacts_display_pictures(
                     .on_hover_text(format!("Display picture for {}", participant.display_name))
                 } else if let Some(participant) = &last_participant {
                     ui.add(if let Some(picture) = participant.display_picture.clone() {
-                        egui::Image::from_bytes(
-                            format!("bytes://{}.png", picture.hash),
-                            picture.data,
-                        )
-                        .fit_to_exact_size(egui::Vec2::splat(90.))
-                        .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
-                        .alt_text(format!("Display picture for {}", participant.display_name))
+                        egui::Image::from_bytes(format!("bytes://{}", picture.hash), picture.data)
+                            .fit_to_exact_size(egui::Vec2::splat(90.))
+                            .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
+                            .alt_text(format!("Display picture for {}", participant.display_name))
                     } else {
                         egui::Image::new(svg::default_display_picture())
                             .fit_to_exact_size(egui::Vec2::splat(90.))
@@ -79,7 +73,7 @@ pub fn contacts_display_pictures(
                     tui.ui(|ui| {
                         ui.add(if let Some(picture) = participant.display_picture.clone() {
                             egui::Image::from_bytes(
-                                format!("bytes://{}.png", picture.hash),
+                                format!("bytes://{}", picture.hash),
                                 picture.data,
                             )
                             .fit_to_exact_size(egui::Vec2::splat(44.))
