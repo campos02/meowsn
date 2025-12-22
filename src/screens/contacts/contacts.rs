@@ -811,10 +811,7 @@ impl eframe::App for Contacts {
                     })
                     .show(|tui| {
                         tui.style(taffy::Style {
-                            size: taffy::Size {
-                                width: percent(1.),
-                                height: percent(0.8),
-                            },
+                            size: percent(1.),
                             ..Default::default()
                         })
                         .ui(|ui| {
