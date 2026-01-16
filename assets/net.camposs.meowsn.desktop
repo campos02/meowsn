@@ -1,0 +1,8 @@
+[Desktop Entry]
+Categories=Network;
+Comment=A modern MSNP11 client
+Exec=meowsn
+Icon=net.camposs.meowsn
+Name=meowsn
+Terminal=false
+Type=Application

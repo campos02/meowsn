@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <id>net.camposs.meowsn</id>
+    <metadata_license>MIT</metadata_license>
+    <project_license>MIT</project_license>
+    <name>meowsn</name>
+    <summary>A modern MSNP11 client</summary>
+    <developer id="net.camposs">
+        <name>campos</name>
+    </developer>
+    <description>
+        <p>A cross-platform modern MSNP11 client. Crosstalk is the default server but that can be changed in Personal Settings.</p>
+    </description>
+    <launchable type="desktop-id">net.camposs.meowsn.desktop</launchable>
+    <keywords>
+        <keyword>MSNP</keyword>
+    </keywords>
+    <content_rating type="oars-1.1"/>
+    <url type="bugtracker">https://github.com/campos02/meowsn/issues</url>
+    <url type="homepage">https://github.com/campos02/meowsn</url>
+    <url type="vcs-browser">https://github.com/campos02/meowsn</url>
+    <releases>
+        <release version="0.10.1" date="2026-01-08">
+            <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.10.1</url>
+        </release>
+    </releases>
+    <recommends>
+        <control>keyboard</control>
+        <control>pointing</control>
+        <display_length compare="ge">1000</display_length>
+    </recommends>
+</component>
