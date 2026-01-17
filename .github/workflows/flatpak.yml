@@ -25,12 +25,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: meowsn.flatpak
+          bundle: meowsn-linux.flatpak
           manifest-path: assets/net.camposs.meowsn.yml
           cache-key: flatpak-builder-${{ github.sha }}
           arch: ${{ matrix.variant.arch }}
-      
-      - uses: actions/upload-artifact@v4
-        with:
-          name: meowsn-${{ matrix.variant.arch }}
-          path: meowsn.flatpak
