@@ -1,7 +1,7 @@
 name: Build flatpak
 on:
-  push:
-    branches: [master]
+  release:
+    types: [published]
 
 env:
   CARGO_TERM_COLOR: always
