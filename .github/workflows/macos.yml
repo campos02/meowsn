@@ -7,7 +7,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-arm:
+  macos-arm64:
     strategy:
       matrix:
         BUILD_TARGET: [release]
@@ -24,7 +24,7 @@ jobs:
         name: meowsn-arm
         path: target/${{ matrix.BUILD_TARGET }}/meowsn
 
-  build-x86:
+  macos-x86-64:
     strategy:
       matrix:
         BUILD_TARGET: [release]
