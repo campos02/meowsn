@@ -2563,7 +2563,7 @@ dependencies = [
 
 [[package]]
 name = "meowsn"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "dirs",
  "eframe",
@@ -2658,9 +2658,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4773e2aad4ccf5f948e32b6f0accd2a1e1b5a7eb63deb1de40d68989b5445644"
+checksum = "290709a0f450578a5da550f27382c3f45d1f6e57ee882282c3e6f26f2c4798f2"
 dependencies = [
  "async-channel",
  "async-trait",
@@ -2675,6 +2675,7 @@ dependencies = [
  "sha1_smol",
  "thiserror 2.0.17",
  "tokio",
+ "tokio-util",
  "uniffi",
  "urlencoding",
 ]
