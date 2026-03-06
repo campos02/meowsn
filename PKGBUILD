@@ -34,9 +34,9 @@ check() {
 package() {
   install -Dm0755 -t "${pkgdir}/usr/bin/" "${srcdir}/meowsn/target/release/${pkgname}"
   install -Dm0644 "${srcdir}/meowsn/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-  install -Dm0644 "${srcdir}meowsn/assets/meowsn.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
-  install -Dm0644 "${srcdir}meowsn/assets/meowsn.desktop" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
-  install -Dm0644 "${srcdir}meowsn/assets/meowsn.metainfo.xml" "${pkgdir}/usr/share/metainfo/${pkgname}.metainfo.xml"
+  install -Dm0644 "${srcdir}/meowsn/assets/meowsn.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
+  install -Dm0644 "${srcdir}/meowsn/assets/meowsn.desktop" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+  install -Dm0644 "${srcdir}/meowsn/assets/meowsn.metainfo.xml" "${pkgdir}/usr/share/metainfo/${pkgname}.metainfo.xml"
 }
 
 
