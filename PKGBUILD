@@ -7,7 +7,7 @@ url="https://github.com/campos02/meowsn"
 license=()
 makedepends=('rust')
 depends=()
-source=('meowsn::git+https://github.com/RandomHuman2020/meowsn.git')
+source=('src::git+https://github.com/RandomHuman2020/meowsn.git')
 sha256sums=('SKIP')
 
 prepare() {
