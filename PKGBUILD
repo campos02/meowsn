@@ -8,7 +8,7 @@ license=()
 makedepends=('rust')
 depends=()
 source=('meowsn::git+https://github.com/RandomHuman2020/meowsn.git')
-b2sums=()
+sha256sums=('SKIP')
 
 prepare() {
   export RUSTUP_TOOLCHAIN=stable
