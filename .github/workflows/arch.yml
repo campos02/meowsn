@@ -22,6 +22,8 @@ jobs:
 
       - name: Build and Package
         uses: heyhusen/archlinux-package-action@v3.0.0
+        with:
+          flags: '-cf --noconfirm'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7.0.0
