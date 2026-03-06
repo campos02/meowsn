@@ -24,6 +24,6 @@ jobs:
         uses: heyhusen/archlinux-package-action@v3.0.0
 
       - name: Upload Artifacts
-        uses: actions/actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.0
         with:
           path: /home/builder/gh-action/*.pkg.tar.zst
