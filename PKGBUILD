@@ -7,7 +7,7 @@ url="https://github.com/campos02/meowsn"
 license=('MIT')
 makedepends=('rust' 'git' 'gcc' 'pkg-config')
 depends=('dbus' 'glibc')
-source=('git+https://github.com/RandomHuman2020/meowsn.git')
+source=('git+https://github.com/campos02/meowsn.git')
 sha256sums=('SKIP')
 
 prepare() {
