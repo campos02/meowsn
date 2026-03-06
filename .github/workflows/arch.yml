@@ -1,4 +1,4 @@
-name: build-arch
+name: build for Arch Linux
 
 #on:
 #  release:
@@ -15,10 +15,18 @@ env:
 
 jobs:
   package-arch:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    
+    runs-on: ${{ matrix.variant.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Validate package
+      - name: Build and Package
         uses: heyhusen/archlinux-package-action@v3.0.0
