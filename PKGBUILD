@@ -12,14 +12,14 @@ sha256sums=('SKIP')
 
 prepare() {
   export RUSTUP_TOOLCHAIN=stable
-  cd meowsn
+  cd meowsn-master
   cargo fetch --manifest-path Cargo.toml --locked --target host-tuple --verbose
 }
 
 build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
-  cd meowsn
+  cd meowsn-master
   cargo build --frozen --release --verbose
 }
 
@@ -30,9 +30,9 @@ check() {
 }
 
 package() {
-  install -Dm0755 -t "${pkgdir}/usr/bin/" "meowsn/target/release/${pkgname}"
-  install -Dm0644 "meowsn/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-  install -Dm0644 "meowsn/assets/meowsn.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
-  install -Dm0644 "meowsn/assets/meowsn.desktop" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
-  install -Dm0644 "meowsn/assets/meowsn.metainfo.xml" "${pkgdir}/usr/share/metainfo/${pkgname}.metainfo.xml"
+  install -Dm0755 -t "${pkgdir}/usr/bin/" "meowsn-master/target/release/${pkgname}"
+  install -Dm0644 "meowsn-master/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm0644 "meowsn-master/assets/meowsn.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
+  install -Dm0644 "meowsn-master/assets/meowsn.desktop" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+  install -Dm0644 "meowsn-master/assets/meowsn.metainfo.xml" "${pkgdir}/usr/share/metainfo/${pkgname}.metainfo.xml"
 }
