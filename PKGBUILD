@@ -12,6 +12,7 @@ sha256sums=('SKIP')
 
 prepare() {
   export RUSTUP_TOOLCHAIN=stable
+  cd meowsn
   cargo fetch --manifest-path Cargo.toml --locked --target host-tuple --verbose
 }
 
