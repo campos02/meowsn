@@ -1,20 +1,14 @@
-name: build for Arch Linux
+name: test build for Arch Linux
 
-#on:
-  #release:
-    #types: published
-
-# for testing only \/
 on:
   push:
     branches: master
 
-# back to normal stuff
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  package-arch: 
+  test-PKGBUILD: 
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
