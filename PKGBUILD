@@ -7,7 +7,7 @@ url="https://github.com/campos02/meowsn"
 license=()
 makedepends=('rust' 'sqlite')
 depends=()
-source=('git+https://github.com/RandomHuman2020/meowsn.git')
+source=('https://github.com/RandomHuman2020/meowsn/archive/refs/heads/master.tar.gz')
 sha256sums=('SKIP')
 
 prepare() {
