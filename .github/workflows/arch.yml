@@ -1,9 +1,15 @@
 name: build-arch
 
-on:
-  release:
-    types: published
+#on:
+#  release:
+#    types: published
 
+# for testing only \/
+on:
+  push:
+    branches: master
+
+# back to normal stuff
 env:
   CARGO_TERM_COLOR: always
 
