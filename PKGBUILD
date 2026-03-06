@@ -7,7 +7,7 @@ url="https://github.com/campos02/meowsn"
 license=()
 makedepends=('rust')
 depends=()
-source=()
+source=("https://github.com/RandomHuman2020/meowsn/archive/refs/heads/master.tar.gz")
 b2sums=()
 
 prepare() {
