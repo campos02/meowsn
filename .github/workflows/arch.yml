@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  release:
+    types: published
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  package-arch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Validate package
+        uses: heyhusen/archlinux-package-action@v3
