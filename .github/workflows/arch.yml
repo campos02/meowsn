@@ -1,13 +1,13 @@
 name: build for Arch Linux
 
-on:
-  release:
-    types: published
+#on:
+  #release:
+    #types: published
 
 # for testing only \/
-#on:
-  #push:
-    #branches: master
+on:
+  push:
+    branches: master
 
 # back to normal stuff
 env:
