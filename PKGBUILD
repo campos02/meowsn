@@ -5,8 +5,8 @@ pkgdesc="Cross-platform MSNP11 client"
 arch=('aarch64' 'x86_64')
 url="https://github.com/campos02/meowsn"
 license=()
-makedepends=('rust')
-depends=('sqlite')
+makedepends=('rust' 'sqlite')
+depends=()
 source=('git+https://github.com/RandomHuman2020/meowsn.git')
 sha256sums=('SKIP')
 
