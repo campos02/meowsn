@@ -21,11 +21,12 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build and Package
-        uses: heyhusen/archlinux-package-action@v3.0.0
+        uses: FFY00/build-arch-package@v1
         with:
-          flags: '-cf --noconfirm'
+          PKGBUILD: $GITHUB_WORKSPACE/PKGBUILD
+          OUTDIR: $GITHUB_WORKSPACE/archPackages
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7.0.0
         with:
-          path: /home/builder/gh-action/*.pkg.tar.zst
+          path: $GITHUB_WORKSPACE/archPackages/*.pkg.tar.zst
