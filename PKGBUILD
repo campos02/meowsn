@@ -20,7 +20,7 @@ build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
   cd meowsn
-  cargo build --frozen --release
+  cargo build --frozen --release --verbose
 }
 
 check() {
