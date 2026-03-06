@@ -14,16 +14,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  package-arch:
-    strategy:
-      matrix:
-        variant:
-          - arch: x86_64
-            runner: ubuntu-24.04
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-    
-    runs-on: ${{ matrix.variant.runner }}
+  package-arch: 
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
