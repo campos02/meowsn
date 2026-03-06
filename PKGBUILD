@@ -7,13 +7,13 @@ url="https://github.com/campos02/meowsn"
 license=()
 makedepends=('rust')
 depends=()
-source=('git+https://github.com/RandomHuman2020/meowsn.git')
+source=('src::git+https://github.com/RandomHuman2020/meowsn.git')
 sha256sums=('SKIP')
 
 prepare() {
   export RUSTUP_TOOLCHAIN=stable
   cargo update
-  cargo fetch --locked --manifest-path Cargo.toml --target host-tuple
+  cargo fetch --manifest-path Cargo.toml --locked --target host-tuple --verbose
 }
 
 build() {
