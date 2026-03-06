@@ -26,4 +26,4 @@ jobs:
       - name: Upload Artifacts
         uses: actions/actions/upload-artifact@v7.0.0
         with:
-          path: *.pkg.tar.zst
+          path: /home/builder/gh-action/*.pkg.tar.zst
