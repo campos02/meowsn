@@ -12,8 +12,7 @@ sha256sums=('SKIP')
 
 prepare() {
   export RUSTUP_TOOLCHAIN=stable
-  cargo update
-  cargo fetch --manifest-path ../Cargo.toml --locked --target host-tuple --verbose
+  cargo fetch --manifest-path ../meowsn/Cargo.toml --locked --target host-tuple --verbose
 }
 
 build() {
