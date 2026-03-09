@@ -1,5 +1,4 @@
 name: test build for Arch Linux
-
 on:
   push:
     branches: [master]

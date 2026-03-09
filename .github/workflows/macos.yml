@@ -1,11 +1,7 @@
 name: Build for macOS
-#on:
-#  release:
-#    types: [published]
-
 on:
-  push:
-    branches: [master]
+  release:
+    types: [published]
 
 env:
   CARGO_TERM_COLOR: always
