@@ -26,7 +26,7 @@ jobs:
     - run: mkdir meowsn.app/Contents/Resources
     - run: cp assets/Info.plist meowsn.app/Contents
     - run: cp assets/meowsn.icns meowsn.app/Contents/Resources
-    - run: cp target/x86_64-apple-darwin/${{ matrix.BUILD_TARGET }}/meowsn meowsn.app/Contents/MacOS
+    - run: cp target/${{ matrix.BUILD_TARGET }}/meowsn meowsn.app/Contents/MacOS
       
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
