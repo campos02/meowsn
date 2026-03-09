@@ -2,7 +2,7 @@ name: test build for Arch Linux
 
 on:
   push:
-    branches: master
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always

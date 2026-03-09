@@ -1,7 +1,11 @@
 name: Build for macOS
+#on:
+#  release:
+#    types: [published]
+
 on:
-  release:
-    types: [published]
+  push:
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,12 +21,18 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build binaries in "${{ matrix.BUILD_TARGET }}" mode
       run: cargo build --profile ${{ matrix.BUILD_TARGET }}
+
+    - run: mkdir -p meowsn.app/Contents/MacOS
+    - run: mkdir meowsn.app/Contents/Resources
+    - run: cp assets/Info.plist meowsn.app/Contents
+    - run: cp assets/meowsn.icns meowsn.app/Contents/Resources
+    - run: cp target/x86_64-apple-darwin/${{ matrix.BUILD_TARGET }}/meowsn meowsn.app/Contents/MacOS
       
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
       with:
-        name: meowsn-arm
-        path: target/${{ matrix.BUILD_TARGET }}/meowsn
+        name: meowsn-macos-arm64
+        path: meowsn.app
 
   macos-x86-64:
     strategy:
@@ -38,9 +48,15 @@ jobs:
       
     - name: Build binaries in "${{ matrix.BUILD_TARGET }}" mode
       run: cargo build --target x86_64-apple-darwin --profile ${{ matrix.BUILD_TARGET }}
+
+    - run: mkdir -p meowsn.app/Contents/MacOS
+    - run: mkdir meowsn.app/Contents/Resources
+    - run: cp assets/Info.plist meowsn.app/Contents
+    - run: cp assets/meowsn.icns meowsn.app/Contents/Resources
+    - run: cp target/x86_64-apple-darwin/${{ matrix.BUILD_TARGET }}/meowsn meowsn.app/Contents/MacOS
       
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
       with:
-        name: meowsn-x86
-        path: target/x86_64-apple-darwin/${{ matrix.BUILD_TARGET }}/meowsn
+        name: meowsn-macos-x64
+        path: meowsn.app
