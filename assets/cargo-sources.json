@@ -3369,14 +3369,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/msnp11-sdk/msnp11-sdk-0.11.0.crate",
-        "sha256": "4773e2aad4ccf5f948e32b6f0accd2a1e1b5a7eb63deb1de40d68989b5445644",
-        "dest": "cargo/vendor/msnp11-sdk-0.11.0"
+        "url": "https://static.crates.io/crates/msnp11-sdk/msnp11-sdk-0.11.1.crate",
+        "sha256": "290709a0f450578a5da550f27382c3f45d1f6e57ee882282c3e6f26f2c4798f2",
+        "dest": "cargo/vendor/msnp11-sdk-0.11.1"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"4773e2aad4ccf5f948e32b6f0accd2a1e1b5a7eb63deb1de40d68989b5445644\", \"files\": {}}",
-        "dest": "cargo/vendor/msnp11-sdk-0.11.0",
+        "contents": "{\"package\": \"290709a0f450578a5da550f27382c3f45d1f6e57ee882282c3e6f26f2c4798f2\", \"files\": {}}",
+        "dest": "cargo/vendor/msnp11-sdk-0.11.1",
         "dest-filename": ".cargo-checksum.json"
     },
     {

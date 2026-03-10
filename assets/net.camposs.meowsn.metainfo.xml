@@ -23,6 +23,12 @@
         <release version="0.10.1" date="2026-01-08">
             <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.10.1</url>
         </release>
+        <release version="0.10.2" date="2026-01-22">
+            <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.10.2</url>
+        </release>
+        <release version="0.10.3" date="2026-03-09">
+            <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.10.3</url>
+        </release>
     </releases>
     <recommends>
         <control>keyboard</control>
