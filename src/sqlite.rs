@@ -316,7 +316,7 @@ impl Sqlite {
         if let Ok(conn) = self.pool.get() {
             let mut stmt = conn.prepare("SELECT id FROM display_pictures WHERE hash = ?1")?;
             let picture_id = stmt
-                .query_map([display_picture_hash], |row| row.get::<usize, usize>(0))?
+                .query_map([display_picture_hash], |row| row.get::<usize, isize>(0))?
                 .last()
                 .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
 

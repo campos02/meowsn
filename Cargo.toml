@@ -9,17 +9,17 @@ egui_extras = { version = "0.33.0", features = ["svg", "image"] }
 egui_taffy = "0.10.0"
 tokio = { version = "1.48.0", default-features = false, features = ["time", "rt-multi-thread", "macros"] }
 tokio-util = "0.7.17"
-msnp11-sdk = { version = "0.11.1", features = ["config"] }
+msnp11-sdk = { version = "0.11.2", features = ["config"] }
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 dirs = "6.0.0"
 r2d2 = "0.8.10"
-r2d2_sqlite = { version = "0.31.0", features = ["bundled"] }
-toml = { version = "0.9.8", features = ["serde"] }
+r2d2_sqlite = { version = "0.32.0", features = ["bundled"] }
+toml = { version = "1.0.6+spec-1.1.0", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
-rfd = "0.16.0"
+rfd = "0.17.2"
 image = { version = "0.25.8", features = ["png"] }
-notify-rust = "4.11.7"
-reqwest = { version = "0.12.24", default-features = false, features = ["http2", "json", "rustls-tls", "charset"] }
+notify-rust = "4.12.0"
+reqwest = { version = "0.13.2", default-features = false, features = ["http2", "json", "rustls", "charset"] }
 semver = "1.0.27"
 regex = "1.12.2"
 
