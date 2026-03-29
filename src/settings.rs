@@ -7,6 +7,7 @@ pub struct Settings {
     pub config_server: String,
     pub check_for_updates: bool,
     pub notify_sign_ins: bool,
+    pub notify_added_by: bool,
 }
 
 impl Default for Settings {
@@ -17,6 +18,7 @@ impl Default for Settings {
             config_server: "https://conf.msgrsvcs.ctsrv.gay/Config/MsgrConfig.asmx".to_string(),
             check_for_updates: true,
             notify_sign_ins: true,
+            notify_added_by: true,
         }
     }
 }

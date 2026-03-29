@@ -2,8 +2,9 @@ use crate::contact_repository::ContactRepository;
 use crate::helpers::run_future::run_future;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
+use crate::screens::contacts::contacts;
 use crate::screens::contacts::status_selector::Status;
-use crate::svg;
+use crate::{main_window, svg};
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat, Ui};
@@ -18,8 +19,8 @@ pub fn category_collapsing_header(
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
     contacts: &mut BTreeMap<Arc<String>, Contact>,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
-    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
+    main_window_sender: std::sync::mpsc::Sender<main_window::Message>,
+    contacts_sender: std::sync::mpsc::Sender<contacts::Message>,
     handle: Handle,
     user_email: Arc<String>,
     user_display_name: Arc<String>,
@@ -93,11 +94,15 @@ pub fn category_collapsing_header(
                         if let Some(personal_message) = contact.personal_message.as_ref()
                             && !personal_message.is_empty()
                         {
-                            contact_job.append(" - ", 0., TextFormat {
-                                font_id: FontId::proportional(14.),
-                                color: ui.visuals().weak_text_color(),
-                                ..Default::default()
-                            });
+                            contact_job.append(
+                                " - ",
+                                0.,
+                                TextFormat {
+                                    font_id: FontId::proportional(14.),
+                                    color: ui.visuals().weak_text_color(),
+                                    ..Default::default()
+                                },
+                            );
 
                             contact_job.append(
                                 personal_message,
@@ -112,35 +117,39 @@ pub fn category_collapsing_header(
 
                         ui.style_mut().spacing.button_padding = egui::Vec2::new(5., 3.);
 
-                        let label = ui.add(egui::Button::selectable(
-                            selected_contact
-                            .as_ref()
-                            .is_some_and(|selected_contact| {
-                                *selected_contact == contact.email
-                            }),
-                            contact_job.clone()
-                        )
-                        .truncate())
-                        .on_hover_text(
-                            format!("{} ({})\n<{}>\nRight click for contact options.", contact_job.text, match contact.status.clone() {
-                                Some(status) => match status.status {
-                                    MsnpStatus::Busy | MsnpStatus::OnThePhone => {
-                                        "Busy"
-                                    }
+                        let label = ui
+                            .add(
+                                egui::Button::selectable(
+                                    selected_contact.as_ref().is_some_and(|selected_contact| {
+                                        *selected_contact == contact.email
+                                    }),
+                                    contact_job.clone(),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(format!(
+                                "{} ({})\n<{}>\nRight click for contact options.",
+                                contact_job.text,
+                                match contact.status.clone() {
+                                    Some(status) => match status.status {
+                                        MsnpStatus::Busy | MsnpStatus::OnThePhone => {
+                                            "Busy"
+                                        }
 
-                                    MsnpStatus::Away
-                                    | MsnpStatus::BeRightBack
-                                    | MsnpStatus::OutToLunch => {
-                                        "Away"
-                                    }
+                                        MsnpStatus::Away
+                                        | MsnpStatus::BeRightBack
+                                        | MsnpStatus::OutToLunch => {
+                                            "Away"
+                                        }
 
-                                    MsnpStatus::Idle => "Idle",
-                                    _ => "Online"
-                                }
+                                        MsnpStatus::Idle => "Idle",
+                                        _ => "Online",
+                                    },
 
-                                None => "Offline"
-                            }, contact.email),
-                        );
+                                    None => "Offline",
+                                },
+                                contact.email
+                            ));
 
                         if label.clicked() || label.secondary_clicked() {
                             *selected_contact = Some(contact.email.clone());
@@ -156,18 +165,20 @@ pub fn category_collapsing_header(
                         if label.double_clicked()
                             && contact.status.is_some()
                             && !contact.opening_conversation
-                            && user_status != Status::AppearOffline {
+                            && user_status != Status::AppearOffline
+                        {
                             contact.opening_conversation = true;
 
-                            let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
-                                user_email: user_email.clone(),
-                                user_display_name: user_display_name.clone(),
-                                user_display_picture: user_display_picture.clone(),
-                                user_status: msnp_user_status.clone(),
-                                contact_repository: contact_repository.clone(),
-                                contact: contact.clone(),
-                                client: client.clone(),
-                            });
+                            let _ =
+                                main_window_sender.send(main_window::Message::OpenConversation {
+                                    user_email: user_email.clone(),
+                                    user_display_name: user_display_name.clone(),
+                                    user_display_picture: user_display_picture.clone(),
+                                    user_status: msnp_user_status.clone(),
+                                    contact_repository: contact_repository.clone(),
+                                    contact: contact.clone(),
+                                    client: client.clone(),
+                                });
                         }
 
                         ui.style_mut().spacing.button_padding = egui::Vec2::splat(5.);
@@ -175,21 +186,24 @@ pub fn category_collapsing_header(
                             ui.with_layout(
                                 egui::Layout::top_down_justified(egui::Align::LEFT),
                                 |ui| {
-                                    if ui.button("Send an Instant Message").clicked() 
+                                    if ui.button("Send an Instant Message").clicked()
                                         && contact.status.is_some()
                                         && !contact.opening_conversation
-                                        && user_status != Status::AppearOffline {
+                                        && user_status != Status::AppearOffline
+                                    {
                                         contact.opening_conversation = true;
 
-                                        let _ = main_window_sender.send(crate::main_window::Message::OpenConversation {
-                                            user_email,
-                                            user_display_name,
-                                            user_display_picture,
-                                            user_status: msnp_user_status,
-                                            contact_repository,
-                                            contact: contact.clone(),
-                                            client: client.clone(),
-                                        });
+                                        let _ = main_window_sender.send(
+                                            main_window::Message::OpenConversation {
+                                                user_email,
+                                                user_display_name,
+                                                user_display_picture,
+                                                user_status: msnp_user_status,
+                                                contact_repository,
+                                                contact: contact.clone(),
+                                                client: client.clone(),
+                                            },
+                                        );
                                     }
 
                                     ui.separator();
@@ -204,7 +218,12 @@ pub fn category_collapsing_header(
                                                 handle.clone(),
                                                 async move { client.unblock_contact(&email).await },
                                                 contacts_sender.clone(),
-                                                move |result| crate::screens::contacts::contacts::Message::UnblockResult(contact.clone(), result),
+                                                move |result| {
+                                                    contacts::Message::UnblockResult(
+                                                        contact.clone(),
+                                                        result,
+                                                    )
+                                                },
                                             );
                                         }
                                     } else {
@@ -217,7 +236,12 @@ pub fn category_collapsing_header(
                                                 handle.clone(),
                                                 async move { client.block_contact(&email).await },
                                                 contacts_sender.clone(),
-                                                move |result| crate::screens::contacts::contacts::Message::BlockResult(contact.clone(), result),
+                                                move |result| {
+                                                    contacts::Message::BlockResult(
+                                                        contact.clone(),
+                                                        result,
+                                                    )
+                                                },
                                             );
                                         }
                                     }
@@ -228,9 +252,16 @@ pub fn category_collapsing_header(
 
                                         run_future(
                                             handle.clone(),
-                                            async move { client.remove_contact_from_forward_list(&guid).await },
+                                            async move {
+                                                client.remove_contact_from_forward_list(&guid).await
+                                            },
                                             contacts_sender.clone(),
-                                            move |result| crate::screens::contacts::contacts::Message::DeleteResult(contact.clone(), result),
+                                            move |result| {
+                                                contacts::Message::DeleteResult(
+                                                    contact.clone(),
+                                                    result,
+                                                )
+                                            },
                                         );
                                     }
                                 },
@@ -242,7 +273,10 @@ pub fn category_collapsing_header(
         })
         .header_response
         .on_hover_text(format!("{} contacts", name))
-        .clicked() && let Some(contact) = selected_contact && contacts.contains_key(contact) {
-            *selected_contact = None;
-        }
+        .clicked()
+        && let Some(contact) = selected_contact
+        && contacts.contains_key(contact)
+    {
+        *selected_contact = None;
+    }
 }

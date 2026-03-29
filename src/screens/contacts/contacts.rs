@@ -6,6 +6,7 @@ use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::models::switchboard_and_participants::SwitchboardAndParticipants;
 use crate::models::tab::Tab;
+use crate::screens::add_contact;
 use crate::screens::contacts::category_collapsing_header::category_collapsing_header;
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
@@ -17,13 +18,17 @@ use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 pub enum Message {
     DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
     StatusResult(MsnpStatus, Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
+    BlpResult {
+        blp_bl: bool,
+        result: Result<(), SdkError>,
+    },
     BlockResult(Arc<String>, Result<(), ContactError>),
     UnblockResult(Arc<String>, Result<(), ContactError>),
     DeleteResult(Arc<String>, Result<(), ContactError>),
@@ -38,19 +43,20 @@ pub struct Contacts {
     personal_message: String,
     display_picture: Option<DisplayPicture>,
     selected_status: Status,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    main_window_sender: mpsc::Sender<crate::main_window::Message>,
     show_personal_message_frame: bool,
     online_contacts: BTreeMap<Arc<String>, Contact>,
     offline_contacts: BTreeMap<Arc<String>, Contact>,
     contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
     client: Arc<Client>,
-    sender: std::sync::mpsc::Sender<Message>,
-    receiver: std::sync::mpsc::Receiver<Message>,
+    blp_bl: bool,
+    sender: mpsc::Sender<Message>,
+    receiver: mpsc::Receiver<Message>,
     sqlite: Sqlite,
     tabs: Vec<Tab>,
     msn_today_url: Option<String>,
-    add_contact_window: Option<crate::screens::add_contact::AddContact>,
+    add_contact_window: Option<add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     handle: Handle,
 }
@@ -58,11 +64,11 @@ pub struct Contacts {
 impl Contacts {
     pub fn new(
         sign_in_return: SignInReturn,
-        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        main_window_sender: mpsc::Sender<crate::main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
     ) -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
         let selected_status = match sign_in_return.status {
             MsnpStatus::Busy => Status::Busy,
             MsnpStatus::Away => Status::Away,
@@ -91,6 +97,7 @@ impl Contacts {
             contact_repository: ContactRepository::new(),
             selected_contact: None,
             client: sign_in_return.client,
+            blp_bl: false,
             sender,
             receiver,
             sqlite,
@@ -134,6 +141,10 @@ impl Contacts {
                         .add_contacts(std::slice::from_ref(&contact));
 
                     self.offline_contacts.insert(email, contact);
+                }
+
+                msnp11_sdk::Event::Blp(blp) => {
+                    self.blp_bl = blp == "BL";
                 }
 
                 msnp11_sdk::Event::InitialPresenceUpdate {
@@ -489,13 +500,23 @@ impl eframe::App for Contacts {
                     }
                 }
 
-                Message::BlockResult(contact, result) => {
+                Message::BlpResult { blp_bl, result } => {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
                         ctx.request_repaint();
+                    } else {
+                        self.blp_bl = blp_bl;
+                    }
+                }
+
+                Message::BlockResult(contact, result) => {
+                    if let Err(error) = result {
+                        let _ = self
+                            .main_window_sender
+                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
                     } else {
                         let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
                         {
@@ -511,6 +532,8 @@ impl eframe::App for Contacts {
                                 .update_contacts(std::slice::from_ref(contact));
                         }
                     }
+
+                    ctx.request_repaint();
                 }
 
                 Message::UnblockResult(contact, result) => {
@@ -518,8 +541,6 @@ impl eframe::App for Contacts {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
-
-                        ctx.request_repaint();
                     } else {
                         let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
                         {
@@ -535,6 +556,8 @@ impl eframe::App for Contacts {
                                 .update_contacts(std::slice::from_ref(contact));
                         }
                     }
+
+                    ctx.request_repaint();
                 }
 
                 Message::DeleteResult(contact, result) => {
@@ -663,6 +686,8 @@ impl eframe::App for Contacts {
                                         self.handle.clone(),
                                         self.sqlite.clone(),
                                         self.client.clone(),
+                                        self.contact_repository.clone(),
+                                        self.blp_bl,
                                     );
 
                                     let personal_message_edit = ui
@@ -734,7 +759,7 @@ impl eframe::App for Contacts {
                                         );
                                     } else {
                                         self.add_contact_window =
-                                            Some(crate::screens::add_contact::AddContact::new(
+                                            Some(add_contact::AddContact::new(
                                                 self.client.clone(),
                                                 self.sender.clone(),
                                                 self.handle.clone(),

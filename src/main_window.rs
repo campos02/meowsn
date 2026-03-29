@@ -10,7 +10,7 @@ use eframe::egui;
 use eframe::egui::CornerRadius;
 use msnp11_sdk::{Client, MsnpStatus, SdkError};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 enum Screen {
@@ -21,7 +21,13 @@ enum Screen {
 pub enum Message {
     SignIn(SignInReturn),
     SignOut,
-    OpenPersonalSettings(Option<String>, Option<Arc<Client>>),
+    OpenPersonalSettings(
+        Option<String>,
+        Option<Arc<Client>>,
+        Option<ContactRepository>,
+        Option<mpsc::Sender<contacts::contacts::Message>>,
+        Option<bool>,
+    ),
     ClosePersonalSettings,
     OpenDialog(String),
     NotificationServerEvent(msnp11_sdk::Event),
@@ -50,9 +56,9 @@ pub enum Message {
 
 pub struct MainWindow {
     screen: Screen,
-    sender: std::sync::mpsc::Sender<Message>,
-    receiver: std::sync::mpsc::Receiver<Message>,
-    personal_settings_window: Option<Arc<Mutex<personal_settings::PersonalSettings>>>,
+    sender: mpsc::Sender<Message>,
+    receiver: mpsc::Receiver<Message>,
+    personal_settings_window: Option<personal_settings::PersonalSettings>,
     dialog_window_text: Option<String>,
     conversations: HashMap<egui::ViewportId, conversation::Conversation>,
     handle: Handle,
@@ -61,7 +67,7 @@ pub struct MainWindow {
 
 impl MainWindow {
     pub fn new(handle: Handle) -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
         let sqlite = Sqlite::new().expect("Could not create database");
 
         Self {
@@ -136,21 +142,29 @@ impl eframe::App for MainWindow {
                     ));
                 }
 
-                Message::OpenPersonalSettings(display_name, client) => {
+                Message::OpenPersonalSettings(
+                    display_name,
+                    client,
+                    contact_repository,
+                    contacts_sender,
+                    blp_bl,
+                ) => {
                     if self.personal_settings_window.is_some() {
                         ctx.send_viewport_cmd_to(
                             egui::ViewportId::from_hash_of("personal-settings"),
                             egui::ViewportCommand::Focus,
                         );
                     } else {
-                        self.personal_settings_window = Some(Arc::new(Mutex::new(
-                            personal_settings::PersonalSettings::new(
+                        self.personal_settings_window =
+                            Some(personal_settings::PersonalSettings::new(
                                 display_name,
                                 client,
+                                contact_repository,
                                 self.sender.clone(),
+                                contacts_sender,
+                                blp_bl,
                                 self.handle.clone(),
-                            ),
-                        )));
+                            ));
                     }
                 }
 
@@ -400,23 +414,19 @@ impl eframe::App for MainWindow {
             );
         }
 
-        if let Some(personal_settings_window) = self.personal_settings_window.clone() {
+        if let Some(personal_settings_window) = &mut self.personal_settings_window {
             let sender = self.sender.clone();
             let main_ctx = ctx.clone();
 
-            ctx.show_viewport_deferred(
+            ctx.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("personal-settings"),
                 egui::ViewportBuilder::default()
                     .with_title("Personal settings")
-                    .with_inner_size([400., 480.])
+                    .with_inner_size([600., 500.])
                     .with_maximize_button(false)
                     .with_resizable(false),
                 move |ctx, _| {
-                    personal_settings_window
-                        .lock()
-                        .unwrap_or_else(|error| error.into_inner())
-                        .personal_settings(ctx);
-
+                    personal_settings_window.personal_settings(ctx);
                     if ctx.input(|input| input.viewport().close_requested()) {
                         let _ = sender.send(Message::ClosePersonalSettings);
                         main_ctx.request_repaint();

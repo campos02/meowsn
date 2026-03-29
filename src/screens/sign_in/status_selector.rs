@@ -54,7 +54,7 @@ pub fn status_selector(
     if *selected_status == Status::PersonalSettings {
         *selected_status = old_status;
         let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(
-            None, None,
+            None, None, None, None, None,
         ));
     }
 }

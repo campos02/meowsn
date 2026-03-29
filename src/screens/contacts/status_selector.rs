@@ -1,3 +1,4 @@
+use crate::contact_repository::ContactRepository;
 use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::helpers::run_future::run_future;
 use crate::sqlite::Sqlite;
@@ -45,6 +46,8 @@ pub fn status_selector(
     handle: Handle,
     sqlite: Sqlite,
     client: Arc<Client>,
+    contact_repository: ContactRepository,
+    blp_bl: bool,
 ) {
     let old_status = *selected_status;
     CustomFillComboBox::from_label("")
@@ -105,6 +108,9 @@ pub fn status_selector(
             let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(
                 Some(display_name.to_string()),
                 Some(client.clone()),
+                Some(contact_repository.clone()),
+                Some(contacts_sender.clone()),
+                Some(blp_bl),
             ));
         }
 
