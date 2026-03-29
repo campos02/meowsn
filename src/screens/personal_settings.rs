@@ -69,15 +69,19 @@ impl PersonalSettings {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    let label =
-                        ui.selectable_label(self.selected_tab == SelectedTab::General, "General     ");
+                    let label = ui.selectable_label(
+                        self.selected_tab == SelectedTab::General,
+                        "General     ",
+                    );
 
                     if label.clicked() || label.secondary_clicked() {
                         self.selected_tab = SelectedTab::General;
                     }
 
-                    let label = ui
-                        .selectable_label(self.selected_tab == SelectedTab::Privacy, "Privacy      ");
+                    let label = ui.selectable_label(
+                        self.selected_tab == SelectedTab::Privacy,
+                        "Privacy      ",
+                    );
 
                     if label.clicked() || label.secondary_clicked() {
                         self.selected_tab = SelectedTab::Privacy;

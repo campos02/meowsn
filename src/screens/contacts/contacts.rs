@@ -331,11 +331,23 @@ impl Contacts {
                     let _ = self
                         .main_window_sender
                         .send(crate::main_window::Message::OpenDialog(format!(
-                            "The server will shut down for maintenance in {} minutes",
-                            time_remaining
+                            "The server will shut down for maintenance in {time_remaining} minutes"
                         )));
 
                     ctx.request_repaint();
+                }
+
+                msnp11_sdk::Event::AddedBy {
+                    email,
+                    display_name: _,
+                } => {
+                    let settings = settings::get_settings().unwrap_or_default();
+                    if settings.notify_added_by {
+                        let _ = notify_rust::Notification::new()
+                            .summary("Someone has added you")
+                            .body(&format!("{email} has added you to their contact list"))
+                            .show();
+                    }
                 }
 
                 _ => (),
