@@ -793,37 +793,35 @@ impl eframe::App for Contacts {
                         top: 10,
                         bottom: 15,
                         left: 15,
-                        right: 0,
+                        right: 5,
                     },
                     fill: ctx.style().visuals.window_fill,
                     ..Default::default()
                 })
                 .show(ctx, |ui| {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink(false)
-                        .show(ui, |ui| {
-                            for tab in &self.tabs {
-                                if ui
-                                    .button(
-                                        egui::Image::from_bytes(
-                                            format!("bytes://{}", tab.msn_tab.name),
-                                            tab.image.clone(),
-                                        )
-                                        .fit_to_exact_size(egui::Vec2::splat(25.))
-                                        .alt_text(&tab.msn_tab.tooltip),
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for tab in &self.tabs {
+                            if ui
+                                .button(
+                                    egui::Image::from_bytes(
+                                        format!("bytes://{}", tab.msn_tab.name),
+                                        tab.image.clone(),
                                     )
-                                    .on_hover_text(&tab.msn_tab.tooltip)
-                                    .clicked()
-                                {
-                                    ui.ctx().open_url(OpenUrl {
-                                        url: tab.msn_tab.content_url.clone(),
-                                        new_tab: true,
-                                    });
-                                }
-
-                                ui.add_space(3.);
+                                    .fit_to_exact_size(egui::Vec2::splat(25.))
+                                    .alt_text(&tab.msn_tab.tooltip),
+                                )
+                                .on_hover_text(&tab.msn_tab.tooltip)
+                                .clicked()
+                            {
+                                ui.ctx().open_url(OpenUrl {
+                                    url: tab.msn_tab.content_url.clone(),
+                                    new_tab: true,
+                                });
                             }
-                        });
+
+                            ui.add_space(3.);
+                        }
+                    });
                 });
         }
 
@@ -839,56 +837,41 @@ impl eframe::App for Contacts {
                 ..Default::default()
             })
             .show(ctx, |ui| {
-                tui(ui, ui.id().with("contacts_screen"))
-                    .reserve_available_space()
-                    .style(taffy::Style {
-                        flex_direction: taffy::FlexDirection::Column,
-                        size: percent(1.),
-                        ..Default::default()
-                    })
-                    .show(|tui| {
-                        tui.style(taffy::Style {
-                            size: percent(1.),
-                            ..Default::default()
-                        })
-                        .ui(|ui| {
-                            egui::ScrollArea::vertical()
-                                .auto_shrink(false)
-                                .show(ui, |ui| {
-                                    category_collapsing_header(
-                                        ui,
-                                        "Online",
-                                        &mut self.selected_contact,
-                                        &mut self.online_contacts,
-                                        self.main_window_sender.clone(),
-                                        self.sender.clone(),
-                                        self.handle.clone(),
-                                        self.user_email.clone(),
-                                        self.display_name.clone(),
-                                        self.display_picture.clone(),
-                                        self.selected_status,
-                                        self.contact_repository.clone(),
-                                        self.client.clone(),
-                                    );
+                egui::ScrollArea::vertical()
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
+                        category_collapsing_header(
+                            ui,
+                            "Online",
+                            &mut self.selected_contact,
+                            &mut self.online_contacts,
+                            self.main_window_sender.clone(),
+                            self.sender.clone(),
+                            self.handle.clone(),
+                            self.user_email.clone(),
+                            self.display_name.clone(),
+                            self.display_picture.clone(),
+                            self.selected_status,
+                            self.contact_repository.clone(),
+                            self.client.clone(),
+                        );
 
-                                    category_collapsing_header(
-                                        ui,
-                                        "Offline",
-                                        &mut self.selected_contact,
-                                        &mut self.offline_contacts,
-                                        self.main_window_sender.clone(),
-                                        self.sender.clone(),
-                                        self.handle.clone(),
-                                        self.user_email.clone(),
-                                        self.display_name.clone(),
-                                        self.display_picture.clone(),
-                                        self.selected_status,
-                                        self.contact_repository.clone(),
-                                        self.client.clone(),
-                                    );
-                                });
-                        });
-                    })
+                        category_collapsing_header(
+                            ui,
+                            "Offline",
+                            &mut self.selected_contact,
+                            &mut self.offline_contacts,
+                            self.main_window_sender.clone(),
+                            self.sender.clone(),
+                            self.handle.clone(),
+                            self.user_email.clone(),
+                            self.display_name.clone(),
+                            self.display_picture.clone(),
+                            self.selected_status,
+                            self.contact_repository.clone(),
+                            self.client.clone(),
+                        );
+                    });
             });
 
         if let Some(add_contact) = &mut self.add_contact_window {

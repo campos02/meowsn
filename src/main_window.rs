@@ -2,8 +2,10 @@ use crate::contact_repository::ContactRepository;
 use crate::models::contact::Contact;
 use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
+use crate::screens::contacts::contacts;
 use crate::screens::conversation::conversation;
-use crate::screens::{contacts, personal_settings, sign_in};
+use crate::screens::personal_settings;
+use crate::screens::sign_in::sign_in;
 use crate::sqlite::Sqlite;
 use crate::visuals;
 use eframe::egui;
@@ -14,8 +16,8 @@ use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 enum Screen {
-    SignIn(sign_in::sign_in::SignIn),
-    Contacts(Box<contacts::contacts::Contacts>),
+    SignIn(sign_in::SignIn),
+    Contacts(Box<contacts::Contacts>),
 }
 
 pub enum Message {
@@ -25,7 +27,7 @@ pub enum Message {
         Option<String>,
         Option<Arc<Client>>,
         Option<ContactRepository>,
-        Option<mpsc::Sender<contacts::contacts::Message>>,
+        Option<mpsc::Sender<contacts::Message>>,
         Option<bool>,
     ),
     ClosePersonalSettings,
@@ -71,7 +73,7 @@ impl MainWindow {
         let sqlite = Sqlite::new().expect("Could not create database");
 
         Self {
-            screen: Screen::SignIn(sign_in::sign_in::SignIn::new(
+            screen: Screen::SignIn(sign_in::SignIn::new(
                 handle.clone(),
                 sqlite.clone(),
                 sender.clone(),
@@ -107,7 +109,7 @@ impl eframe::App for MainWindow {
             match message {
                 Message::SignIn(sign_in_return) => {
                     let client = sign_in_return.client.clone();
-                    self.screen = Screen::Contacts(Box::new(contacts::contacts::Contacts::new(
+                    self.screen = Screen::Contacts(Box::new(contacts::Contacts::new(
                         sign_in_return,
                         self.sender.clone(),
                         self.sqlite.clone(),
@@ -135,7 +137,7 @@ impl eframe::App for MainWindow {
                 }
 
                 Message::SignOut => {
-                    self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                    self.screen = Screen::SignIn(sign_in::SignIn::new(
                         self.handle.clone(),
                         self.sqlite.clone(),
                         self.sender.clone(),
@@ -178,7 +180,7 @@ impl eframe::App for MainWindow {
 
                 Message::NotificationServerEvent(event) => {
                     if let msnp11_sdk::Event::Disconnected = event {
-                        self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                        self.screen = Screen::SignIn(sign_in::SignIn::new(
                             self.handle.clone(),
                             self.sqlite.clone(),
                             self.sender.clone(),
@@ -189,7 +191,7 @@ impl eframe::App for MainWindow {
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let msnp11_sdk::Event::LoggedInAnotherDevice = event {
-                        self.screen = Screen::SignIn(sign_in::sign_in::SignIn::new(
+                        self.screen = Screen::SignIn(sign_in::SignIn::new(
                             self.handle.clone(),
                             self.sqlite.clone(),
                             self.sender.clone(),
@@ -221,7 +223,6 @@ impl eframe::App for MainWindow {
                 Message::SwitchboardEvent(session_id, event) => {
                     if let msnp11_sdk::Event::DisplayPicture { email, data } = event {
                         let data = Arc::from(data);
-
                         let _ = self
                             .sender
                             .send(Message::ContactDisplayPictureEvent { email, data });

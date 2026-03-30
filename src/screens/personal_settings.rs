@@ -198,61 +198,61 @@ impl PersonalSettings {
                                 align_self: Some(taffy::AlignItems::Center),
                                 ..Default::default()
                             })
-                                .ui(|ui| {
-                                    ui.style_mut().spacing.button_padding = egui::Vec2::new(8., 5.);
-                                    ui.horizontal(|ui| {
-                                        if ui.button("Save").on_hover_text("Save settings").clicked() {
-                                            self.display_name
-                                                .as_mut()
-                                                .map(|display_name| display_name.trim().to_string());
+                            .ui(|ui| {
+                                ui.style_mut().spacing.button_padding = egui::Vec2::new(8., 5.);
+                                ui.horizontal(|ui| {
+                                    if ui.button("Save").on_hover_text("Save settings").clicked() {
+                                        self.display_name
+                                            .as_mut()
+                                            .map(|display_name| display_name.trim().to_string());
 
-                                            self.server = self.server.trim().to_string();
-                                            self.nexus_url = self.nexus_url.trim().to_string();
+                                        self.server = self.server.trim().to_string();
+                                        self.nexus_url = self.nexus_url.trim().to_string();
 
-                                            let settings = Settings {
-                                                server: self.server.clone(),
-                                                nexus_url: self.nexus_url.clone(),
-                                                config_server: self.config_server.clone(),
-                                                check_for_updates: self.check_for_updates,
-                                                notify_sign_ins: self.notify_sign_ins,
-                                                notify_added_by: self.notify_added_by,
-                                            };
+                                        let settings = Settings {
+                                            server: self.server.clone(),
+                                            nexus_url: self.nexus_url.clone(),
+                                            config_server: self.config_server.clone(),
+                                            check_for_updates: self.check_for_updates,
+                                            notify_sign_ins: self.notify_sign_ins,
+                                            notify_added_by: self.notify_added_by,
+                                        };
 
-                                            let _ = settings::save_settings(&settings);
-                                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                        let _ = settings::save_settings(&settings);
+                                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
 
-                                            if let Some(display_name) = self.display_name.clone()
-                                                && let Some(client) = self.client.clone()
-                                            {
-                                                let new_display_name = display_name.clone();
-                                                run_future(
-                                                    self.handle.clone(),
-                                                    async move { client.set_display_name(&display_name).await },
-                                                    self.main_window_sender.clone(),
-                                                    move |result| {
-                                                        main_window::Message::DisplayNameChangeResult(
-                                                            new_display_name.clone(),
-                                                            result,
-                                                        )
-                                                    },
-                                                );
-                                            }
-                                        }
-
-                                        if ui
-                                            .button("Restore Defaults")
-                                            .on_hover_text("Restore default settings")
-                                            .clicked()
+                                        if let Some(display_name) = self.display_name.clone()
+                                            && let Some(client) = self.client.clone()
                                         {
-                                            let defaults = Settings::default();
-                                            self.server = defaults.server;
-                                            self.nexus_url = defaults.nexus_url;
-                                            self.config_server = defaults.config_server;
-                                            self.check_for_updates = defaults.check_for_updates;
-                                            self.notify_sign_ins = defaults.notify_sign_ins;
+                                            let new_display_name = display_name.clone();
+                                            run_future(
+                                                self.handle.clone(),
+                                                async move { client.set_display_name(&display_name).await },
+                                                self.main_window_sender.clone(),
+                                                move |result| {
+                                                    main_window::Message::DisplayNameChangeResult(
+                                                        new_display_name.clone(),
+                                                        result,
+                                                    )
+                                                },
+                                            );
                                         }
-                                    });
+                                    }
+
+                                    if ui
+                                        .button("Restore Defaults")
+                                        .on_hover_text("Restore default settings")
+                                        .clicked()
+                                    {
+                                        let defaults = Settings::default();
+                                        self.server = defaults.server;
+                                        self.nexus_url = defaults.nexus_url;
+                                        self.config_server = defaults.config_server;
+                                        self.check_for_updates = defaults.check_for_updates;
+                                        self.notify_sign_ins = defaults.notify_sign_ins;
+                                    }
                                 });
+                            });
                         }
 
                         SelectedTab::Privacy => {
@@ -291,10 +291,10 @@ impl PersonalSettings {
                                                                         }),
                                                                     &*contact.email
                                                                 )
-                                                                    .truncate())
-                                                                    .on_hover_text(
-                                                                        &*contact.email
-                                                                    );
+                                                                .truncate())
+                                                                .on_hover_text(
+                                                                    &*contact.email
+                                                                );
 
                                                                 if label.clicked() || label.secondary_clicked() {
                                                                     self.selected_contact = Some(contact.email.clone());
@@ -354,10 +354,10 @@ impl PersonalSettings {
                                                                         }),
                                                                     &*contact.email
                                                                 )
-                                                                    .truncate())
-                                                                    .on_hover_text(
-                                                                        &*contact.email
-                                                                    );
+                                                                .truncate())
+                                                                .on_hover_text(
+                                                                    &*contact.email
+                                                                );
 
                                                                 if label.clicked() || label.secondary_clicked() {
                                                                     self.selected_contact = Some(contact.email.clone());

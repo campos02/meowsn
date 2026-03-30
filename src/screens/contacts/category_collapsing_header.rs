@@ -116,7 +116,6 @@ pub fn category_collapsing_header(
                         }
 
                         ui.style_mut().spacing.button_padding = egui::Vec2::new(5., 3.);
-
                         let label = ui
                             .add(
                                 egui::Button::selectable(
@@ -168,7 +167,6 @@ pub fn category_collapsing_header(
                             && user_status != Status::AppearOffline
                         {
                             contact.opening_conversation = true;
-
                             let _ =
                                 main_window_sender.send(main_window::Message::OpenConversation {
                                     user_email: user_email.clone(),
@@ -192,7 +190,6 @@ pub fn category_collapsing_header(
                                         && user_status != Status::AppearOffline
                                     {
                                         contact.opening_conversation = true;
-
                                         let _ = main_window_sender.send(
                                             main_window::Message::OpenConversation {
                                                 user_email,
