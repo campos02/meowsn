@@ -121,6 +121,24 @@ impl Contacts {
                     self.display_name = Arc::new(display_name);
                 }
 
+                msnp11_sdk::Event::Contact {
+                    email,
+                    display_name,
+                    lists,
+                } => {
+                    let email = Arc::new(email);
+                    let contact = Contact {
+                        email: email.clone(),
+                        display_name: Arc::new(display_name),
+                        guid: None,
+                        lists,
+                        ..Default::default()
+                    };
+
+                    self.contact_repository
+                        .add_contacts(std::slice::from_ref(&contact));
+                }
+
                 msnp11_sdk::Event::ContactInForwardList {
                     email,
                     display_name,
@@ -132,7 +150,7 @@ impl Contacts {
                     let contact = Contact {
                         email: email.clone(),
                         display_name: Arc::new(display_name),
-                        guid: Arc::new(guid),
+                        guid: Some(Arc::new(guid)),
                         lists,
                         ..Default::default()
                     };
@@ -524,48 +542,66 @@ impl eframe::App for Contacts {
                     }
                 }
 
-                Message::BlockResult(contact, result) => {
+                Message::BlockResult(contact_email, result) => {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
                     } else {
-                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
-                        {
-                            Some(contact)
-                        } else {
-                            self.offline_contacts.get_mut(&contact)
-                        };
+                        let contact =
+                            if let Some(contact) = self.online_contacts.get_mut(&contact_email) {
+                                Some(contact)
+                            } else {
+                                self.offline_contacts.get_mut(&contact_email)
+                            };
 
                         if let Some(contact) = contact {
                             contact.lists.push(MsnpList::BlockList);
                             contact.lists.retain(|list| list != &MsnpList::AllowList);
+
                             self.contact_repository
                                 .update_contacts(std::slice::from_ref(contact));
+                        } else if let Some(mut contact) =
+                            self.contact_repository.get_contact(&contact_email)
+                        {
+                            contact.lists.push(MsnpList::BlockList);
+                            contact.lists.retain(|list| list != &MsnpList::AllowList);
+
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(&contact));
                         }
                     }
 
                     ctx.request_repaint();
                 }
 
-                Message::UnblockResult(contact, result) => {
+                Message::UnblockResult(contact_email, result) => {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
                     } else {
-                        let contact = if let Some(contact) = self.online_contacts.get_mut(&contact)
-                        {
-                            Some(contact)
-                        } else {
-                            self.offline_contacts.get_mut(&contact)
-                        };
+                        let contact =
+                            if let Some(contact) = self.online_contacts.get_mut(&contact_email) {
+                                Some(contact)
+                            } else {
+                                self.offline_contacts.get_mut(&contact_email)
+                            };
 
                         if let Some(contact) = contact {
                             contact.lists.retain(|list| list != &MsnpList::BlockList);
                             contact.lists.push(MsnpList::AllowList);
+
                             self.contact_repository
                                 .update_contacts(std::slice::from_ref(contact));
+                        } else if let Some(mut contact) =
+                            self.contact_repository.get_contact(&contact_email)
+                        {
+                            contact.lists.retain(|list| list != &MsnpList::BlockList);
+                            contact.lists.push(MsnpList::AllowList);
+
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(&contact));
                         }
                     }
 
@@ -582,7 +618,12 @@ impl eframe::App for Contacts {
                     } else {
                         self.online_contacts.remove(&contact);
                         self.offline_contacts.remove(&contact);
-                        self.contact_repository.remove_contact(&contact);
+
+                        if let Some(mut contact) = self.contact_repository.get_contact(&contact) {
+                            contact.lists.retain(|list| list != &MsnpList::ForwardList);
+                            self.contact_repository
+                                .update_contacts(std::slice::from_ref(&contact));
+                        }
                     }
                 }
 
@@ -592,13 +633,14 @@ impl eframe::App for Contacts {
                             email,
                             display_name,
                             guid,
-                            lists,
+                            mut lists,
                             ..
                         } = event
                         {
                             let email = Arc::new(email);
                             let display_name = Arc::new(display_name);
-                            let guid = Arc::new(guid);
+                            let guid = Some(Arc::new(guid));
+                            lists.push(MsnpList::AllowList);
 
                             let contact = Contact {
                                 email: email.clone(),

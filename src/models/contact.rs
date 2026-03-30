@@ -6,7 +6,7 @@ use std::sync::Arc;
 pub struct Contact {
     pub email: Arc<String>,
     pub display_name: Arc<String>,
-    pub guid: Arc<String>,
+    pub guid: Option<Arc<String>>,
     pub lists: Vec<MsnpList>,
     pub status: Option<Arc<Presence>>,
     pub personal_message: Option<Arc<String>>,

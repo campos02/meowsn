@@ -279,7 +279,10 @@ impl PersonalSettings {
                                             ui.label("Allow list:");
                                             ui.add_space(3.);
                                             ui.push_id(0, |ui| {
-                                                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                                                egui::ScrollArea::vertical()
+                                                    .min_scrolled_height(120.)
+                                                    .auto_shrink(false)
+                                                    .show(ui, |ui| {
                                                     ui.vertical(|ui| {
                                                         if let Some(contacts) = &allowed_contacts {
                                                             for contact in contacts {
@@ -318,7 +321,9 @@ impl PersonalSettings {
                                                     self.handle.clone(),
                                                     async move { client.unblock_contact(&email).await },
                                                     contacts_sender,
-                                                    move |result| contacts::Message::UnblockResult(contact.clone(), result),
+                                                    move |result| contacts::Message::UnblockResult(
+                                                        contact.clone(), result
+                                                    ),
                                                 );
                                             }
 
@@ -342,7 +347,10 @@ impl PersonalSettings {
                                             ui.label("Block list:");
                                             ui.add_space(3.);
                                             ui.push_id(2, |ui| {
-                                                egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                                                egui::ScrollArea::vertical()
+                                                    .min_scrolled_height(120.)
+                                                    .auto_shrink(false)
+                                                    .show(ui, |ui| {
                                                     ui.vertical(|ui| {
                                                         if let Some(contacts) = blocked_contacts {
                                                             for contact in contacts {
@@ -378,7 +386,10 @@ impl PersonalSettings {
                                     ui.label("The following people have added you to their contact list:");
                                     ui.add_space(3.);
 
-                                    egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                                    egui::ScrollArea::vertical()
+                                        .min_scrolled_height(100.)
+                                        .auto_shrink(false)
+                                        .show(ui, |ui| {
                                         for contact in contacts {
                                             ui.label(format!("{}", contact.email));
                                         }
@@ -424,7 +435,9 @@ impl PersonalSettings {
                                                         "AL"
                                                     }).await },
                                                     sender,
-                                                    move |result| contacts::Message::BlpResult { blp_bl: only_in_contact_list, result },
+                                                    move |result| contacts::Message::BlpResult {
+                                                        blp_bl: only_in_contact_list, result
+                                                    },
                                                 );
                                             }
                                         }

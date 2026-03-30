@@ -243,10 +243,10 @@ pub fn category_collapsing_header(
                                         }
                                     }
 
-                                    if ui.button("Delete Contact").clicked() {
-                                        let guid = contact.guid.clone();
+                                    if ui.button("Delete Contact").clicked()
+                                        && let Some(guid) = contact.guid.clone()
+                                    {
                                         let contact = contact.email.clone();
-
                                         run_future(
                                             handle.clone(),
                                             async move {
