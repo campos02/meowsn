@@ -267,7 +267,7 @@ impl PersonalSettings {
                             if let Some(contact_repository) = &self.contact_repository {
                                 tui.ui(|ui| {
                                     egui::Grid::new("privacy_grid")
-                                        .max_col_width(ui.available_width() / 2.7)
+                                        .max_col_width(ui.available_width() / 2.41)
                                         .show(ui, |ui| {
                                         let allowed_contacts = contact_repository
                                             .get_contacts_in_list(MsnpList::AllowList);
@@ -279,37 +279,42 @@ impl PersonalSettings {
                                             ui.label("Allow list:");
                                             ui.add_space(3.);
                                             ui.push_id(0, |ui| {
-                                                egui::ScrollArea::vertical()
-                                                    .min_scrolled_height(120.)
-                                                    .auto_shrink(false)
+                                                egui::Frame::new()
+                                                    .fill(ui.style().visuals.text_edit_bg_color())
                                                     .show(ui, |ui| {
-                                                    ui.vertical(|ui| {
-                                                        if let Some(contacts) = &allowed_contacts {
-                                                            for contact in contacts {
-                                                                let label = ui.add(egui::Button::selectable(
-                                                                    self.selected_contact
-                                                                        .as_ref()
-                                                                        .is_some_and(|selected_contact| {
-                                                                            *selected_contact == contact.email
-                                                                        }),
-                                                                    &*contact.email
-                                                                )
-                                                                .truncate())
-                                                                .on_hover_text(
-                                                                    &*contact.email
-                                                                );
+                                                    egui::ScrollArea::vertical()
+                                                        .min_scrolled_height(120.)
+                                                        .auto_shrink(false)
+                                                        .show(ui, |ui| {
+                                                            ui.vertical(|ui| {
+                                                                if let Some(contacts) = &allowed_contacts {
+                                                                    for contact in contacts {
+                                                                        let label = ui.add(egui::Button::selectable(
+                                                                            self.selected_contact
+                                                                                .as_ref()
+                                                                                .is_some_and(|selected_contact| {
+                                                                                    *selected_contact == contact.email
+                                                                                }),
+                                                                            &*contact.email
+                                                                        )
+                                                                        .truncate())
+                                                                        .on_hover_text(
+                                                                            &*contact.email
+                                                                        );
 
-                                                                if label.clicked() || label.secondary_clicked() {
-                                                                    self.selected_contact = Some(contact.email.clone());
+                                                                        if label.clicked() || label.secondary_clicked() {
+                                                                            self.selected_contact = Some(contact.email.clone());
+                                                                        }
+                                                                    }
                                                                 }
-                                                            }
-                                                        }
-                                                    });
+                                                            });
+                                                        });
                                                 });
                                             });
                                         });
 
                                         ui.vertical(|ui| {
+                                            ui.add_space(24.);
                                             if ui.add_enabled(blocked_contacts.as_ref().is_some_and(|contacts| {
                                                 !contacts.is_empty()
                                             }), egui::Button::new("<< Allow")).clicked()
@@ -347,32 +352,36 @@ impl PersonalSettings {
                                             ui.label("Block list:");
                                             ui.add_space(3.);
                                             ui.push_id(2, |ui| {
-                                                egui::ScrollArea::vertical()
-                                                    .min_scrolled_height(120.)
-                                                    .auto_shrink(false)
+                                                egui::Frame::new()
+                                                    .fill(ui.style().visuals.text_edit_bg_color())
                                                     .show(ui, |ui| {
-                                                    ui.vertical(|ui| {
-                                                        if let Some(contacts) = blocked_contacts {
-                                                            for contact in contacts {
-                                                                let label = ui.add(egui::Button::selectable(
-                                                                    self.selected_contact
-                                                                        .as_ref()
-                                                                        .is_some_and(|selected_contact| {
-                                                                            *selected_contact == contact.email
-                                                                        }),
-                                                                    &*contact.email
-                                                                )
-                                                                .truncate())
-                                                                .on_hover_text(
-                                                                    &*contact.email
-                                                                );
+                                                    egui::ScrollArea::vertical()
+                                                        .min_scrolled_height(120.)
+                                                        .auto_shrink(false)
+                                                        .show(ui, |ui| {
+                                                            ui.vertical(|ui| {
+                                                                if let Some(contacts) = blocked_contacts {
+                                                                    for contact in contacts {
+                                                                        let label = ui.add(egui::Button::selectable(
+                                                                            self.selected_contact
+                                                                                .as_ref()
+                                                                                .is_some_and(|selected_contact| {
+                                                                                    *selected_contact == contact.email
+                                                                                }),
+                                                                            &*contact.email
+                                                                        )
+                                                                        .truncate())
+                                                                        .on_hover_text(
+                                                                            &*contact.email
+                                                                        );
 
-                                                                if label.clicked() || label.secondary_clicked() {
-                                                                    self.selected_contact = Some(contact.email.clone());
+                                                                        if label.clicked() || label.secondary_clicked() {
+                                                                            self.selected_contact = Some(contact.email.clone());
+                                                                        }
+                                                                    }
                                                                 }
-                                                            }
-                                                        }
-                                                    });
+                                                            });
+                                                        });
                                                 });
                                             });
                                         });
@@ -386,13 +395,18 @@ impl PersonalSettings {
                                     ui.label("The following people have added you to their contact list:");
                                     ui.add_space(3.);
 
-                                    egui::ScrollArea::vertical()
-                                        .min_scrolled_height(100.)
-                                        .auto_shrink(false)
+                                    egui::Frame::new()
+                                        .fill(ui.style().visuals.text_edit_bg_color())
+                                        .inner_margin(5.)
                                         .show(ui, |ui| {
-                                        for contact in contacts {
-                                            ui.label(format!("{}", contact.email));
-                                        }
+                                        egui::ScrollArea::vertical()
+                                            .min_scrolled_height(90.)
+                                            .auto_shrink(false)
+                                            .show(ui, |ui| {
+                                                for contact in contacts {
+                                                    ui.label(format!("{}", contact.email));
+                                                }
+                                            });
                                     });
                                 });
                             }
