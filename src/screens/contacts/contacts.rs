@@ -633,14 +633,13 @@ impl eframe::App for Contacts {
                             email,
                             display_name,
                             guid,
-                            mut lists,
+                            lists,
                             ..
                         } = event
                         {
                             let email = Arc::new(email);
                             let display_name = Arc::new(display_name);
                             let guid = Some(Arc::new(guid));
-                            lists.push(MsnpList::AllowList);
 
                             let contact = Contact {
                                 email: email.clone(),
