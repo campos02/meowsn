@@ -5,7 +5,6 @@ use r2d2::Pool;
 use r2d2_sqlite::rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
 use r2d2_sqlite::rusqlite::params;
 use r2d2_sqlite::{SqliteConnectionManager, rusqlite};
-use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -14,7 +13,7 @@ pub struct Sqlite {
 }
 
 impl Sqlite {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Compatibility with previous name
         let mut old_data_local =
             dirs::data_local_dir().expect("Could not find local data directory");

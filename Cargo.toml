@@ -22,6 +22,10 @@ notify-rust = "4.12.0"
 reqwest = { version = "0.13.2", default-features = false, features = ["http2", "json", "rustls", "charset"] }
 semver = "1.0.27"
 regex = "1.12.2"
+tray-icon = "0.21.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18.2"
 
 [profile.release]
 codegen-units = 1
