@@ -16,11 +16,8 @@ pub fn messages(
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     messages: &[message::Message],
+    url_regex: &Option<Regex>,
 ) {
-    let url_regex = Regex::new(
-        r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
-    );
-
     tui.style(taffy::Style {
         justify_self: Some(taffy::JustifySelf::Start),
         size: taffy::Size {
@@ -65,7 +62,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &url_regex, ui.visuals().text_color());
+                                    display_text_message(ui, message, url_regex, ui.visuals().text_color());
                                 });
                             } else if message.errored {
                                 ui.separator();
@@ -74,7 +71,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &url_regex, if ui.visuals().dark_mode {
+                                    display_text_message(ui, message, url_regex, if ui.visuals().dark_mode {
                                         egui::Color32::GRAY
                                     } else {
                                         egui::Color32::from_gray(120)
@@ -100,19 +97,15 @@ pub fn messages(
 fn display_text_message(
     ui: &mut egui::Ui,
     message: &message::Message,
-    url_regex: &Result<Regex, regex::Error>,
+    url_regex: &Option<Regex>,
     text_color: egui::Color32,
 ) {
     ui.style_mut().spacing.item_spacing.x = 0.;
     ui.horizontal_wrapped(|ui| {
         for word in message.text.split(" ") {
-            let is_url = if let Ok(url_regex) = &url_regex
-                && url_regex.is_match(word)
-            {
-                true
-            } else {
-                false
-            };
+            let is_url = url_regex
+                .as_ref()
+                .is_some_and(|url_regex| url_regex.is_match(word));
 
             let mut job = LayoutJob::default();
             job.append(

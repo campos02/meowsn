@@ -9,15 +9,16 @@ use crate::screens::conversation::messages::messages;
 use crate::screens::conversation::new_message_editor::new_message_editor;
 use crate::screens::invite;
 use crate::sqlite::Sqlite;
-use crate::svg;
+use crate::{main_window, svg};
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{fr, length, line, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MessagingError, MsnpStatus, SdkError, Switchboard};
+use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 const INITIAL_HISTORY_LIMIT: u32 = 3;
@@ -45,15 +46,16 @@ pub struct Conversation {
     contact_repository: ContactRepository,
     sqlite: Sqlite,
     participant_typing: Option<Arc<String>>,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
-    sender: std::sync::mpsc::Sender<Message>,
-    receiver: std::sync::mpsc::Receiver<Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
+    sender: mpsc::Sender<Message>,
+    receiver: mpsc::Receiver<Message>,
     user_typing: bool,
     bold: bool,
     italic: bool,
     underline: bool,
     strikethrough: bool,
     focused: bool,
+    url_regex: Option<Regex>,
     handle: Handle,
     viewport_id: egui::viewport::ViewportId,
     invite_window: Option<invite::Invite>,
@@ -69,7 +71,7 @@ impl Conversation {
         contact: Contact,
         contact_repository: ContactRepository,
         client: Arc<Client>,
-        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        main_window_sender: mpsc::Sender<main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
         viewport_id: egui::viewport::ViewportId,
@@ -83,11 +85,11 @@ impl Conversation {
             Vec::new()
         };
 
-        let _ = main_window_sender.send(crate::main_window::Message::ContactChatWindowFocused(
+        let _ = main_window_sender.send(main_window::Message::ContactChatWindowFocused(
             contact.email.clone(),
         ));
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
         let client = client.clone();
         let email = contact.email.clone();
 
@@ -120,6 +122,9 @@ impl Conversation {
             italic: false,
             underline: false,
             strikethrough: false,
+            url_regex: Regex::new(
+            r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
+            ).ok(),
             focused: false,
             handle,
             viewport_id,
@@ -136,7 +141,7 @@ impl Conversation {
         contact_repository: ContactRepository,
         session_id: Arc<String>,
         switchboard: SwitchboardAndParticipants,
-        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        main_window_sender: mpsc::Sender<main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
         viewport_id: egui::viewport::ViewportId,
@@ -171,7 +176,7 @@ impl Conversation {
                     }),
             );
 
-            let _ = main_window_sender.send(crate::main_window::Message::ContactChatWindowFocused(
+            let _ = main_window_sender.send(main_window::Message::ContactChatWindowFocused(
                 participant.clone(),
             ));
         }
@@ -179,7 +184,7 @@ impl Conversation {
         let mut switchboards = HashMap::new();
         switchboards.insert(session_id, switchboard.switchboard);
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
         Self {
             user_email,
             user_display_name,
@@ -202,6 +207,9 @@ impl Conversation {
             italic: false,
             underline: false,
             strikethrough: false,
+            url_regex: Regex::new(
+                r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
+            ).ok(),
             focused: false,
             handle,
             viewport_id,
@@ -209,9 +217,9 @@ impl Conversation {
         }
     }
 
-    pub fn handle_event(&mut self, message: crate::main_window::Message, ctx: &egui::Context) {
+    pub fn handle_event(&mut self, message: main_window::Message, ctx: &egui::Context) {
         match message {
-            crate::main_window::Message::NotificationServerEvent(event) => match event {
+            main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
                     self.user_display_name = Arc::new(display_name);
                 }
@@ -245,7 +253,7 @@ impl Conversation {
                 _ => (),
             },
 
-            crate::main_window::Message::SwitchboardEvent(session_id, event) => {
+            main_window::Message::SwitchboardEvent(session_id, event) => {
                 if self.switchboards.contains_key(&session_id) {
                     match event {
                         msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
@@ -262,9 +270,7 @@ impl Conversation {
                             );
 
                             let _ = self.main_window_sender.send(
-                                crate::main_window::Message::ContactChatWindowFocused(
-                                    email.clone(),
-                                ),
+                                main_window::Message::ContactChatWindowFocused(email.clone()),
                             );
 
                             if self.last_participant.is_none()
@@ -458,15 +464,15 @@ impl Conversation {
                 }
             }
 
-            crate::main_window::Message::UserDisplayPictureChanged(picture) => {
+            main_window::Message::UserDisplayPictureChanged(picture) => {
                 self.user_display_picture = Some(picture);
             }
 
-            crate::main_window::Message::UserStatusChanged(status) => {
+            main_window::Message::UserStatusChanged(status) => {
                 self.user_status = status;
             }
 
-            crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
+            main_window::Message::ContactDisplayPictureEvent { email, data } => {
                 if let Some(contact) = self.participants.get_mut(&email)
                     && let Some(presence) = &contact.status
                     && let Some(msn_object) = &presence.msn_object
@@ -542,11 +548,10 @@ impl Conversation {
                                     let ctx = ctx.clone();
 
                                     async move {
-                                        let _ = sender.send(
-                                            crate::main_window::Message::SwitchboardEvent(
+                                        let _ =
+                                            sender.send(main_window::Message::SwitchboardEvent(
                                                 session_id, event,
-                                            ),
-                                        );
+                                            ));
 
                                         ctx.request_repaint();
                                     }
@@ -558,7 +563,7 @@ impl Conversation {
                     Err(error) => {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ctx.request_repaint();
                     }
@@ -568,7 +573,7 @@ impl Conversation {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ctx.request_repaint();
                     }
@@ -780,6 +785,7 @@ impl Conversation {
                         self.user_email.clone(),
                         self.user_display_name.clone(),
                         &self.messages,
+                        &self.url_regex,
                     );
 
                     tui.style(taffy::Style {
