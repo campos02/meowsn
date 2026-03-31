@@ -17,6 +17,7 @@ use eframe::egui::OpenUrl;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
+use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
@@ -49,6 +50,7 @@ pub struct Contacts {
     offline_contacts: BTreeMap<Arc<String>, Contact>,
     contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
+    plus_tags_regex: Option<Regex>,
     client: Arc<Client>,
     blp_bl: bool,
     sender: mpsc::Sender<Message>,
@@ -96,6 +98,7 @@ impl Contacts {
             offline_contacts: BTreeMap::new(),
             contact_repository: ContactRepository::new(),
             selected_contact: None,
+            plus_tags_regex: Regex::new(r"\[/?[abcius]=.*?]").ok(),
             client: sign_in_return.client,
             blp_bl: false,
             sender,
@@ -126,6 +129,12 @@ impl Contacts {
                     display_name,
                     lists,
                 } => {
+                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                        regex.replace_all(&display_name, "").to_string()
+                    } else {
+                        display_name
+                    };
+
                     let email = Arc::new(email);
                     let contact = Contact {
                         email: email.clone(),
@@ -146,6 +155,12 @@ impl Contacts {
                     lists,
                     ..
                 } => {
+                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                        regex.replace_all(&display_name, "").to_string()
+                    } else {
+                        display_name
+                    };
+
                     let email = Arc::new(email);
                     let contact = Contact {
                         email: email.clone(),
@@ -174,6 +189,12 @@ impl Contacts {
                         Some(contact)
                     } else {
                         self.offline_contacts.get_mut(&email)
+                    };
+
+                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                        regex.replace_all(&display_name, "").to_string()
+                    } else {
+                        display_name
                     };
 
                     let mut previous_status = None;
@@ -224,6 +245,12 @@ impl Contacts {
                         Some(contact)
                     } else {
                         self.offline_contacts.get_mut(&email)
+                    };
+
+                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                        regex.replace_all(&display_name, "").to_string()
+                    } else {
+                        display_name
                     };
 
                     let mut previous_status = None;
