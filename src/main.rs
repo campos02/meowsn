@@ -54,19 +54,25 @@ fn common_main() -> eframe::Result {
     let icon = tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .expect("Failed to load tray icon");
 
+    let open_item = tray_icon::menu::MenuItem::new("Open meowsn", true, None);
+    let exit_item = tray_icon::menu::MenuItem::new("Exit", true, None);
+
     #[cfg(not(target_os = "linux"))]
-    let tray_menu = tray_icon::menu::Menu::with_items(&[
-        &tray_icon::menu::MenuItem::new("Open meowsn", true, None),
-        &tray_icon::menu::MenuItem::new("Exit", true, None),
-    ])
-    .expect("Failed to create tray icon menu");
+    let tray_menu = tray_icon::menu::Menu::with_items(&[&open_item, &exit_item])
+        .expect("Failed to create tray icon menu");
+
+    let open_item = open_item.into_id();
+    let exit_item = exit_item.into_id();
+
+    let thread_open_item = open_item.clone();
+    let thread_exit_item = exit_item.clone();
 
     #[cfg(target_os = "linux")]
     std::thread::spawn(|| {
         if gtk::init().is_ok() {
             let tray_menu = tray_icon::menu::Menu::with_items(&[
-                &tray_icon::menu::MenuItem::new("Open meowsn", true, None),
-                &tray_icon::menu::MenuItem::new("Exit", true, None),
+                &tray_icon::menu::MenuItem::with_id(thread_open_item, "Open meowsn", true, None),
+                &tray_icon::menu::MenuItem::with_id(thread_exit_item, "Exit", true, None),
             ])
             .expect("Failed to create tray icon menu");
 
@@ -133,6 +139,18 @@ fn common_main() -> eframe::Result {
             }
 
             cc.egui_ctx.set_fonts(fonts);
+            let ctx = cc.egui_ctx.clone();
+
+            tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
+                let tray_icon::menu::MenuEvent { id } = event;
+                if id == open_item {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                } else if id == exit_item {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }));
+
             Ok(Box::new(MainWindow::new(rt.handle().clone())))
         }),
     )
