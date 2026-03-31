@@ -64,7 +64,9 @@ fn common_main() -> eframe::Result {
     let open_item = open_item.into_id();
     let exit_item = exit_item.into_id();
 
+    #[cfg(target_os = "linux")]
     let thread_open_item = open_item.clone();
+    #[cfg(target_os = "linux")]
     let thread_exit_item = exit_item.clone();
 
     #[cfg(target_os = "linux")]
@@ -146,6 +148,11 @@ fn common_main() -> eframe::Result {
                 if id == open_item {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+
+                    // Since focus doesn't work on wayland
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        egui::UserAttentionType::Informational,
+                    ));
                 } else if id == exit_item {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }

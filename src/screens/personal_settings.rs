@@ -24,6 +24,7 @@ pub struct PersonalSettings {
     check_for_updates: bool,
     notify_sign_ins: bool,
     notify_added_by: bool,
+    close_to_tray: bool,
     only_in_contact_list: bool,
     client: Option<Arc<Client>>,
     main_window_sender: mpsc::Sender<main_window::Message>,
@@ -53,6 +54,7 @@ impl PersonalSettings {
             check_for_updates: settings.check_for_updates,
             notify_sign_ins: settings.notify_sign_ins,
             notify_added_by: settings.notify_added_by,
+            close_to_tray: settings.close_to_tray,
             only_in_contact_list: blp_bl.unwrap_or_default(),
             client,
             main_window_sender,
@@ -192,6 +194,11 @@ impl PersonalSettings {
                                     &mut self.notify_sign_ins,
                                     "Notify me when contacts come online",
                                 );
+
+                                ui.checkbox(
+                                    &mut self.close_to_tray,
+                                    "Close to tray instead of exiting",
+                                );
                             });
 
                             tui.style(taffy::Style {
@@ -216,6 +223,7 @@ impl PersonalSettings {
                                             check_for_updates: self.check_for_updates,
                                             notify_sign_ins: self.notify_sign_ins,
                                             notify_added_by: self.notify_added_by,
+                                            close_to_tray: self.close_to_tray,
                                         };
 
                                         let _ = settings::save_settings(&settings);
@@ -433,6 +441,7 @@ impl PersonalSettings {
                                                 check_for_updates: self.check_for_updates,
                                                 notify_sign_ins: self.notify_sign_ins,
                                                 notify_added_by: self.notify_added_by,
+                                                close_to_tray: self.close_to_tray,
                                             };
 
                                             let _ = settings::save_settings(&settings);

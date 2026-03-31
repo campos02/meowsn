@@ -8,6 +8,7 @@ pub struct Settings {
     pub check_for_updates: bool,
     pub notify_sign_ins: bool,
     pub notify_added_by: bool,
+    pub close_to_tray: bool,
 }
 
 impl Default for Settings {
@@ -19,6 +20,7 @@ impl Default for Settings {
             check_for_updates: true,
             notify_sign_ins: true,
             notify_added_by: true,
+            close_to_tray: true,
         }
     }
 }

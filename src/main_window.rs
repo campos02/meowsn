@@ -7,7 +7,7 @@ use crate::screens::conversation::conversation;
 use crate::screens::personal_settings;
 use crate::screens::sign_in::sign_in;
 use crate::sqlite::Sqlite;
-use crate::visuals;
+use crate::{settings, visuals};
 use eframe::egui;
 use eframe::egui::CornerRadius;
 use msnp11_sdk::{Client, MsnpStatus, SdkError};
@@ -104,6 +104,14 @@ impl eframe::App for MainWindow {
             style.visuals.indent_has_left_vline = false;
             style.spacing.combo_height = 250.;
         });
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            let settings = settings::get_settings().unwrap_or_default();
+            if settings.close_to_tray {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            }
+        }
 
         if let Ok(message) = self.receiver.try_recv() {
             match message {
