@@ -2461,7 +2461,7 @@ dependencies = [
 
 [[package]]
 name = "meowsn"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "dirs",
  "eframe",

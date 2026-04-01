@@ -98,7 +98,7 @@ impl Contacts {
             offline_contacts: BTreeMap::new(),
             contact_repository: ContactRepository::new(),
             selected_contact: None,
-            plus_tags_regex: Regex::new(r"\[/?[abcius]=.*?]").ok(),
+            plus_tags_regex: Regex::new(r"\[/?[abcius]=.*?]|\[/?[abcius]]").ok(),
             client: sign_in_return.client,
             blp_bl: false,
             sender,
