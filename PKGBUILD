@@ -1,5 +1,5 @@
 pkgname=meowsn
-pkgver=0.10.3
+pkgver=0.11.0
 pkgrel=2
 pkgdesc="Cross-platform MSNP11 client"
 arch=('aarch64' 'x86_64')
