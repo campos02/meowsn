@@ -754,7 +754,11 @@ impl eframe::App for Contacts {
                                 });
                             });
 
-                            tui.ui(|ui| {
+                            tui.style(taffy::Style {
+                                size: percent(1.),
+                                ..Default::default()
+                            })
+                            .ui(|ui| {
                                 ui.vertical(|ui| {
                                     status_selector(
                                         ui,
@@ -778,26 +782,28 @@ impl eframe::App for Contacts {
                                             .hint_text("<Type a personal message>")
                                             .lock_focus(true)
                                             .frame(
-                                                if self.show_personal_message_frame {
-                                                    egui::Frame {
-                                                        stroke: ui.visuals().widgets.open.bg_stroke,
-                                                        corner_radius: ui
-                                                            .visuals()
-                                                            .widgets
-                                                            .open
-                                                            .corner_radius,
-                                                        ..Default::default()
-                                                    }
-                                                } else {
-                                                    egui::Frame::new().stroke(egui::Stroke {
-                                                        width: ui
-                                                            .visuals()
-                                                            .widgets
-                                                            .open
-                                                            .bg_stroke
-                                                            .width,
-                                                        ..Default::default()
-                                                    })
+                                                egui::Frame {
+                                                    stroke: egui::Stroke {
+                                                        width: 0.8,
+                                                        color: if self.show_personal_message_frame {
+                                                            ui.visuals()
+                                                                .widgets
+                                                                .open
+                                                                .fg_stroke
+                                                                .color
+                                                        } else {
+                                                            Default::default()
+                                                        },
+                                                    },
+                                                    inner_margin: egui::Margin::from(
+                                                        egui::Vec2::splat(3.),
+                                                    ),
+                                                    corner_radius: ui
+                                                        .visuals()
+                                                        .widgets
+                                                        .open
+                                                        .corner_radius,
+                                                    ..Default::default()
                                                 },
                                             ),
                                         )
@@ -828,7 +834,6 @@ impl eframe::App for Contacts {
                                         .hovered()
                                         || personal_message_edit.has_focus();
 
-                                    ui.add_space(3.);
                                     if let Some(msn_today_url) = &self.msn_today_url {
                                         ui.hyperlink_to(" MSN Today", msn_today_url)
                                             .on_hover_text("MSN Today");

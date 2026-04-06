@@ -9,7 +9,6 @@ use crate::screens::sign_in::sign_in;
 use crate::sqlite::Sqlite;
 use crate::visuals;
 use eframe::egui;
-use eframe::egui::CornerRadius;
 use msnp11_sdk::{Client, MsnpStatus, SdkError};
 use std::collections::HashMap;
 use std::sync::{Arc, mpsc};
@@ -30,6 +29,7 @@ pub enum Message {
         Option<mpsc::Sender<contacts::Message>>,
         Option<bool>,
     ),
+
     ClosePersonalSettings,
     OpenDialog(String),
     NotificationServerEvent(msnp11_sdk::Event),
@@ -97,11 +97,6 @@ impl eframe::App for MainWindow {
         } else {
             ui.set_visuals(visuals::light_mode(old));
         }
-
-        ui.style_mut().spacing.button_padding = egui::Vec2::splat(5.);
-        ui.style_mut().visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
-        ui.style_mut().visuals.indent_has_left_vline = false;
-        ui.style_mut().spacing.combo_height = 250.;
 
         if let Ok(message) = self.receiver.try_recv() {
             match message {

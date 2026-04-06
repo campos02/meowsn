@@ -2,7 +2,7 @@ use crate::contact_repository::ContactRepository;
 use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::helpers::run_future::run_future;
 use crate::sqlite::Sqlite;
-use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
+use crate::widgets::custom_combo_box::CustomComboBox;
 use eframe::egui::Ui;
 use msnp11_sdk::{Client, MsnpStatus};
 use rfd::AsyncFileDialog;
@@ -50,7 +50,7 @@ pub fn status_selector(
     blp_bl: bool,
 ) {
     let old_status = *selected_status;
-    CustomFillComboBox::from_label("")
+    CustomComboBox::from_label("")
         .selected_text(format!("{display_name}   ({})", selected_status))
         .fill_color(ui.visuals().window_fill)
         .show_ui(ui, |ui| {

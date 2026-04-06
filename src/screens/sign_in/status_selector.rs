@@ -1,4 +1,4 @@
-use crate::widgets::left_label_combo_box::LeftLabelComboBox;
+use crate::widgets::custom_combo_box::CustomComboBox;
 use eframe::egui::Ui;
 use std::fmt::Display;
 
@@ -29,8 +29,10 @@ pub fn status_selector(
     main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
 ) {
     let old_status = *selected_status;
-    LeftLabelComboBox::from_label("Status:")
+    CustomComboBox::from_label("Status:")
         .selected_text(selected_status.to_string())
+        .fill_color(ui.visuals().window_fill)
+        .label_on_right(false)
         .show_ui(ui, |ui| {
             ui.selectable_value(selected_status, Status::Online, Status::Online.to_string());
             ui.selectable_value(selected_status, Status::Busy, Status::Busy.to_string());

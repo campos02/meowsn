@@ -1,13 +1,12 @@
-use eframe::egui;
 use eframe::egui::style::{StyleModifier, WidgetVisuals};
 use eframe::egui::{
-    Align2, Context, Id, InnerResponse, NumExt, Painter, Popup, PopupCloseBehavior, Rect, Response,
-    ScrollArea, Sense, Shape, Stroke, TextStyle, TextWrapMode, Ui, UiBuilder, Vec2, WidgetInfo,
-    WidgetText, WidgetType, vec2,
+    Align2, Color32, Context, Id, InnerResponse, NumExt, Painter, Popup, PopupCloseBehavior, Rect,
+    Response, ScrollArea, Sense, Shape, Stroke, TextStyle, TextWrapMode, Ui, UiBuilder, Vec2,
+    WidgetInfo, WidgetText, WidgetType, vec2,
 };
-use eframe::epaint::Color32;
+use eframe::{egui, epaint};
 
-/// A function that paints the [`CustomFillComboBox`] icon
+/// A function that paints the [`CustomComboBox`] icon
 pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 
 /// A drop-down selection menu with a descriptive label.
@@ -33,7 +32,7 @@ pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 /// # });
 /// ```
 #[must_use = "You should call .show*"]
-pub struct CustomFillComboBox {
+pub struct CustomComboBox {
     id_salt: Id,
     label: Option<WidgetText>,
     selected_text: WidgetText,
@@ -44,11 +43,12 @@ pub struct CustomFillComboBox {
     close_behavior: Option<PopupCloseBehavior>,
     popup_style: StyleModifier,
     fill_color: Option<Color32>,
+    label_on_right: bool,
 }
 
 #[allow(dead_code)]
-impl CustomFillComboBox {
-    /// Create new [`CustomFillComboBox`] with id and label
+impl CustomComboBox {
+    /// Create new [`CustomComboBox`] with id and label
     pub fn new(id_salt: impl std::hash::Hash, label: impl Into<WidgetText>) -> Self {
         Self {
             id_salt: Id::new(id_salt),
@@ -61,6 +61,7 @@ impl CustomFillComboBox {
             close_behavior: None,
             popup_style: StyleModifier::default(),
             fill_color: None,
+            label_on_right: true,
         }
     }
 
@@ -78,7 +79,31 @@ impl CustomFillComboBox {
             close_behavior: None,
             popup_style: StyleModifier::default(),
             fill_color: None,
+            label_on_right: true,
         }
+    }
+
+    /// Without label.
+    pub fn from_id_salt(id_salt: impl std::hash::Hash) -> Self {
+        Self {
+            id_salt: Id::new(id_salt),
+            label: Default::default(),
+            selected_text: Default::default(),
+            width: None,
+            height: None,
+            icon: None,
+            wrap_mode: None,
+            close_behavior: None,
+            popup_style: StyleModifier::default(),
+            fill_color: None,
+            label_on_right: true,
+        }
+    }
+
+    /// Without label.
+    #[deprecated = "Renamed from_id_salt"]
+    pub fn from_id_source(id_salt: impl std::hash::Hash) -> Self {
+        Self::from_id_salt(id_salt)
     }
 
     /// Set the outer width of the button and menu.
@@ -106,8 +131,8 @@ impl CustomFillComboBox {
         self
     }
 
-    /// Use the provided function to render a different [`CustomFillComboBox`] icon.
-    /// Defaults to a triangle that expands when the cursor is hovering over the [`CustomFillComboBox`].
+    /// Use the provided function to render a different [`CustomComboBox`] icon.
+    /// Defaults to a triangle that expands when the cursor is hovering over the [`CustomComboBox`].
     ///
     /// For example:
     /// ```
@@ -130,7 +155,7 @@ impl CustomFillComboBox {
     ///     ));
     /// }
     ///
-    /// egui::ComboBox::from_id_salt("my-combobox")
+    /// egui::CustomComboBox::from_id_salt("my-combobox")
     ///     .selected_text(text)
     ///     .icon(filled_triangle)
     ///     .show_ui(ui, |_ui| {});
@@ -193,6 +218,14 @@ impl CustomFillComboBox {
         self
     }
 
+    /// Sets whether labels will be shown on the right side.
+    /// Default: `true`
+    #[inline]
+    pub fn label_on_right(mut self, label_on_right: bool) -> Self {
+        self.label_on_right = label_on_right;
+        self
+    }
+
     /// Show the combo box, with the given ui code for the menu contents.
     ///
     /// Returns `InnerResponse { inner: None }` if the combo box is closed.
@@ -220,35 +253,72 @@ impl CustomFillComboBox {
             close_behavior,
             popup_style,
             fill_color,
+            label_on_right,
         } = self;
 
         let button_id = ui.make_persistent_id(id_salt);
 
-        ui.horizontal(|ui| {
-            let mut ir = combo_box_dyn(
-                ui,
-                button_id,
-                selected_text,
-                menu_contents,
-                icon,
-                wrap_mode,
-                close_behavior,
-                popup_style,
-                fill_color,
-                (width, height),
-            );
-            if let Some(label) = label {
+        if label_on_right {
+            ui.horizontal(|ui| {
+                let mut ir = combo_box_dyn(
+                    ui,
+                    button_id,
+                    selected_text.clone(),
+                    menu_contents,
+                    icon,
+                    wrap_mode,
+                    close_behavior,
+                    popup_style,
+                    fill_color,
+                    (width, height),
+                );
+
                 ir.response.widget_info(|| {
-                    WidgetInfo::labeled(WidgetType::ComboBox, ui.is_enabled(), label.text())
+                    let mut info = WidgetInfo::new(WidgetType::ComboBox);
+                    info.enabled = ui.is_enabled();
+                    info.current_text_value = Some(selected_text.text().to_owned());
+                    info
                 });
-                ir.response |= ui.label(label);
-            } else {
-                ir.response
-                    .widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, ui.is_enabled(), ""));
-            }
-            ir
-        })
-        .inner
+
+                if let Some(label) = label {
+                    let label_response = ui.label(label);
+                    ir.response = ir.response.labelled_by(label_response.id);
+                    ir.response |= label_response;
+                }
+                ir
+            })
+            .inner
+        } else {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let mut ir = combo_box_dyn(
+                    ui,
+                    button_id,
+                    selected_text.clone(),
+                    menu_contents,
+                    icon,
+                    wrap_mode,
+                    close_behavior,
+                    popup_style,
+                    fill_color,
+                    (width, height),
+                );
+
+                ir.response.widget_info(|| {
+                    let mut info = WidgetInfo::new(WidgetType::ComboBox);
+                    info.enabled = ui.is_enabled();
+                    info.current_text_value = Some(selected_text.text().to_owned());
+                    info
+                });
+
+                if let Some(label) = label {
+                    let label_response = ui.label(label);
+                    ir.response = ir.response.labelled_by(label_response.id);
+                    ir.response |= label_response;
+                }
+                ir
+            })
+            .inner
+        }
     }
 
     /// Show a list of items with the given selected index.
@@ -261,7 +331,7 @@ impl CustomFillComboBox {
     /// # egui::__run_test_ui(|ui| {
     /// let alternatives = ["a", "b", "c", "d"];
     /// let mut selected = 2;
-    /// egui::ComboBox::from_label("Select one!").show_index(
+    /// egui::CustomComboBox::from_label("Select one!").show_index(
     ///     ui,
     ///     &mut selected,
     ///     alternatives.len(),
@@ -297,12 +367,12 @@ impl CustomFillComboBox {
         response
     }
 
-    /// Check if the [`CustomFillComboBox`] with the given id has its popup menu currently opened.
+    /// Check if the [`CustomComboBox`] with the given id has its popup menu currently opened.
     pub fn is_open(ctx: &Context, id: Id) -> bool {
         Popup::is_id_open(ctx, Self::widget_to_popup_id(id))
     }
 
-    /// Convert a [`CustomFillComboBox`] id to the id used to store it's popup state.
+    /// Convert a [`CustomComboBox`] id to the id used to store it's popup state.
     fn widget_to_popup_id(widget_id: Id) -> Id {
         widget_id.with("popup")
     }
@@ -321,7 +391,7 @@ fn combo_box_dyn<'c, R>(
     fill_color: Option<Color32>,
     (width, height): (Option<f32>, Option<f32>),
 ) -> InnerResponse<Option<R>> {
-    let popup_id = CustomFillComboBox::widget_to_popup_id(button_id);
+    let popup_id = CustomComboBox::widget_to_popup_id(button_id);
 
     let is_popup_open = Popup::is_id_open(ui.ctx(), popup_id);
 
@@ -457,12 +527,12 @@ fn button_frame(
 
         ui.painter().set(
             where_to_put_background,
-            egui::epaint::RectShape::new(
+            epaint::RectShape::new(
                 outer_rect.expand(visuals.expansion),
                 visuals.corner_radius,
                 fill_color.unwrap_or(visuals.weak_bg_fill),
                 visuals.bg_stroke,
-                egui::epaint::StrokeKind::Inside,
+                epaint::StrokeKind::Inside,
             ),
         );
     }
