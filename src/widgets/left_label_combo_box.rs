@@ -436,7 +436,7 @@ fn button_frame(
             egui::epaint::RectShape::new(
                 outer_rect.expand(visuals.expansion),
                 visuals.corner_radius,
-                ui.style().visuals.window_fill,
+                ui.visuals().window_fill,
                 visuals.bg_stroke,
                 egui::epaint::StrokeKind::Inside,
             ),

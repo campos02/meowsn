@@ -115,7 +115,7 @@ impl Contacts {
     pub fn handle_event(
         &mut self,
         message: crate::main_window::Message,
-        ctx: &egui::Context,
+        ui: &egui::Context,
         conversations: &mut HashMap<egui::ViewportId, conversation::Conversation>,
     ) {
         match message {
@@ -351,13 +351,13 @@ impl Contacts {
                         );
 
                         let sender = self.main_window_sender.clone();
-                        let ctx = ctx.clone();
+                        let ui = ui.clone();
 
                         self.handle.block_on(async {
                             switchboard.add_event_handler_closure(move |event| {
                                 let sender = sender.clone();
                                 let session_id = session_id.clone();
-                                let ctx = ctx.clone();
+                                let ui = ui.clone();
 
                                 async move {
                                     let _ =
@@ -365,7 +365,7 @@ impl Contacts {
                                             session_id, event,
                                         ));
 
-                                    ctx.request_repaint();
+                                    ui.request_repaint();
                                 }
                             });
                         });
@@ -379,7 +379,7 @@ impl Contacts {
                             "The server will shut down for maintenance in {time_remaining} minutes"
                         )));
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 msnp11_sdk::Event::AddedBy {
@@ -459,17 +459,17 @@ impl Contacts {
                                 ),
                             );
 
-                            ctx.send_viewport_cmd_to(
+                            ui.send_viewport_cmd_to(
                                 viewport_id,
                                 egui::ViewportCommand::Minimized(true),
                             );
 
-                            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                            ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                                 egui::UserAttentionType::Informational,
                             ));
                         };
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     }
                 }
 
@@ -517,7 +517,7 @@ impl Contacts {
 }
 
 impl eframe::App for Contacts {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Ok(message) = self.receiver.try_recv() {
             match message {
                 Message::DisplayPictureResult(result) => {
@@ -535,7 +535,7 @@ impl eframe::App for Contacts {
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     } else {
                         let _ = self
                             .main_window_sender
@@ -549,7 +549,7 @@ impl eframe::App for Contacts {
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     } else {
                         let _ = self
                             .sqlite
@@ -563,7 +563,7 @@ impl eframe::App for Contacts {
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     } else {
                         self.blp_bl = blp_bl;
                     }
@@ -599,7 +599,7 @@ impl eframe::App for Contacts {
                         }
                     }
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Message::UnblockResult(contact_email, result) => {
@@ -632,7 +632,7 @@ impl eframe::App for Contacts {
                         }
                     }
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Message::DeleteResult(contact, result) => {
@@ -641,7 +641,7 @@ impl eframe::App for Contacts {
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     } else {
                         self.online_contacts.remove(&contact);
                         self.offline_contacts.remove(&contact);
@@ -688,7 +688,7 @@ impl eframe::App for Contacts {
                             .main_window_sender
                             .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     }
                 },
 
@@ -703,7 +703,7 @@ impl eframe::App for Contacts {
             }
         }
 
-        egui::TopBottomPanel::top("user_info")
+        egui::Panel::top("user_info")
             .frame(egui::Frame {
                 inner_margin: egui::Margin {
                     top: 15,
@@ -711,11 +711,11 @@ impl eframe::App for Contacts {
                     left: 15,
                     right: 15,
                 },
-                fill: ctx.style().visuals.window_fill,
+                fill: ui.visuals().window_fill,
                 ..Default::default()
             })
             .show_separator_line(false)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 tui(ui, ui.id().with("user_info"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -776,8 +776,30 @@ impl eframe::App for Contacts {
                                                 &mut self.personal_message,
                                             )
                                             .hint_text("<Type a personal message>")
-                                            .min_size(egui::vec2(180., 5.))
-                                            .frame(self.show_personal_message_frame),
+                                            .lock_focus(true)
+                                            .frame(
+                                                if self.show_personal_message_frame {
+                                                    egui::Frame {
+                                                        stroke: ui.visuals().widgets.open.bg_stroke,
+                                                        corner_radius: ui
+                                                            .visuals()
+                                                            .widgets
+                                                            .open
+                                                            .corner_radius,
+                                                        ..Default::default()
+                                                    }
+                                                } else {
+                                                    egui::Frame::new().stroke(egui::Stroke {
+                                                        width: ui
+                                                            .visuals()
+                                                            .widgets
+                                                            .open
+                                                            .bg_stroke
+                                                            .width,
+                                                        ..Default::default()
+                                                    })
+                                                },
+                                            ),
                                         )
                                         .on_hover_text("Type a personal message");
 
@@ -833,7 +855,7 @@ impl eframe::App for Contacts {
                                     .clicked()
                                 {
                                     if self.add_contact_window.is_some() {
-                                        ctx.send_viewport_cmd_to(
+                                        ui.send_viewport_cmd_to(
                                             egui::ViewportId::from_hash_of("add-contact"),
                                             egui::ViewportCommand::Focus,
                                         );
@@ -852,8 +874,8 @@ impl eframe::App for Contacts {
             });
 
         if !self.tabs.is_empty() {
-            egui::SidePanel::left("tabs")
-                .default_width(45.)
+            egui::Panel::left("tabs")
+                .default_size(45.)
                 .resizable(false)
                 .show_separator_line(false)
                 .frame(egui::Frame {
@@ -863,10 +885,10 @@ impl eframe::App for Contacts {
                         left: 15,
                         right: 5,
                     },
-                    fill: ctx.style().visuals.window_fill,
+                    fill: ui.visuals().window_fill,
                     ..Default::default()
                 })
-                .show(ctx, |ui| {
+                .show_inside(ui, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for tab in &self.tabs {
                             if ui
@@ -881,7 +903,7 @@ impl eframe::App for Contacts {
                                 .on_hover_text(&tab.msn_tab.tooltip)
                                 .clicked()
                             {
-                                ui.ctx().open_url(OpenUrl {
+                                ui.open_url(OpenUrl {
                                     url: tab.msn_tab.content_url.clone(),
                                     new_tab: true,
                                 });
@@ -901,10 +923,10 @@ impl eframe::App for Contacts {
                     left: if !self.tabs.is_empty() { 0 } else { 15 },
                     right: 15,
                 },
-                fill: ctx.style().visuals.window_fill,
+                fill: ui.visuals().window_fill,
                 ..Default::default()
             })
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
                     .show(ui, |ui| {
@@ -943,7 +965,7 @@ impl eframe::App for Contacts {
             });
 
         if let Some(add_contact) = &mut self.add_contact_window {
-            ctx.show_viewport_immediate(
+            ui.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("add-contact"),
                 egui::ViewportBuilder::default()
                     .with_title("Add contact")
@@ -951,13 +973,13 @@ impl eframe::App for Contacts {
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),
-                |ctx, _| {
-                    add_contact.add_contact(ctx);
+                |ui, _| {
+                    add_contact.add_contact(ui);
                 },
             );
         }
 
-        if ctx.input(|input| input.viewport().close_requested()) {
+        if ui.input(|input| input.viewport().close_requested()) {
             let _ = self
                 .handle
                 .block_on(async { self.client.disconnect().await });

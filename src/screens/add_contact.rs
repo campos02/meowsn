@@ -29,16 +29,16 @@ impl AddContact {
         }
     }
 
-    pub fn add_contact(&mut self, ctx: &egui::Context) {
+    pub fn add_contact(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame {
-                    fill: ctx.style().visuals.window_fill,
+                    fill: ui.visuals().window_fill,
                     ..Default::default()
                 }
                 .inner_margin(5.),
             )
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 tui(ui, ui.id().with("add-contact-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -116,7 +116,7 @@ impl AddContact {
                     })
             });
 
-        if ctx.input(|i| i.viewport().close_requested()) {
+        if ui.input(|i| i.viewport().close_requested()) {
             let _ = self
                 .contacts_sender
                 .send(crate::screens::contacts::contacts::Message::CloseAddContact);

@@ -5,9 +5,8 @@ use crate::models::sign_in_return::SignInReturn;
 use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
 use crate::svg;
-use crate::widgets::custom_fill_combo_box::CustomFillComboBox;
 use eframe::egui;
-use eframe::egui::{FontFamily, FontId};
+use eframe::egui::{ComboBox, FontFamily, FontId};
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
@@ -87,7 +86,7 @@ impl SignIn {
 }
 
 impl eframe::App for SignIn {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Ok(message) = self.receiver.try_recv() {
             let Message::SignInResult(result) = message;
             match result {
@@ -106,7 +105,7 @@ impl eframe::App for SignIn {
                         .main_window_sender
                         .send(crate::main_window::Message::SignIn(sign_in_return));
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Err(SignInError::SdkError(error)) => {
@@ -115,12 +114,12 @@ impl eframe::App for SignIn {
                         .send(crate::main_window::Message::OpenDialog(error.to_string()));
 
                     self.sign_in_cancellation_token = None;
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Err(SignInError::Cancelled) => {
                     self.sign_in_cancellation_token = None;
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
             }
         }
@@ -128,12 +127,12 @@ impl eframe::App for SignIn {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame {
-                    fill: ctx.style().visuals.window_fill,
+                    fill: ui.visuals().window_fill,
                     ..Default::default()
                 }
                 .inner_margin(30.),
             )
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 tui(ui, ui.id().with("sign-in-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -197,10 +196,9 @@ impl eframe::App for SignIn {
                                         .on_hover_text("Enter your e-mail address");
                                     });
 
-                                    CustomFillComboBox::from_label("")
+                                    ComboBox::from_label("")
                                         .selected_text("")
                                         .width(3.)
-                                        .fill_color(ui.visuals().text_edit_bg_color())
                                         .show_ui(ui, |ui| {
                                             for email in &self.emails {
                                                 if ui
@@ -369,7 +367,7 @@ impl eframe::App for SignIn {
                                         ),
                                     );
 
-                                    ctx.request_repaint();
+                                    ui.request_repaint();
                                 } else {
                                     let token = CancellationToken::new();
 

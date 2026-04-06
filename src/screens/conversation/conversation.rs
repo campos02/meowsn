@@ -217,7 +217,7 @@ impl Conversation {
         }
     }
 
-    pub fn handle_event(&mut self, message: main_window::Message, ctx: &egui::Context) {
+    pub fn handle_event(&mut self, message: main_window::Message, ui: &egui::Context) {
         match message {
             main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
@@ -398,7 +398,7 @@ impl Conversation {
                                         .show();
                                 }
 
-                                ctx.send_viewport_cmd_to(
+                                ui.send_viewport_cmd_to(
                                     self.viewport_id,
                                     egui::ViewportCommand::RequestUserAttention(
                                         egui::UserAttentionType::Informational,
@@ -447,7 +447,7 @@ impl Conversation {
                                         .show();
                                 }
 
-                                ctx.send_viewport_cmd_to(
+                                ui.send_viewport_cmd_to(
                                     self.viewport_id,
                                     egui::ViewportCommand::RequestUserAttention(
                                         egui::UserAttentionType::Informational,
@@ -497,9 +497,9 @@ impl Conversation {
         }
     }
 
-    pub fn conversation(&mut self, ctx: &egui::Context) {
+    pub fn conversation(&mut self, ui: &mut egui::Ui) {
         let previous_focus = self.focused;
-        self.focused = ctx.input(|input| input.viewport().focused.is_some_and(|focused| focused));
+        self.focused = ui.input(|input| input.viewport().focused.is_some_and(|focused| focused));
 
         if !previous_focus && self.focused {
             for participant in self.participants.values() {
@@ -539,13 +539,13 @@ impl Conversation {
 
                             let sender = self.main_window_sender.clone();
                             let session_id = session_id.clone();
-                            let ctx = ctx.clone();
+                            let ui = ui.clone();
 
                             self.handle.block_on(async {
                                 switchboard.add_event_handler_closure(move |event| {
                                     let sender = sender.clone();
                                     let session_id = session_id.clone();
-                                    let ctx = ctx.clone();
+                                    let ui = ui.clone();
 
                                     async move {
                                         let _ =
@@ -553,7 +553,7 @@ impl Conversation {
                                                 session_id, event,
                                             ));
 
-                                        ctx.request_repaint();
+                                        ui.request_repaint();
                                     }
                                 });
                             });
@@ -565,7 +565,7 @@ impl Conversation {
                             .main_window_sender
                             .send(main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     }
                 },
 
@@ -575,7 +575,7 @@ impl Conversation {
                             .main_window_sender
                             .send(main_window::Message::OpenDialog(error.to_string()));
 
-                        ctx.request_repaint();
+                        ui.request_repaint();
                     }
                 }
 
@@ -585,7 +585,7 @@ impl Conversation {
             }
         }
 
-        egui::SidePanel::right("display_pictures")
+        egui::Panel::right("display_pictures")
             .frame(egui::Frame {
                 inner_margin: egui::Margin {
                     top: 15,
@@ -593,13 +593,13 @@ impl Conversation {
                     left: 5,
                     right: 15,
                 },
-                fill: ctx.style().visuals.window_fill,
+                fill: ui.visuals().window_fill,
                 ..Default::default()
             })
-            .default_width(120.)
+            .default_size(120.)
             .show_separator_line(false)
             .resizable(false)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 tui(ui, ui.id().with("conversation_screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -644,7 +644,7 @@ impl Conversation {
                     });
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             tui(ui, ui.id().with("conversation_screen"))
                 .reserve_available_space()
                 .style(taffy::Style {
@@ -741,7 +741,7 @@ impl Conversation {
                                 .clicked()
                             {
                                 if self.invite_window.is_some() {
-                                    ctx.send_viewport_cmd_to(
+                                    ui.send_viewport_cmd_to(
                                         egui::ViewportId::from_hash_of(format!(
                                             "{:?}-invite",
                                             self.viewport_id
@@ -832,7 +832,7 @@ impl Conversation {
         });
 
         if let Some(invite) = &mut self.invite_window {
-            ctx.show_viewport_immediate(
+            ui.show_viewport_immediate(
                 egui::ViewportId::from_hash_of(format!("{:?}-invite", self.viewport_id)),
                 egui::ViewportBuilder::default()
                     .with_title("Invite someone into this conversation")
@@ -840,8 +840,8 @@ impl Conversation {
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),
-                |ctx, _| {
-                    invite.invite(ctx);
+                |ui, _| {
+                    invite.invite(ui);
                 },
             );
         }

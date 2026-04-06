@@ -121,7 +121,7 @@ fn display_text_message(
                         FontSelection::Default.resolve(ui.style())
                     },
                     color: if is_url {
-                        ui.style().visuals.hyperlink_color
+                        ui.visuals().hyperlink_color
                     } else {
                         text_color
                     },

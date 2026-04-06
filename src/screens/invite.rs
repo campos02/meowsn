@@ -28,16 +28,16 @@ impl Invite {
         }
     }
 
-    pub fn invite(&mut self, ctx: &egui::Context) {
+    pub fn invite(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame {
-                    fill: ctx.style().visuals.window_fill,
+                    fill: ui.visuals().window_fill,
                     ..Default::default()
                 }
                 .inner_margin(5.),
             )
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 tui(ui, ui.id().with("invite-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -102,7 +102,7 @@ impl Invite {
                     })
             });
 
-        if ctx.input(|i| i.viewport().close_requested()) {
+        if ui.input(|i| i.viewport().close_requested()) {
             let _ = self
                 .conversation_sender
                 .send(conversation::Message::CloseInvite);

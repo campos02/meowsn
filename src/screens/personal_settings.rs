@@ -64,10 +64,10 @@ impl PersonalSettings {
         }
     }
 
-    pub fn personal_settings(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("tabs")
+    pub fn personal_settings(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::left("tabs")
             .resizable(false)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.vertical(|ui| {
                     let label = ui.selectable_label(
                         self.selected_tab == SelectedTab::General,
@@ -89,7 +89,7 @@ impl PersonalSettings {
                 })
             });
 
-        egui::TopBottomPanel::bottom("version")
+        egui::Panel::bottom("version")
             .frame(egui::Frame {
                 inner_margin: egui::Margin {
                     top: 15,
@@ -97,18 +97,18 @@ impl PersonalSettings {
                     left: 15,
                     right: 15,
                 },
-                fill: ctx.style().visuals.window_fill,
+                fill: ui.visuals().window_fill,
                 ..Default::default()
             })
             .show_separator_line(false)
             .resizable(false)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(format!("meowsn v{}", env!("CARGO_PKG_VERSION")));
                 });
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             tui(ui, ui.id().with("personal-settings-screen"))
                 .reserve_available_space()
                 .style(taffy::Style {
@@ -219,7 +219,7 @@ impl PersonalSettings {
                                         };
 
                                         let _ = settings::save_settings(&settings);
-                                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
 
                                         if let Some(display_name) = self.display_name.clone()
                                             && let Some(client) = self.client.clone()
@@ -280,7 +280,7 @@ impl PersonalSettings {
                                             ui.add_space(3.);
                                             ui.push_id(0, |ui| {
                                                 egui::Frame::new()
-                                                    .fill(ui.style().visuals.text_edit_bg_color())
+                                                    .fill(ui.visuals().text_edit_bg_color())
                                                     .show(ui, |ui| {
                                                     egui::ScrollArea::vertical()
                                                         .min_scrolled_height(120.)
@@ -353,7 +353,7 @@ impl PersonalSettings {
                                             ui.add_space(3.);
                                             ui.push_id(2, |ui| {
                                                 egui::Frame::new()
-                                                    .fill(ui.style().visuals.text_edit_bg_color())
+                                                    .fill(ui.visuals().text_edit_bg_color())
                                                     .show(ui, |ui| {
                                                     egui::ScrollArea::vertical()
                                                         .min_scrolled_height(120.)
@@ -396,7 +396,7 @@ impl PersonalSettings {
                                     ui.add_space(3.);
 
                                     egui::Frame::new()
-                                        .fill(ui.style().visuals.text_edit_bg_color())
+                                        .fill(ui.visuals().text_edit_bg_color())
                                         .inner_margin(5.)
                                         .show(ui, |ui| {
                                         egui::ScrollArea::vertical()
@@ -436,7 +436,7 @@ impl PersonalSettings {
                                             };
 
                                             let _ = settings::save_settings(&settings);
-                                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                            ui.send_viewport_cmd(egui::ViewportCommand::Close);
 
                                             if let Some(client) = self.client.clone()
                                                 && let Some(sender) = self.contacts_sender.clone() {

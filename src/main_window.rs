@@ -90,20 +90,18 @@ impl MainWindow {
 }
 
 impl eframe::App for MainWindow {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let old = ctx.style().visuals.clone();
-        if ctx.style().visuals.dark_mode {
-            ctx.set_visuals(visuals::dark_mode(old));
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        let old = ui.visuals().clone();
+        if ui.visuals().dark_mode {
+            ui.set_visuals(visuals::dark_mode(old));
         } else {
-            ctx.set_visuals(visuals::light_mode(old));
+            ui.set_visuals(visuals::light_mode(old));
         }
 
-        ctx.style_mut(|style| {
-            style.spacing.button_padding = egui::Vec2::splat(5.);
-            style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
-            style.visuals.indent_has_left_vline = false;
-            style.spacing.combo_height = 250.;
-        });
+        ui.style_mut().spacing.button_padding = egui::Vec2::splat(5.);
+        ui.style_mut().visuals.widgets.noninteractive.corner_radius = CornerRadius::same(8);
+        ui.style_mut().visuals.indent_has_left_vline = false;
+        ui.style_mut().spacing.combo_height = 250.;
 
         if let Ok(message) = self.receiver.try_recv() {
             match message {
@@ -117,21 +115,21 @@ impl eframe::App for MainWindow {
                     )));
 
                     let sender = self.sender.clone();
-                    let main_ctx = ctx.clone();
+                    let main_ui = ui.clone();
 
                     self.handle.block_on(async {
                         client.add_event_handler_closure(move |event| {
                             let sender = sender.clone();
-                            let ctx = main_ctx.clone();
+                            let ui = main_ui.clone();
 
                             async move {
                                 let _ = sender.send(Message::NotificationServerEvent(event));
-                                ctx.request_repaint();
+                                ui.request_repaint();
                             }
                         });
                     });
 
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                    ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                         egui::UserAttentionType::Informational,
                     ));
                 }
@@ -152,7 +150,7 @@ impl eframe::App for MainWindow {
                     blp_bl,
                 ) => {
                     if self.personal_settings_window.is_some() {
-                        ctx.send_viewport_cmd_to(
+                        ui.send_viewport_cmd_to(
                             egui::ViewportId::from_hash_of("personal-settings"),
                             egui::ViewportCommand::Focus,
                         );
@@ -173,7 +171,7 @@ impl eframe::App for MainWindow {
                 Message::ClosePersonalSettings => self.personal_settings_window = None,
                 Message::OpenDialog(text) => {
                     self.dialog_window_text = Some(text);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                    ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                         egui::UserAttentionType::Informational,
                     ));
                 }
@@ -187,7 +185,7 @@ impl eframe::App for MainWindow {
                         ));
 
                         self.dialog_window_text = Some("Lost connection to the server".to_string());
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let msnp11_sdk::Event::LoggedInAnotherDevice = event {
@@ -201,23 +199,23 @@ impl eframe::App for MainWindow {
                             "Disconnected as you have signed in on another computer".to_string(),
                         );
 
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(
                             Message::NotificationServerEvent(event.clone()),
-                            ctx,
+                            ui,
                             &mut self.conversations,
                         );
 
                         for conversation in self.conversations.values_mut() {
                             conversation
-                                .handle_event(Message::NotificationServerEvent(event.clone()), ctx);
+                                .handle_event(Message::NotificationServerEvent(event.clone()), ui);
                         }
                     }
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Message::SwitchboardEvent(session_id, event) => {
@@ -229,31 +227,31 @@ impl eframe::App for MainWindow {
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(
                             Message::SwitchboardEvent(session_id.clone(), event.clone()),
-                            ctx,
+                            ui,
                             &mut self.conversations,
                         );
 
                         for conversation in self.conversations.values_mut() {
                             conversation.handle_event(
                                 Message::SwitchboardEvent(session_id.clone(), event.clone()),
-                                ctx,
+                                ui,
                             );
                         }
                     }
 
-                    ctx.request_repaint();
+                    ui.request_repaint();
                 }
 
                 Message::UserDisplayPictureChanged(picture) => {
                     for conversation in self.conversations.values_mut() {
                         conversation
-                            .handle_event(Message::UserDisplayPictureChanged(picture.clone()), ctx);
+                            .handle_event(Message::UserDisplayPictureChanged(picture.clone()), ui);
                     }
                 }
 
                 Message::UserStatusChanged(status) => {
                     for conversation in self.conversations.values_mut() {
-                        conversation.handle_event(Message::UserStatusChanged(status.clone()), ctx);
+                        conversation.handle_event(Message::UserStatusChanged(status.clone()), ui);
                     }
                 }
 
@@ -264,7 +262,7 @@ impl eframe::App for MainWindow {
                                 email: email.clone(),
                                 data: data.clone(),
                             },
-                            ctx,
+                            ui,
                             &mut self.conversations,
                         );
                     }
@@ -275,7 +273,7 @@ impl eframe::App for MainWindow {
                                 email: email.clone(),
                                 data: data.clone(),
                             },
-                            ctx,
+                            ui,
                         );
                     }
                 }
@@ -285,7 +283,7 @@ impl eframe::App for MainWindow {
                         self.dialog_window_text =
                             Some(format!("Error setting display name: {error}"));
 
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        ui.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                             egui::UserAttentionType::Informational,
                         ));
                     } else if let Screen::Contacts(contacts) = &mut self.screen {
@@ -293,7 +291,7 @@ impl eframe::App for MainWindow {
                             Message::NotificationServerEvent(msnp11_sdk::Event::DisplayName(
                                 display_name,
                             )),
-                            ctx,
+                            ui,
                             &mut self.conversations,
                         );
                     }
@@ -316,7 +314,7 @@ impl eframe::App for MainWindow {
                                     .as_ref()
                                     .is_some_and(|participant| participant.email == contact.email)
                     }) {
-                        ctx.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
+                        ui.send_viewport_cmd_to(*id, egui::ViewportCommand::Focus);
                         let _ = self
                             .sender
                             .send(Message::ContactChatWindowFocused(contact.email.clone()));
@@ -349,7 +347,7 @@ impl eframe::App for MainWindow {
                     if let Screen::Contacts(contacts) = &mut self.screen {
                         contacts.handle_event(
                             Message::ContactChatWindowFocused(email),
-                            ctx,
+                            ui,
                             &mut self.conversations,
                         );
                     }
@@ -358,12 +356,12 @@ impl eframe::App for MainWindow {
         }
 
         match &mut self.screen {
-            Screen::SignIn(sign_in) => sign_in.update(ctx, frame),
-            Screen::Contacts(contacts) => contacts.update(ctx, frame),
+            Screen::SignIn(sign_in) => sign_in.ui(ui, frame),
+            Screen::Contacts(contacts) => contacts.ui(ui, frame),
         }
 
         if self.dialog_window_text.is_some() {
-            ctx.show_viewport_immediate(
+            ui.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("dialog"),
                 egui::ViewportBuilder::default()
                     .with_title("meowsn")
@@ -371,9 +369,9 @@ impl eframe::App for MainWindow {
                     .with_maximize_button(false)
                     .with_minimize_button(false)
                     .with_resizable(false),
-                |ctx, _| {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    egui::CentralPanel::default().show(ctx, |ui| {
+                |ui, _| {
+                    ui.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    egui::CentralPanel::default().show_inside(ui, |ui| {
                         ui.add_space(18.);
                         ui.vertical_centered(|ui| {
                             ui.add(
@@ -390,7 +388,7 @@ impl eframe::App for MainWindow {
                         });
                     });
 
-                    if ctx.input(|i| i.viewport().close_requested()) {
+                    if ui.input(|i| i.viewport().close_requested()) {
                         self.dialog_window_text = None;
                     }
                 },
@@ -399,15 +397,15 @@ impl eframe::App for MainWindow {
 
         for (id, conversation) in &mut self.conversations {
             // Immediate might waste more CPU cycles but deferred is a real PITA in this type of application
-            ctx.show_viewport_immediate(
+            ui.show_viewport_immediate(
                 *id,
                 egui::ViewportBuilder::default()
                     .with_title(conversation.get_title())
                     .with_inner_size([1000., 650.])
                     .with_min_inner_size([800., 500.]),
-                |ctx, _| {
-                    conversation.conversation(ctx);
-                    if ctx.input(|input| input.viewport().close_requested()) {
+                |ui, _| {
+                    conversation.conversation(ui);
+                    if ui.input(|input| input.viewport().close_requested()) {
                         conversation.leave_switchboards();
                         let _ = self.sender.send(Message::CloseConversation(*id));
                     }
@@ -417,20 +415,20 @@ impl eframe::App for MainWindow {
 
         if let Some(personal_settings_window) = &mut self.personal_settings_window {
             let sender = self.sender.clone();
-            let main_ctx = ctx.clone();
+            let main_ui = ui.clone();
 
-            ctx.show_viewport_immediate(
+            ui.show_viewport_immediate(
                 egui::ViewportId::from_hash_of("personal-settings"),
                 egui::ViewportBuilder::default()
                     .with_title("Personal settings")
                     .with_inner_size([600., 500.])
                     .with_maximize_button(false)
                     .with_resizable(false),
-                move |ctx, _| {
-                    personal_settings_window.personal_settings(ctx);
-                    if ctx.input(|input| input.viewport().close_requested()) {
+                move |ui, _| {
+                    personal_settings_window.personal_settings(ui);
+                    if ui.input(|input| input.viewport().close_requested()) {
                         let _ = sender.send(Message::ClosePersonalSettings);
-                        main_ctx.request_repaint();
+                        main_ui.request_repaint();
                     }
                 },
             );

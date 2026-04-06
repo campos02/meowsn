@@ -52,7 +52,7 @@ pub fn status_selector(
     let old_status = *selected_status;
     CustomFillComboBox::from_label("")
         .selected_text(format!("{display_name}   ({})", selected_status))
-        .fill_color(ui.style().visuals.window_fill)
+        .fill_color(ui.visuals().window_fill)
         .show_ui(ui, |ui| {
             ui.selectable_value(selected_status, Status::Online, Status::Online.to_string());
             ui.selectable_value(selected_status, Status::Busy, Status::Busy.to_string());
