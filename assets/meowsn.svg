@@ -6,7 +6,7 @@
    viewBox="0 0 67.733013 67.733"
    version="1.1"
    sodipodi:docname="meowsn.svg"
-   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    inkscape:export-filename="meowsn.png"
    inkscape:export-xdpi="24"
    inkscape:export-ydpi="24"
@@ -26,14 +26,15 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="0.61230469"
      inkscape:cx="569.16108"
-     inkscape:cy="512.81658"
+     inkscape:cy="513.63317"
      inkscape:window-width="1600"
-     inkscape:window-height="842"
-     inkscape:window-x="0"
-     inkscape:window-y="0"
+     inkscape:window-height="829"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
      inkscape:window-maximized="1"
      inkscape:current-layer="vector"
-     showguides="true" />
+     showguides="true"
+     inkscape:export-bgcolor="#ffffff00" />
   <defs
      id="defs8">
     <linearGradient
