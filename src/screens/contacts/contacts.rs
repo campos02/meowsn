@@ -115,7 +115,7 @@ impl Contacts {
     pub fn handle_event(
         &mut self,
         message: crate::main_window::Message,
-        ui: &egui::Context,
+        ui: &mut egui::Ui,
         conversations: &mut HashMap<egui::ViewportId, conversation::Conversation>,
     ) {
         match message {

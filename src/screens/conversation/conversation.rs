@@ -217,7 +217,7 @@ impl Conversation {
         }
     }
 
-    pub fn handle_event(&mut self, message: main_window::Message, ui: &egui::Context) {
+    pub fn handle_event(&mut self, message: main_window::Message, ui: &mut egui::Ui) {
         match message {
             main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
