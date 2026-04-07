@@ -50,8 +50,8 @@ pub fn status_selector(
     blp_bl: bool,
 ) {
     let old_status = *selected_status;
-    CustomComboBox::from_label("")
-        .selected_text(format!("{display_name}   ({})", selected_status))
+    CustomComboBox::from_id_salt("status-combobox")
+        .selected_text(format!("{display_name}   ({selected_status})"))
         .fill_color(ui.visuals().window_fill)
         .show_ui(ui, |ui| {
             ui.selectable_value(selected_status, Status::Online, Status::Online.to_string());

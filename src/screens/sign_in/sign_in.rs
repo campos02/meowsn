@@ -196,7 +196,7 @@ impl eframe::App for SignIn {
                                         .on_hover_text("Enter your e-mail address");
                                     });
 
-                                    ComboBox::from_label("")
+                                    ComboBox::from_id_salt("email-combobox")
                                         .selected_text("")
                                         .width(3.)
                                         .show_ui(ui, |ui| {
