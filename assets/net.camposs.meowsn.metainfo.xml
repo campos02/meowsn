@@ -20,6 +20,9 @@
     <url type="homepage">https://github.com/campos02/meowsn</url>
     <url type="vcs-browser">https://github.com/campos02/meowsn</url>
     <releases>
+        <release version="0.12.0" date="2026-04-07">
+            <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.12.0</url>
+        </release>
         <release version="0.11.1" date="2026-04-01">
             <url type="details">https://github.com/campos02/meowsn/releases/tag/v0.11.1</url>
         </release>
