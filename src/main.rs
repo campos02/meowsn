@@ -43,8 +43,6 @@ fn common_main() -> eframe::Result {
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            cc.egui_ctx.set_pixels_per_point(1.02);
-
             let mut fonts = egui::FontDefinitions::default();
             fonts.font_data.insert(
                 "noto_sans".to_string(),
