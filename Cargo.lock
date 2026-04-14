@@ -1168,9 +1168,9 @@ dependencies = [
 
 [[package]]
 name = "egui_taffy"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44e1db72e32df583428691077e1f30b3a5762cb1858aa5b4503b5c9aee1f71bb"
+checksum = "b881b8aded1364fc1b27a31fe40882b17ae549dd318a53821e96c7c607f4dc65"
 dependencies = [
  "egui",
  "log",
@@ -1769,9 +1769,9 @@ dependencies = [
 
 [[package]]
 name = "grid"
-version = "0.15.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36119f3a540b086b4e436bb2b588cf98a68863470e0e880f4d0842f112a3183a"
+checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
 
 [[package]]
 name = "guid-create"
@@ -2465,7 +2465,7 @@ dependencies = [
 
 [[package]]
 name = "meowsn"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "dirs",
  "eframe",
@@ -2545,9 +2545,9 @@ dependencies = [
 
 [[package]]
 name = "msnp11-sdk"
-version = "0.11.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5939f9b49249460190f6be6eec57d90492c166429e92a2733ae00ad7e9880ed"
+checksum = "061b4f347fa6ef35ff414abe47e6d8ca42b879e3142e0eb35b9cf01e15adb4e1"
 dependencies = [
  "async-channel",
  "base64",
@@ -4555,9 +4555,9 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.7.7"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab4f4d046dd956a47a7e1a2947083d7ac3e6aa3cfaaead36173ceaa5ab11878c"
+checksum = "41ba83ebaf2954d31d05d67340fd46cebe99da2b7133b0dd68d70c65473a437b"
 dependencies = [
  "arrayvec",
  "grid",
