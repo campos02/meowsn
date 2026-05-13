@@ -253,214 +253,211 @@ impl Conversation {
                 _ => (),
             },
 
-            main_window::Message::SwitchboardEvent(session_id, event) => {
-                if self.switchboards.contains_key(&session_id) {
-                    match event {
-                        msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
-                            let email = Arc::new(email);
-                            self.participants.insert(
-                                email.clone(),
-                                self.contact_repository
-                                    .get_contact(&email)
-                                    .unwrap_or(Contact {
-                                        email: email.clone(),
-                                        display_name: email.clone(),
-                                        ..Contact::default()
-                                    }),
-                            );
+            main_window::Message::SwitchboardEvent(session_id, event)
+                if self.switchboards.contains_key(&session_id) =>
+            {
+                match event {
+                    msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
+                        let email = Arc::new(email);
+                        self.participants.insert(
+                            email.clone(),
+                            self.contact_repository
+                                .get_contact(&email)
+                                .unwrap_or(Contact {
+                                    email: email.clone(),
+                                    display_name: email.clone(),
+                                    ..Contact::default()
+                                }),
+                        );
 
-                            let _ = self.main_window_sender.send(
-                                main_window::Message::ContactChatWindowFocused(email.clone()),
-                            );
+                        let _ = self.main_window_sender.send(
+                            main_window::Message::ContactChatWindowFocused(email.clone()),
+                        );
 
-                            if self.last_participant.is_none()
-                                && self.participants.len() == 1
-                                && let Ok(mut message_history) = self.sqlite.select_messages(
-                                    &self.user_email,
-                                    &email,
-                                    INITIAL_HISTORY_LIMIT,
-                                )
-                            {
-                                message_history.reverse();
-                                self.messages = message_history;
-                            }
-
-                            if !self.message_buffer.is_empty()
-                                && let Some(switchboard) = self.switchboards.get(&session_id)
-                            {
-                                for mut message in self.message_buffer.drain(..) {
-                                    let switchboard = switchboard.clone();
-                                    let sender = self.sender.clone();
-
-                                    if !message.is_nudge {
-                                        let plain_text = msnp11_sdk::PlainText {
-                                            bold: message.bold,
-                                            italic: message.italic,
-                                            underline: message.underline,
-                                            strikethrough: message.strikethrough,
-                                            color: message.color.clone(),
-                                            text: message.text.clone(),
-                                        };
-
-                                        run_future(
-                                            self.handle.clone(),
-                                            async move {
-                                                switchboard.send_text_message(&plain_text).await
-                                            },
-                                            sender,
-                                            move |result| {
-                                                Message::SendMessageResult(
-                                                    std::mem::take(&mut message),
-                                                    result,
-                                                )
-                                            },
-                                        );
-                                    } else {
-                                        run_future(
-                                            self.handle.clone(),
-                                            async move { switchboard.send_nudge().await },
-                                            sender,
-                                            move |result| {
-                                                Message::SendMessageResult(
-                                                    std::mem::take(&mut message),
-                                                    result,
-                                                )
-                                            },
-                                        );
-                                    }
-                                }
-                            }
+                        if self.last_participant.is_none()
+                            && self.participants.len() == 1
+                            && let Ok(mut message_history) = self.sqlite.select_messages(
+                                &self.user_email,
+                                &email,
+                                INITIAL_HISTORY_LIMIT,
+                            )
+                        {
+                            message_history.reverse();
+                            self.messages = message_history;
                         }
 
-                        msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
-                            let participant = self.participants.remove(&email);
-                            if self.participants.is_empty() && participant.is_some() {
-                                self.last_participant = participant;
-                            }
-                        }
+                        if !self.message_buffer.is_empty()
+                            && let Some(switchboard) = self.switchboards.get(&session_id)
+                        {
+                            for mut message in self.message_buffer.drain(..) {
+                                let switchboard = switchboard.clone();
+                                let sender = self.sender.clone();
 
-                        msnp11_sdk::Event::TypingNotification { email } => {
-                            if self.participant_typing.is_none() {
-                                self.participant_typing =
-                                    if let Some(participant) = self.participants.get(&email) {
-                                        Some(participant.display_name.clone())
-                                    } else {
-                                        Some(Arc::new(email))
+                                if !message.is_nudge {
+                                    let plain_text = msnp11_sdk::PlainText {
+                                        bold: message.bold,
+                                        italic: message.italic,
+                                        underline: message.underline,
+                                        strikethrough: message.strikethrough,
+                                        color: message.color.clone(),
+                                        text: message.text.clone(),
                                     };
 
-                                run_future(
-                                    self.handle.clone(),
-                                    async {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(5))
-                                            .await;
-                                    },
-                                    self.sender.clone(),
-                                    |_| Message::ClearParticipantTyping,
-                                );
-                            }
-                        }
-
-                        msnp11_sdk::Event::TextMessage { email, message } => {
-                            let message = message::Message {
-                                sender: Arc::new(email),
-                                receiver: Some(self.user_email.clone()),
-                                is_nudge: false,
-                                text: message.text,
-                                bold: message.bold,
-                                italic: message.italic,
-                                underline: message.underline,
-                                strikethrough: message.strikethrough,
-                                session_id: None,
-                                color: message.color,
-                                is_history: false,
-                                errored: false,
-                            };
-
-                            let _ = self.sqlite.insert_message(&message);
-                            if !self.focused {
-                                if self.user_status != MsnpStatus::Busy {
-                                    let _ = notify_rust::Notification::new()
-                                        .summary(&format!(
-                                            "{} said:",
-                                            if let Some(participant) =
-                                                self.participants.get(&message.sender)
-                                            {
-                                                &participant.display_name
-                                            } else if let Some(participant) = &self.last_participant
-                                                && participant.email == message.sender
-                                            {
-                                                &*participant.display_name
-                                            } else {
-                                                &message.sender
-                                            }
-                                        ))
-                                        .body(&message.text)
-                                        .show();
+                                    run_future(
+                                        self.handle.clone(),
+                                        async move { switchboard.send_text_message(&plain_text).await },
+                                        sender,
+                                        move |result| {
+                                            Message::SendMessageResult(
+                                                std::mem::take(&mut message),
+                                                result,
+                                            )
+                                        },
+                                    );
+                                } else {
+                                    run_future(
+                                        self.handle.clone(),
+                                        async move { switchboard.send_nudge().await },
+                                        sender,
+                                        move |result| {
+                                            Message::SendMessageResult(
+                                                std::mem::take(&mut message),
+                                                result,
+                                            )
+                                        },
+                                    );
                                 }
-
-                                ui.send_viewport_cmd_to(
-                                    self.viewport_id,
-                                    egui::ViewportCommand::RequestUserAttention(
-                                        egui::UserAttentionType::Informational,
-                                    ),
-                                );
                             }
-
-                            self.messages.push(message);
-                            self.participant_typing = None;
                         }
-
-                        msnp11_sdk::Event::Nudge { email } => {
-                            let sender = Arc::new(email);
-                            let message = message::Message {
-                                sender: sender.clone(),
-                                receiver: Some(self.user_email.clone()),
-                                is_nudge: true,
-                                text: format!(
-                                    "{} just sent you a nudge!",
-                                    if let Some(participant) = self.participants.get(&sender) {
-                                        &participant.display_name
-                                    } else if let Some(participant) = &self.last_participant
-                                        && participant.email == sender
-                                    {
-                                        &*participant.display_name
-                                    } else {
-                                        &sender
-                                    }
-                                ),
-                                bold: false,
-                                italic: false,
-                                underline: false,
-                                strikethrough: false,
-                                session_id: None,
-                                color: "0".to_string(),
-                                is_history: false,
-                                errored: false,
-                            };
-
-                            let _ = self.sqlite.insert_message(&message);
-                            if !self.focused {
-                                if self.user_status != MsnpStatus::Busy {
-                                    let _ = notify_rust::Notification::new()
-                                        .summary("New message")
-                                        .body(&message.text)
-                                        .show();
-                                }
-
-                                ui.send_viewport_cmd_to(
-                                    self.viewport_id,
-                                    egui::ViewportCommand::RequestUserAttention(
-                                        egui::UserAttentionType::Informational,
-                                    ),
-                                );
-                            }
-
-                            self.messages.push(message);
-                            self.participant_typing = None;
-                        }
-
-                        _ => (),
                     }
+
+                    msnp11_sdk::Event::ParticipantLeftSwitchboard { email } => {
+                        let participant = self.participants.remove(&email);
+                        if self.participants.is_empty() && participant.is_some() {
+                            self.last_participant = participant;
+                        }
+                    }
+
+                    msnp11_sdk::Event::TypingNotification { email }
+                        if self.participant_typing.is_none() =>
+                    {
+                        self.participant_typing =
+                            if let Some(participant) = self.participants.get(&email) {
+                                Some(participant.display_name.clone())
+                            } else {
+                                Some(Arc::new(email))
+                            };
+
+                        run_future(
+                            self.handle.clone(),
+                            async {
+                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                            },
+                            self.sender.clone(),
+                            |_| Message::ClearParticipantTyping,
+                        );
+                    }
+
+                    msnp11_sdk::Event::TextMessage { email, message } => {
+                        let message = message::Message {
+                            sender: Arc::new(email),
+                            receiver: Some(self.user_email.clone()),
+                            is_nudge: false,
+                            text: message.text,
+                            bold: message.bold,
+                            italic: message.italic,
+                            underline: message.underline,
+                            strikethrough: message.strikethrough,
+                            session_id: None,
+                            color: message.color,
+                            is_history: false,
+                            errored: false,
+                        };
+
+                        let _ = self.sqlite.insert_message(&message);
+                        if !self.focused {
+                            if self.user_status != MsnpStatus::Busy {
+                                let _ = notify_rust::Notification::new()
+                                    .summary(&format!(
+                                        "{} said:",
+                                        if let Some(participant) =
+                                            self.participants.get(&message.sender)
+                                        {
+                                            &participant.display_name
+                                        } else if let Some(participant) = &self.last_participant
+                                            && participant.email == message.sender
+                                        {
+                                            &*participant.display_name
+                                        } else {
+                                            &message.sender
+                                        }
+                                    ))
+                                    .body(&message.text)
+                                    .show();
+                            }
+
+                            ui.send_viewport_cmd_to(
+                                self.viewport_id,
+                                egui::ViewportCommand::RequestUserAttention(
+                                    egui::UserAttentionType::Informational,
+                                ),
+                            );
+                        }
+
+                        self.messages.push(message);
+                        self.participant_typing = None;
+                    }
+
+                    msnp11_sdk::Event::Nudge { email } => {
+                        let sender = Arc::new(email);
+                        let message = message::Message {
+                            sender: sender.clone(),
+                            receiver: Some(self.user_email.clone()),
+                            is_nudge: true,
+                            text: format!(
+                                "{} just sent you a nudge!",
+                                if let Some(participant) = self.participants.get(&sender) {
+                                    &participant.display_name
+                                } else if let Some(participant) = &self.last_participant
+                                    && participant.email == sender
+                                {
+                                    &*participant.display_name
+                                } else {
+                                    &sender
+                                }
+                            ),
+                            bold: false,
+                            italic: false,
+                            underline: false,
+                            strikethrough: false,
+                            session_id: None,
+                            color: "0".to_string(),
+                            is_history: false,
+                            errored: false,
+                        };
+
+                        let _ = self.sqlite.insert_message(&message);
+                        if !self.focused {
+                            if self.user_status != MsnpStatus::Busy {
+                                let _ = notify_rust::Notification::new()
+                                    .summary("New message")
+                                    .body(&message.text)
+                                    .show();
+                            }
+
+                            ui.send_viewport_cmd_to(
+                                self.viewport_id,
+                                egui::ViewportCommand::RequestUserAttention(
+                                    egui::UserAttentionType::Informational,
+                                ),
+                            );
+                        }
+
+                        self.messages.push(message);
+                        self.participant_typing = None;
+                    }
+
+                    _ => (),
                 }
             }
 
