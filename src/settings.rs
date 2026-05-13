@@ -1,3 +1,4 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -23,30 +24,23 @@ impl Default for Settings {
     }
 }
 
-#[allow(dead_code)]
-pub enum SettingsError {
-    GetLocalDir,
-    CreateSettingsDirectory(std::io::Error),
-    GetSettings,
-    SerializeSettings(toml::ser::Error),
-    DeserializeSettings(toml::de::Error),
-    WriteSettings(std::io::Error),
-}
-
-pub fn get_settings() -> Result<Settings, SettingsError> {
+pub fn get_settings() -> anyhow::Result<Settings> {
     // Compatibility with previous name
-    let mut old_settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
+    let mut old_settings_local =
+        dirs::data_local_dir().context("Could not find local data directory")?;
+
     old_settings_local.push("icedm");
 
-    let mut settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
+    let mut settings_local =
+        dirs::data_local_dir().context("Could not find local data directory")?;
+
     settings_local.push("meowsn");
 
     if old_settings_local.exists() {
-        std::fs::rename(old_settings_local.clone(), settings_local.clone())
-            .map_err(SettingsError::CreateSettingsDirectory)?;
+        std::fs::rename(old_settings_local.clone(), settings_local.clone())?;
     }
 
-    std::fs::create_dir_all(&settings_local).map_err(SettingsError::CreateSettingsDirectory)?;
+    std::fs::create_dir_all(&settings_local)?;
 
     let mut old_settings_local = settings_local.clone();
     old_settings_local.push("icedm");
@@ -56,26 +50,21 @@ pub fn get_settings() -> Result<Settings, SettingsError> {
     settings_local.set_extension("toml");
 
     if old_settings_local.exists() {
-        std::fs::rename(old_settings_local, settings_local.clone())
-            .map_err(SettingsError::CreateSettingsDirectory)?;
+        std::fs::rename(old_settings_local, settings_local.clone())?;
     }
 
-    toml::from_str(&std::fs::read_to_string(settings_local).or(Err(SettingsError::GetSettings))?)
-        .map_err(SettingsError::DeserializeSettings)
+    toml::from_str(&std::fs::read_to_string(settings_local)?).context("Could not read settings")
 }
 
-pub fn save_settings(settings: &Settings) -> Result<(), SettingsError> {
-    let mut settings_local = dirs::data_local_dir().ok_or(SettingsError::GetLocalDir)?;
+pub fn save_settings(settings: &Settings) -> anyhow::Result<()> {
+    let mut settings_local =
+        dirs::data_local_dir().context("Could not find local data directory")?;
 
     settings_local.push("meowsn");
-    std::fs::create_dir_all(&settings_local).or(Err(SettingsError::GetLocalDir))?;
+    std::fs::create_dir_all(&settings_local).context("Could not find local data directory")?;
 
     settings_local.push("meowsn");
     settings_local.set_extension("toml");
 
-    std::fs::write(
-        settings_local,
-        toml::to_string(&settings).map_err(SettingsError::SerializeSettings)?,
-    )
-    .map_err(SettingsError::WriteSettings)
+    std::fs::write(settings_local, toml::to_string(&settings)?).context("Could not save settings")
 }

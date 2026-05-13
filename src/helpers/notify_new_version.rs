@@ -8,7 +8,7 @@ struct Release {
     tag_name: String,
 }
 
-pub async fn notify_new_version() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn notify_new_version() -> anyhow::Result<()> {
     let settings = settings::get_settings().unwrap_or_default();
     if !settings.check_for_updates {
         return Ok(());

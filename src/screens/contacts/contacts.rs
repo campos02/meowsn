@@ -23,7 +23,7 @@ use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 pub enum Message {
-    DisplayPictureResult(Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>>),
+    DisplayPictureResult(anyhow::Result<DisplayPicture>),
     StatusResult(MsnpStatus, Result<(), SdkError>),
     PersonalMessageResult(Result<(), SdkError>),
     BlpResult {
@@ -34,7 +34,7 @@ pub enum Message {
     UnblockResult(Arc<String>, Result<(), ContactError>),
     DeleteResult(Arc<String>, Result<(), ContactError>),
     AddContactResult(Box<Result<msnp11_sdk::Event, ContactError>>),
-    GetConfigResult(Result<models::config::Config, Box<dyn std::error::Error + Sync + Send>>),
+    GetConfigResult(anyhow::Result<models::config::Config>),
     CloseAddContact,
 }
 

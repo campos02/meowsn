@@ -3,10 +3,7 @@ use crate::models::tab::Tab;
 use msnp11_sdk::Client;
 use std::sync::Arc;
 
-pub async fn get_config(
-    client: Arc<Client>,
-    config_url: String,
-) -> Result<Config, Box<dyn std::error::Error + Sync + Send>> {
+pub async fn get_config(client: Arc<Client>, config_url: String) -> anyhow::Result<Config> {
     let config = client.get_config(&config_url).await?;
     let client = reqwest::Client::new();
 

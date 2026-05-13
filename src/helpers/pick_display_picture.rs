@@ -1,9 +1,10 @@
 use crate::models::display_picture::DisplayPicture;
 use crate::sqlite::Sqlite;
+use anyhow::Context;
 use image::imageops::FilterType;
 use msnp11_sdk::Client;
 use rfd::FileHandle;
-use std::io::{Cursor, ErrorKind};
+use std::io::Cursor;
 use std::sync::Arc;
 
 pub async fn pick_display_picture(
@@ -11,11 +12,10 @@ pub async fn pick_display_picture(
     email: Arc<String>,
     client: Arc<Client>,
     sqlite: Sqlite,
-) -> Result<DisplayPicture, Box<dyn std::error::Error + Sync + Send>> {
-    let picture = picture_future.await.ok_or(std::io::Error::new(
-        ErrorKind::NotFound,
-        "Display picture not found",
-    ))?;
+) -> anyhow::Result<DisplayPicture> {
+    let picture = picture_future
+        .await
+        .context("Could not find display picture")?;
 
     let mut bytes = Vec::new();
     let picture = image::open(picture.path())?;

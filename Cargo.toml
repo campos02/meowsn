@@ -22,6 +22,7 @@ notify-rust = "4.13.1"
 reqwest = { version = "0.12.28", features = ["charset", "http2", "rustls-tls", "json"], default-features = false }
 semver = "1.0.27"
 regex = "1.12.2"
+anyhow = "1.0.102"
 
 [profile.release]
 codegen-units = 1
