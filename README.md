@@ -4,4 +4,4 @@ A cross-platform MSNP11 client powered by [msnp11-sdk](https://github.com/campos
 ### Installing on Arch Linux
 If you wish to install on Arch without using the Flatpak, you can clone this repo (or download the source zip) and run `makepkg -si`.
 
-<img width="349" height="628" alt="meowsn contact list screen" src="https://github.com/user-attachments/assets/1980ea4e-82d2-4a73-b6ed-72562f3398d9" />
+<img width="346" height="629" alt="meowsn contact list screen" src="https://github.com/user-attachments/assets/1899bda2-79af-49d9-950c-10fdf2095104" />
