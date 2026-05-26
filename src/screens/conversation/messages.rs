@@ -7,7 +7,14 @@ use egui_taffy::taffy::prelude::{auto, percent, span};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use regex::Regex;
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+static URL_REGEX: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(
+        r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
+    )
+    .ok()
+});
 
 pub fn messages(
     tui: &mut Tui,
@@ -16,7 +23,6 @@ pub fn messages(
     user_email: Arc<String>,
     user_display_name: Arc<String>,
     messages: &[message::Message],
-    url_regex: &Option<Regex>,
 ) {
     tui.style(taffy::Style {
         justify_self: Some(taffy::JustifySelf::Start),
@@ -62,7 +68,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, url_regex, ui.visuals().text_color());
+                                    display_text_message(ui, message, &*URL_REGEX, ui.visuals().text_color());
                                 });
                             } else if message.errored {
                                 ui.separator();
@@ -71,7 +77,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, url_regex, if ui.visuals().dark_mode {
+                                    display_text_message(ui, message, &*URL_REGEX, if ui.visuals().dark_mode {
                                         egui::Color32::GRAY
                                     } else {
                                         egui::Color32::from_gray(120)

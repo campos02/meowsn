@@ -14,11 +14,10 @@ use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{fr, length, line, percent};
-use egui_taffy::{TuiBuilderLogic, taffy, tui};
+use egui_taffy::{taffy, tui, TuiBuilderLogic};
 use msnp11_sdk::{Client, MessagingError, MsnpStatus, SdkError, Switchboard};
-use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, mpsc};
+use std::sync::{mpsc, Arc};
 use tokio::runtime::Handle;
 
 const INITIAL_HISTORY_LIMIT: u32 = 3;
@@ -55,7 +54,6 @@ pub struct Conversation {
     underline: bool,
     strikethrough: bool,
     focused: bool,
-    url_regex: Option<Regex>,
     handle: Handle,
     viewport_id: egui::viewport::ViewportId,
     invite_window: Option<invite::Invite>,
@@ -122,9 +120,6 @@ impl Conversation {
             italic: false,
             underline: false,
             strikethrough: false,
-            url_regex: Regex::new(
-            r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
-            ).ok(),
             focused: false,
             handle,
             viewport_id,
@@ -207,9 +202,6 @@ impl Conversation {
             italic: false,
             underline: false,
             strikethrough: false,
-            url_regex: Regex::new(
-                r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
-            ).ok(),
             focused: false,
             handle,
             viewport_id,
@@ -782,7 +774,6 @@ impl Conversation {
                         self.user_email.clone(),
                         self.user_display_name.clone(),
                         &self.messages,
-                        &self.url_regex,
                     );
 
                     tui.style(taffy::Style {

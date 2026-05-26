@@ -19,8 +19,11 @@ use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
 use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, LazyLock, mpsc};
 use tokio::runtime::Handle;
+
+static PLUS_TAGS_REGEX: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"\[/?[abcius]=.*?]|\[/?[abcius]]").ok());
 
 pub enum Message {
     DisplayPictureResult(anyhow::Result<DisplayPicture>),
@@ -50,13 +53,12 @@ pub struct Contacts {
     offline_contacts: BTreeMap<Arc<String>, Contact>,
     contact_repository: ContactRepository,
     selected_contact: Option<Arc<String>>,
-    plus_tags_regex: Option<Regex>,
     client: Arc<Client>,
     blp_bl: bool,
     sender: mpsc::Sender<Message>,
     receiver: mpsc::Receiver<Message>,
     sqlite: Sqlite,
-    tabs: Vec<Tab>,
+    tabs: Option<Vec<Tab>>,
     msn_today_url: Option<String>,
     add_contact_window: Option<add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
@@ -98,13 +100,12 @@ impl Contacts {
             offline_contacts: BTreeMap::new(),
             contact_repository: ContactRepository::new(),
             selected_contact: None,
-            plus_tags_regex: Regex::new(r"\[/?[abcius]=.*?]|\[/?[abcius]]").ok(),
             client: sign_in_return.client,
             blp_bl: false,
             sender,
             receiver,
             sqlite,
-            tabs: Vec::new(),
+            tabs: None,
             msn_today_url: None,
             add_contact_window: None,
             orphan_switchboards: HashMap::new(),
@@ -129,7 +130,7 @@ impl Contacts {
                     display_name,
                     lists,
                 } => {
-                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -155,7 +156,7 @@ impl Contacts {
                     lists,
                     ..
                 } => {
-                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -191,7 +192,7 @@ impl Contacts {
                         self.offline_contacts.get_mut(&email)
                     };
 
-                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -247,7 +248,7 @@ impl Contacts {
                         self.offline_contacts.get_mut(&email)
                     };
 
-                    let display_name = if let Some(regex) = &self.plus_tags_regex {
+                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -693,7 +694,7 @@ impl eframe::App for Contacts {
 
                 Message::GetConfigResult(result) => {
                     if let Ok(config) = result {
-                        self.tabs = config.tabs;
+                        self.tabs = Some(config.tabs);
                         self.msn_today_url = Some(config.msn_today_url);
                     }
                 }
@@ -877,7 +878,9 @@ impl eframe::App for Contacts {
                     });
             });
 
-        if !self.tabs.is_empty() {
+        if let Some(tabs) = self.tabs.as_ref()
+            && !tabs.is_empty()
+        {
             egui::Panel::left("tabs")
                 .default_size(45.)
                 .resizable(false)
@@ -894,7 +897,7 @@ impl eframe::App for Contacts {
                 })
                 .show_inside(ui, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        for tab in &self.tabs {
+                        for tab in tabs {
                             if ui
                                 .button(
                                     egui::Image::from_bytes(
@@ -924,7 +927,11 @@ impl eframe::App for Contacts {
                 inner_margin: egui::Margin {
                     top: 0,
                     bottom: 15,
-                    left: if !self.tabs.is_empty() { 0 } else { 15 },
+                    left: if self.tabs.as_ref().is_some_and(|tabs| !tabs.is_empty()) {
+                        0
+                    } else {
+                        15
+                    },
                     right: 15,
                 },
                 fill: ui.visuals().window_fill,
