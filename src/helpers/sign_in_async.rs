@@ -12,7 +12,7 @@ pub enum SignInError {
 
 pub async fn sign_in_async(
     email: Arc<String>,
-    password: Arc<String>,
+    password: String,
     status: MsnpStatus,
     sqlite: Sqlite,
     cancellation_token: CancellationToken,

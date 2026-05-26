@@ -372,7 +372,7 @@ impl eframe::App for SignIn {
                                     let token = CancellationToken::new();
 
                                     let email = Arc::new(self.email.trim().to_string());
-                                    let password = Arc::new(self.password.clone());
+                                    let password = self.password.clone();
                                     let sqlite = self.sqlite.clone();
 
                                     let status = match self.selected_status {
