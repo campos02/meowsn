@@ -20,6 +20,6 @@ pub async fn get_config(client: Arc<Client>, config_url: String) -> anyhow::Resu
 
     Ok(Config {
         tabs,
-        msn_today_url: config.msn_today_url,
+        today_url: config.msn_today_url,
     })
 }

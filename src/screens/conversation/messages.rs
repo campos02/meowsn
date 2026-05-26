@@ -68,7 +68,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &*URL_REGEX, ui.visuals().text_color());
+                                    display_text_message(ui, message, &URL_REGEX, ui.visuals().text_color());
                                 });
                             } else if message.errored {
                                 ui.separator();
@@ -77,7 +77,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &*URL_REGEX, if ui.visuals().dark_mode {
+                                    display_text_message(ui, message, &URL_REGEX, if ui.visuals().dark_mode {
                                         egui::Color32::GRAY
                                     } else {
                                         egui::Color32::from_gray(120)

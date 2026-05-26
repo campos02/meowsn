@@ -14,10 +14,10 @@ use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat};
 use egui_taffy::taffy::prelude::{fr, length, line, percent};
-use egui_taffy::{taffy, tui, TuiBuilderLogic};
+use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, MessagingError, MsnpStatus, SdkError, Switchboard};
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 const INITIAL_HISTORY_LIMIT: u32 = 3;

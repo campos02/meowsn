@@ -59,7 +59,7 @@ pub struct Contacts {
     receiver: mpsc::Receiver<Message>,
     sqlite: Sqlite,
     tabs: Option<Vec<Tab>>,
-    msn_today_url: Option<String>,
+    today_url: Option<String>,
     add_contact_window: Option<add_contact::AddContact>,
     orphan_switchboards: HashMap<Arc<String>, SwitchboardAndParticipants>,
     handle: Handle,
@@ -106,7 +106,7 @@ impl Contacts {
             receiver,
             sqlite,
             tabs: None,
-            msn_today_url: None,
+            today_url: None,
             add_contact_window: None,
             orphan_switchboards: HashMap::new(),
             handle,
@@ -695,7 +695,7 @@ impl eframe::App for Contacts {
                 Message::GetConfigResult(result) => {
                     if let Ok(config) = result {
                         self.tabs = Some(config.tabs);
-                        self.msn_today_url = Some(config.msn_today_url);
+                        self.today_url = Some(config.today_url);
                     }
                 }
 
@@ -834,9 +834,8 @@ impl eframe::App for Contacts {
                                         .hovered()
                                         || personal_message_edit.has_focus();
 
-                                    if let Some(msn_today_url) = &self.msn_today_url {
-                                        ui.hyperlink_to(" MSN Today", msn_today_url)
-                                            .on_hover_text("MSN Today");
+                                    if let Some(today_url) = &self.today_url {
+                                        ui.hyperlink_to(" Today", today_url).on_hover_text("Today");
                                     }
                                 });
                             });
