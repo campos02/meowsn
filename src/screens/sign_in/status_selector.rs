@@ -1,6 +1,8 @@
+use crate::main_window;
 use crate::widgets::custom_combo_box::CustomComboBox;
 use eframe::egui::Ui;
 use std::fmt::Display;
+use std::sync::mpsc;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Status {
@@ -26,7 +28,7 @@ impl Display for Status {
 pub fn status_selector(
     ui: &mut Ui,
     selected_status: &mut Status,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
 ) {
     let old_status = *selected_status;
     CustomComboBox::from_label("Status:")
@@ -55,7 +57,7 @@ pub fn status_selector(
 
     if *selected_status == Status::PersonalSettings {
         *selected_status = old_status;
-        let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(
+        let _ = main_window_sender.send(main_window::Message::OpenPersonalSettings(
             None, None, None, None, None,
         ));
     }

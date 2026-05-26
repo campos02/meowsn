@@ -11,7 +11,7 @@ use crate::screens::contacts::category_collapsing_header::category_collapsing_he
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
-use crate::{models, settings, svg};
+use crate::{main_window, models, settings, svg};
 use eframe::egui;
 use eframe::egui::OpenUrl;
 use egui_taffy::taffy::prelude::{length, percent};
@@ -44,7 +44,7 @@ pub struct Contacts {
     personal_message: String,
     display_picture: Option<DisplayPicture>,
     selected_status: Status,
-    main_window_sender: mpsc::Sender<crate::main_window::Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
     show_personal_message_frame: bool,
     online_contacts: BTreeMap<Arc<String>, Contact>,
     offline_contacts: BTreeMap<Arc<String>, Contact>,
@@ -66,7 +66,7 @@ pub struct Contacts {
 impl Contacts {
     pub fn new(
         sign_in_return: SignInReturn,
-        main_window_sender: mpsc::Sender<crate::main_window::Message>,
+        main_window_sender: mpsc::Sender<main_window::Message>,
         sqlite: Sqlite,
         handle: Handle,
     ) -> Self {
@@ -114,12 +114,12 @@ impl Contacts {
 
     pub fn handle_event(
         &mut self,
-        message: crate::main_window::Message,
+        message: main_window::Message,
         ui: &mut egui::Ui,
         conversations: &mut HashMap<egui::ViewportId, conversation::Conversation>,
     ) {
         match message {
-            crate::main_window::Message::NotificationServerEvent(event) => match event {
+            main_window::Message::NotificationServerEvent(event) => match event {
                 msnp11_sdk::Event::DisplayName(display_name) => {
                     self.display_name = Arc::new(display_name);
                 }
@@ -360,10 +360,9 @@ impl Contacts {
                                 let ui = ui.clone();
 
                                 async move {
-                                    let _ =
-                                        sender.send(crate::main_window::Message::SwitchboardEvent(
-                                            session_id, event,
-                                        ));
+                                    let _ = sender.send(main_window::Message::SwitchboardEvent(
+                                        session_id, event,
+                                    ));
 
                                     ui.request_repaint();
                                 }
@@ -375,7 +374,7 @@ impl Contacts {
                 msnp11_sdk::Event::ServerMaintenanceScheduled { time_remaining } => {
                     let _ = self
                         .main_window_sender
-                        .send(crate::main_window::Message::OpenDialog(format!(
+                        .send(main_window::Message::OpenDialog(format!(
                             "The server will shut down for maintenance in {time_remaining} minutes"
                         )));
 
@@ -398,7 +397,7 @@ impl Contacts {
                 _ => (),
             },
 
-            crate::main_window::Message::SwitchboardEvent(session_id, event) => match event {
+            main_window::Message::SwitchboardEvent(session_id, event) => match event {
                 msnp11_sdk::Event::ParticipantInSwitchboard { email } => {
                     if let Some(switchboard) = self.orphan_switchboards.get_mut(&session_id) {
                         switchboard.participants.push(Arc::from(email));
@@ -476,7 +475,7 @@ impl Contacts {
                 _ => (),
             },
 
-            crate::main_window::Message::ContactDisplayPictureEvent { email, data } => {
+            main_window::Message::ContactDisplayPictureEvent { email, data } => {
                 let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
                     Some(contact)
                 } else {
@@ -499,7 +498,7 @@ impl Contacts {
                 }
             }
 
-            crate::main_window::Message::ContactChatWindowFocused(email) => {
+            main_window::Message::ContactChatWindowFocused(email) => {
                 let contact = if let Some(contact) = self.online_contacts.get_mut(&email) {
                     Some(contact)
                 } else {
@@ -523,9 +522,9 @@ impl eframe::App for Contacts {
                 Message::DisplayPictureResult(result) => {
                     if let Ok(picture) = result {
                         self.display_picture = Some(picture.clone());
-                        let _ = self.main_window_sender.send(
-                            crate::main_window::Message::UserDisplayPictureChanged(picture),
-                        );
+                        let _ = self
+                            .main_window_sender
+                            .send(main_window::Message::UserDisplayPictureChanged(picture));
                     }
                 }
 
@@ -533,13 +532,13 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ui.request_repaint();
                     } else {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::UserStatusChanged(status));
+                            .send(main_window::Message::UserStatusChanged(status));
                     }
                 }
 
@@ -547,7 +546,7 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ui.request_repaint();
                     } else {
@@ -561,7 +560,7 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ui.request_repaint();
                     } else {
@@ -573,7 +572,7 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
                     } else {
                         let contact =
                             if let Some(contact) = self.online_contacts.get_mut(&contact_email) {
@@ -606,7 +605,7 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
                     } else {
                         let contact =
                             if let Some(contact) = self.online_contacts.get_mut(&contact_email) {
@@ -639,7 +638,7 @@ impl eframe::App for Contacts {
                     if let Err(error) = result {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ui.request_repaint();
                     } else {
@@ -686,7 +685,7 @@ impl eframe::App for Contacts {
                     Err(error) => {
                         let _ = self
                             .main_window_sender
-                            .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                            .send(main_window::Message::OpenDialog(error.to_string()));
 
                         ui.request_repaint();
                     }

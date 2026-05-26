@@ -10,7 +10,7 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, TextFormat, Ui};
 use msnp11_sdk::{Client, MsnpList, MsnpStatus};
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 #[allow(clippy::too_many_arguments)]
@@ -19,8 +19,8 @@ pub fn category_collapsing_header(
     name: &str,
     selected_contact: &mut Option<Arc<String>>,
     contacts: &mut BTreeMap<Arc<String>, Contact>,
-    main_window_sender: std::sync::mpsc::Sender<main_window::Message>,
-    contacts_sender: std::sync::mpsc::Sender<contacts::Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
+    contacts_sender: mpsc::Sender<contacts::Message>,
     handle: Handle,
     user_email: Arc<String>,
     user_display_name: Arc<String>,

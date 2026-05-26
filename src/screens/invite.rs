@@ -4,20 +4,20 @@ use eframe::egui;
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::Switchboard;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 pub struct Invite {
     email: String,
     switchboard: Arc<Switchboard>,
-    conversation_sender: std::sync::mpsc::Sender<conversation::Message>,
+    conversation_sender: mpsc::Sender<conversation::Message>,
     handle: Handle,
 }
 
 impl Invite {
     pub fn new(
         switchboard: Arc<Switchboard>,
-        conversation_sender: std::sync::mpsc::Sender<conversation::Message>,
+        conversation_sender: mpsc::Sender<conversation::Message>,
         handle: Handle,
     ) -> Self {
         Self {

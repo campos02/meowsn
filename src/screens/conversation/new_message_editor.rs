@@ -9,7 +9,7 @@ use egui_taffy::taffy::prelude::line;
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use msnp11_sdk::Switchboard;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 #[allow(clippy::too_many_arguments)]
@@ -19,7 +19,7 @@ pub fn new_message_editor(
     last_participant: &Option<Contact>,
     user_email: Arc<String>,
     switchboards: &HashMap<Arc<String>, Arc<Switchboard>>,
-    sender: std::sync::mpsc::Sender<Message>,
+    sender: mpsc::Sender<Message>,
     handle: Handle,
     message_buffer: &mut Vec<message::Message>,
     user_typing: &mut bool,

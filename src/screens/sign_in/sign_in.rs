@@ -4,14 +4,14 @@ use crate::models::display_picture::DisplayPicture;
 use crate::models::sign_in_return::SignInReturn;
 use crate::screens::sign_in::status_selector::{Status, status_selector};
 use crate::sqlite::Sqlite;
-use crate::svg;
+use crate::{main_window, svg};
 use eframe::egui;
 use eframe::egui::{ComboBox, FontFamily, FontId};
 use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use keyring::Entry;
 use msnp11_sdk::MsnpStatus;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 
@@ -28,18 +28,18 @@ pub struct SignIn {
     remember_my_password: bool,
     selected_status: Status,
     sign_in_cancellation_token: Option<CancellationToken>,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
     handle: Handle,
     sqlite: Sqlite,
-    sender: std::sync::mpsc::Sender<Message>,
-    receiver: std::sync::mpsc::Receiver<Message>,
+    sender: mpsc::Sender<Message>,
+    receiver: mpsc::Receiver<Message>,
 }
 
 impl SignIn {
     pub fn new(
         handle: Handle,
         sqlite: Sqlite,
-        main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+        main_window_sender: mpsc::Sender<main_window::Message>,
     ) -> Self {
         let mut display_picture = None;
         let mut email = String::default();
@@ -66,7 +66,7 @@ impl SignIn {
             }
         }
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
         Self {
             display_picture,
             emails,
@@ -103,7 +103,7 @@ impl eframe::App for SignIn {
 
                     let _ = self
                         .main_window_sender
-                        .send(crate::main_window::Message::SignIn(sign_in_return));
+                        .send(main_window::Message::SignIn(sign_in_return));
 
                     ui.request_repaint();
                 }
@@ -111,7 +111,7 @@ impl eframe::App for SignIn {
                 Err(SignInError::SdkError(error)) => {
                     let _ = self
                         .main_window_sender
-                        .send(crate::main_window::Message::OpenDialog(error.to_string()));
+                        .send(main_window::Message::OpenDialog(error.to_string()));
 
                     self.sign_in_cancellation_token = None;
                     ui.request_repaint();
@@ -360,7 +360,7 @@ impl eframe::App for SignIn {
                             {
                                 if self.email.is_empty() || self.password.is_empty() {
                                     let _ = self.main_window_sender.send(
-                                        crate::main_window::Message::OpenDialog(
+                                        main_window::Message::OpenDialog(
                                             "Please type your e-mail address and \
                                         password in their corresponding forms."
                                                 .to_string(),

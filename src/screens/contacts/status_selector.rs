@@ -1,13 +1,15 @@
 use crate::contact_repository::ContactRepository;
 use crate::helpers::pick_display_picture::pick_display_picture;
 use crate::helpers::run_future::run_future;
+use crate::main_window;
+use crate::screens::contacts::contacts;
 use crate::sqlite::Sqlite;
 use crate::widgets::custom_combo_box::CustomComboBox;
 use eframe::egui::Ui;
 use msnp11_sdk::{Client, MsnpStatus};
 use rfd::AsyncFileDialog;
 use std::fmt::Display;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -41,8 +43,8 @@ pub fn status_selector(
     email: Arc<String>,
     display_name: &str,
     selected_status: &mut Status,
-    contacts_sender: std::sync::mpsc::Sender<crate::screens::contacts::contacts::Message>,
-    main_window_sender: std::sync::mpsc::Sender<crate::main_window::Message>,
+    contacts_sender: mpsc::Sender<contacts::Message>,
+    main_window_sender: mpsc::Sender<main_window::Message>,
     handle: Handle,
     sqlite: Sqlite,
     client: Arc<Client>,
@@ -99,13 +101,13 @@ pub fn status_selector(
                 handle.clone(),
                 pick_display_picture(picture, email, client, sqlite),
                 contacts_sender,
-                crate::screens::contacts::contacts::Message::DisplayPictureResult,
+                contacts::Message::DisplayPictureResult,
             );
         }
 
         Status::PersonalSettings => {
             *selected_status = old_status;
-            let _ = main_window_sender.send(crate::main_window::Message::OpenPersonalSettings(
+            let _ = main_window_sender.send(main_window::Message::OpenPersonalSettings(
                 Some(display_name.to_string()),
                 Some(client.clone()),
                 Some(contact_repository.clone()),
@@ -117,7 +119,7 @@ pub fn status_selector(
         Status::SignOut => {
             *selected_status = old_status;
             let _ = handle.block_on(async { client.disconnect().await });
-            let _ = main_window_sender.send(crate::main_window::Message::SignOut);
+            let _ = main_window_sender.send(main_window::Message::SignOut);
         }
 
         _ => {
@@ -137,7 +139,7 @@ pub fn status_selector(
                     async move { client.set_presence(msnp_status).await },
                     contacts_sender,
                     move |result| {
-                        crate::screens::contacts::contacts::Message::StatusResult(
+                        contacts::Message::StatusResult(
                             std::mem::replace(&mut status, MsnpStatus::Online),
                             result,
                         )
