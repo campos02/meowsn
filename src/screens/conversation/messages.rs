@@ -1,5 +1,6 @@
 use crate::models::contact::Contact;
 use crate::models::message;
+use crate::screens;
 use eframe::egui;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{FontId, FontSelection, TextFormat};
@@ -7,14 +8,7 @@ use egui_taffy::taffy::prelude::{auto, percent, span};
 use egui_taffy::{Tui, TuiBuilderLogic, taffy};
 use regex::Regex;
 use std::collections::BTreeMap;
-use std::sync::{Arc, LazyLock};
-
-static URL_REGEX: LazyLock<Option<Regex>> = LazyLock::new(|| {
-    Regex::new(
-        r"https?://(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:%_+.~#?&/=]*)",
-    )
-    .ok()
-});
+use std::sync::Arc;
 
 pub fn messages(
     tui: &mut Tui,
@@ -68,7 +62,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &URL_REGEX, ui.visuals().text_color());
+                                    display_text_message(ui, message, &screens::URL_REGEX, ui.visuals().text_color());
                                 });
                             } else if message.errored {
                                 ui.separator();
@@ -77,7 +71,7 @@ pub fn messages(
                                     .id;
 
                                 ui.indent(id, |ui| {
-                                    display_text_message(ui, message, &URL_REGEX, if ui.visuals().dark_mode {
+                                    display_text_message(ui, message, &screens::URL_REGEX, if ui.visuals().dark_mode {
                                         egui::Color32::GRAY
                                     } else {
                                         egui::Color32::from_gray(120)

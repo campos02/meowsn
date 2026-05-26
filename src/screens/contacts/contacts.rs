@@ -11,19 +11,15 @@ use crate::screens::contacts::category_collapsing_header::category_collapsing_he
 use crate::screens::contacts::status_selector::{Status, status_selector};
 use crate::screens::conversation::conversation;
 use crate::sqlite::Sqlite;
-use crate::{main_window, models, settings, svg};
+use crate::{main_window, models, screens, settings, svg};
 use eframe::egui;
 use eframe::egui::OpenUrl;
 use egui_taffy::taffy::prelude::{length, percent};
 use egui_taffy::{TuiBuilderLogic, taffy, tui};
 use msnp11_sdk::{Client, ContactError, MsnpList, MsnpStatus, PersonalMessage, SdkError};
-use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, LazyLock, mpsc};
+use std::sync::{Arc, mpsc};
 use tokio::runtime::Handle;
-
-static PLUS_TAGS_REGEX: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"\[/?[abcius]=.*?]|\[/?[abcius]]").ok());
 
 pub enum Message {
     DisplayPictureResult(anyhow::Result<DisplayPicture>),
@@ -130,7 +126,7 @@ impl Contacts {
                     display_name,
                     lists,
                 } => {
-                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
+                    let display_name = if let Some(regex) = &*screens::PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -156,7 +152,7 @@ impl Contacts {
                     lists,
                     ..
                 } => {
-                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
+                    let display_name = if let Some(regex) = &*screens::PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -192,7 +188,7 @@ impl Contacts {
                         self.offline_contacts.get_mut(&email)
                     };
 
-                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
+                    let display_name = if let Some(regex) = &*screens::PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
@@ -248,7 +244,7 @@ impl Contacts {
                         self.offline_contacts.get_mut(&email)
                     };
 
-                    let display_name = if let Some(regex) = &*PLUS_TAGS_REGEX {
+                    let display_name = if let Some(regex) = &*screens::PLUS_TAGS_REGEX {
                         regex.replace_all(&display_name, "").to_string()
                     } else {
                         display_name
