@@ -223,14 +223,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/anyhow/anyhow-1.0.98.crate",
-        "sha256": "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487",
-        "dest": "cargo/vendor/anyhow-1.0.98"
+        "url": "https://static.crates.io/crates/anyhow/anyhow-1.0.102.crate",
+        "sha256": "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c",
+        "dest": "cargo/vendor/anyhow-1.0.102"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487\", \"files\": {}}",
-        "dest": "cargo/vendor/anyhow-1.0.98",
+        "contents": "{\"package\": \"7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c\", \"files\": {}}",
+        "dest": "cargo/vendor/anyhow-1.0.102",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3265,14 +3265,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/msnp11-sdk/msnp11-sdk-0.12.0.crate",
-        "sha256": "061b4f347fa6ef35ff414abe47e6d8ca42b879e3142e0eb35b9cf01e15adb4e1",
-        "dest": "cargo/vendor/msnp11-sdk-0.12.0"
+        "url": "https://static.crates.io/crates/msnp11-sdk/msnp11-sdk-0.13.0.crate",
+        "sha256": "b995ec526c19fa3ff40f0e228fba507bf8901cbf247449fe9c100d9794e06642",
+        "dest": "cargo/vendor/msnp11-sdk-0.13.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"061b4f347fa6ef35ff414abe47e6d8ca42b879e3142e0eb35b9cf01e15adb4e1\", \"files\": {}}",
-        "dest": "cargo/vendor/msnp11-sdk-0.12.0",
+        "contents": "{\"package\": \"b995ec526c19fa3ff40f0e228fba507bf8901cbf247449fe9c100d9794e06642\", \"files\": {}}",
+        "dest": "cargo/vendor/msnp11-sdk-0.13.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
