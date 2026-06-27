@@ -9,6 +9,7 @@ use crate::screens::sign_in::sign_in;
 use crate::sqlite::Sqlite;
 use crate::visuals;
 use eframe::egui;
+use egui_cjk_font::merge_cjk_font;
 use msnp11_sdk::{Client, MsnpStatus, SdkError};
 use std::collections::HashMap;
 use std::sync::{Arc, mpsc};
@@ -65,6 +66,7 @@ pub struct MainWindow {
     conversations: HashMap<egui::ViewportId, conversation::Conversation>,
     handle: Handle,
     sqlite: Sqlite,
+    cjk_loaded: bool,
 }
 
 impl MainWindow {
@@ -85,6 +87,7 @@ impl MainWindow {
             conversations: HashMap::new(),
             handle,
             sqlite,
+            cjk_loaded: false,
         }
     }
 }
@@ -96,6 +99,11 @@ impl eframe::App for MainWindow {
             ui.set_visuals(visuals::dark_mode(old));
         } else {
             ui.set_visuals(visuals::light_mode(old));
+        }
+
+        if !self.cjk_loaded {
+            merge_cjk_font(ui.ctx());
+            self.cjk_loaded = true;
         }
 
         if let Ok(message) = self.receiver.try_recv() {
