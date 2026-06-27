@@ -1,6 +1,6 @@
 [package]
 name = "meowsn"
-version = "0.12.3"
+version = "0.12.2"
 edition = "2024"
 
 [dependencies]
@@ -23,7 +23,6 @@ reqwest = { version = "0.12.28", features = ["charset", "http2", "rustls-tls", "
 semver = "1.0.27"
 regex = "1.12.2"
 anyhow = "1.0.102"
-egui-cjk-font = "0.2.0"
 
 [profile.release]
 codegen-units = 1
