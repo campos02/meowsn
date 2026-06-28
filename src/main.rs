@@ -17,7 +17,12 @@ mod widgets;
 use crate::main_window::MainWindow;
 use eframe::egui;
 
-fn common_main() -> eframe::Result {
+fn main() -> eframe::Result {
+    #[cfg(target_os = "macos")]
+    let id = notify_rust::get_bundle_identifier_or_default("meowsn");
+    #[cfg(target_os = "macos")]
+    notify_rust::set_application(&id).expect("Could not set application name");
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -53,16 +58,4 @@ fn common_main() -> eframe::Result {
             Ok(Box::new(MainWindow::new(rt.handle().clone())))
         }),
     )
-}
-
-#[cfg(target_os = "macos")]
-pub fn main() -> eframe::Result {
-    let id = notify_rust::get_bundle_identifier_or_default("meowsn");
-    notify_rust::set_application(&id).expect("Could not set application name");
-    common_main()
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn main() -> eframe::Result {
-    common_main()
 }
