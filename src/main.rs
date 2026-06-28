@@ -16,7 +16,6 @@ mod widgets;
 
 use crate::main_window::MainWindow;
 use eframe::egui;
-use std::sync::Arc;
 
 fn common_main() -> eframe::Result {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -43,34 +42,7 @@ fn common_main() -> eframe::Result {
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "noto_sans".to_string(),
-                Arc::new(egui::FontData::from_static(include_bytes!(
-                    "../assets/fonts/NotoSans-Regular.ttf"
-                ))),
-            );
-
-            fonts.font_data.insert(
-                "noto_sans_bold".to_string(),
-                Arc::new(egui::FontData::from_static(include_bytes!(
-                    "../assets/fonts/NotoSans-Bold.ttf"
-                ))),
-            );
-
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .insert(0, "noto_sans".to_string());
-
-            fonts
-                .families
-                .entry(egui::FontFamily::Name("Bold".into()))
-                .or_default()
-                .insert(0, "noto_sans_bold".to_string());
-
-            cc.egui_ctx.set_fonts(fonts);
+            cc.egui_ctx.set_fonts(visuals::load_fonts());
             cc.egui_ctx.global_style_mut(|style| {
                 style.spacing.button_padding = egui::Vec2::splat(5.);
                 style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(8);

@@ -1,7 +1,9 @@
-// Modified version of catppuccin_egui theme (Latte and Mocha) https://crates.io/crates/catppuccin-egui
-
-use eframe::egui::{Color32, style};
+use eframe::egui::{Color32, FontTweak, style};
+use eframe::epaint::FontFamily;
+use eframe::epaint::text::{FontData, FontDefinitions, VariationCoords};
 use eframe::{egui, epaint};
+use std::borrow::Cow;
+use std::sync::Arc;
 
 fn make_widget_visual(
     old: style::WidgetVisuals,
@@ -24,6 +26,7 @@ fn make_widget_visual(
     }
 }
 
+// Modified version of catppuccin_egui theme (Latte and Mocha) https://crates.io/crates/catppuccin-egui
 pub fn light_mode(old: egui::Visuals) -> egui::Visuals {
     let shadow_color = Color32::from_black_alpha(25);
     let blue = Color32::from_rgb(58, 117, 245);
@@ -83,6 +86,7 @@ pub fn light_mode(old: egui::Visuals) -> egui::Visuals {
     }
 }
 
+// Modified version of catppuccin_egui theme (Latte and Mocha) https://crates.io/crates/catppuccin-egui
 pub fn dark_mode(old: egui::Visuals) -> egui::Visuals {
     let shadow_color = Color32::from_black_alpha(96);
     let blue = Color32::from_rgb(137, 180, 250);
@@ -141,4 +145,109 @@ pub fn dark_mode(old: egui::Visuals) -> egui::Visuals {
         },
         ..old
     }
+}
+
+pub fn load_fonts() -> FontDefinitions {
+    let mut font_definitions = FontDefinitions::default();
+
+    let noto_sans = include_bytes!("../assets/fonts/NotoSans-VariableFont_wdth,wght.ttf");
+    let noto_sans_cjk = include_bytes!("../assets/fonts/NotoSansCJK-VF.ttf.ttc");
+    let noto_sans_arabic =
+        include_bytes!("../assets/fonts/NotoSansArabic-VariableFont_wdth,wght.ttf");
+
+    font_definitions.font_data.insert(
+        "noto_sans".to_string(),
+        Arc::new(FontData::from_static(noto_sans)),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .insert(0, "noto_sans".to_string());
+
+    font_definitions.font_data.insert(
+        "noto_sans_bold".to_string(),
+        Arc::new(FontData {
+            font: Cow::Borrowed(noto_sans),
+            index: 0,
+            tweak: FontTweak {
+                coords: VariationCoords::new([(b"wght", 700.)]),
+                ..Default::default()
+            },
+        }),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Name("Bold".into()))
+        .or_default()
+        .insert(0, "noto_sans_bold".to_string());
+
+    font_definitions.font_data.insert(
+        "noto_sans_cjk".to_string(),
+        Arc::new(FontData {
+            font: Cow::Borrowed(noto_sans_cjk),
+            index: 0,
+            tweak: FontTweak {
+                coords: VariationCoords::new([(b"wght", 400.)]),
+                ..Default::default()
+            },
+        }),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .push("noto_sans_cjk".to_string());
+
+    font_definitions.font_data.insert(
+        "noto_sans_cjk_bold".to_string(),
+        Arc::new(FontData {
+            font: Cow::Borrowed(noto_sans_cjk),
+            index: 0,
+            tweak: FontTweak {
+                coords: VariationCoords::new([(b"wght", 700.)]),
+                ..Default::default()
+            },
+        }),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Name("Bold".into()))
+        .or_default()
+        .push("noto_sans_cjk_bold".to_string());
+
+    font_definitions.font_data.insert(
+        "noto_sans_arabic".to_string(),
+        Arc::new(FontData::from_static(noto_sans_arabic)),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .push("noto_sans_arabic".to_string());
+
+    font_definitions.font_data.insert(
+        "noto_sans_arabic_bold".to_string(),
+        Arc::new(FontData {
+            font: Cow::Borrowed(noto_sans_arabic),
+            index: 0,
+            tweak: FontTweak {
+                coords: VariationCoords::new([(b"wght", 700.)]),
+                ..Default::default()
+            },
+        }),
+    );
+
+    font_definitions
+        .families
+        .entry(FontFamily::Name("Bold".into()))
+        .or_default()
+        .push("noto_sans_arabic_bold".to_string());
+
+    font_definitions
 }

@@ -1,7 +1,14 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
+      <w>Hiragino</w>
+      <w>Lateef</w>
+      <w>Malgun</w>
+      <w>Meiryo</w>
+      <w>Segoe</w>
+      <w>Songti</w>
       <w>aarch</w>
+      <w>arabic</w>
       <w>camposs</w>
       <w>catppuccin</w>
       <w>ctsrv</w>
@@ -15,6 +22,8 @@
       <w>msnp</w>
       <w>noto</w>
       <w>tokio</w>
+      <w>wdth</w>
+      <w>wght</w>
     </words>
   </dictionary>
 </component>
