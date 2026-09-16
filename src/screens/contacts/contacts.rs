@@ -711,7 +711,7 @@ impl eframe::App for Contacts {
                 ..Default::default()
             })
             .show_separator_line(false)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 tui(ui, ui.id().with("user_info"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -890,7 +890,7 @@ impl eframe::App for Contacts {
                     fill: ui.visuals().window_fill,
                     ..Default::default()
                 })
-                .show_inside(ui, |ui| {
+                .show(ui, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for tab in tabs {
                             if ui
@@ -932,7 +932,7 @@ impl eframe::App for Contacts {
                 fill: ui.visuals().window_fill,
                 ..Default::default()
             })
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
                     .show(ui, |ui| {

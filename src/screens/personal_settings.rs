@@ -65,29 +65,23 @@ impl PersonalSettings {
     }
 
     pub fn personal_settings(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::left("tabs")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                ui.vertical(|ui| {
-                    let label = ui.selectable_label(
-                        self.selected_tab == SelectedTab::General,
-                        "General     ",
-                    );
+        egui::Panel::left("tabs").resizable(false).show(ui, |ui| {
+            ui.vertical(|ui| {
+                let label =
+                    ui.selectable_label(self.selected_tab == SelectedTab::General, "General     ");
 
-                    if label.clicked() || label.secondary_clicked() {
-                        self.selected_tab = SelectedTab::General;
-                    }
+                if label.clicked() || label.secondary_clicked() {
+                    self.selected_tab = SelectedTab::General;
+                }
 
-                    let label = ui.selectable_label(
-                        self.selected_tab == SelectedTab::Privacy,
-                        "Privacy      ",
-                    );
+                let label =
+                    ui.selectable_label(self.selected_tab == SelectedTab::Privacy, "Privacy      ");
 
-                    if label.clicked() || label.secondary_clicked() {
-                        self.selected_tab = SelectedTab::Privacy;
-                    }
-                })
-            });
+                if label.clicked() || label.secondary_clicked() {
+                    self.selected_tab = SelectedTab::Privacy;
+                }
+            })
+        });
 
         egui::Panel::bottom("version")
             .frame(egui::Frame {
@@ -102,13 +96,13 @@ impl PersonalSettings {
             })
             .show_separator_line(false)
             .resizable(false)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(format!("meowsn v{}", env!("CARGO_PKG_VERSION")));
                 });
             });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             tui(ui, ui.id().with("personal-settings-screen"))
                 .reserve_available_space()
                 .style(taffy::Style {

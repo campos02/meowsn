@@ -39,16 +39,12 @@ impl AddContact {
                 }
                 .inner_margin(5.),
             )
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 tui(ui, ui.id().with("add-contact-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
                         flex_direction: taffy::FlexDirection::Column,
                         align_items: Some(taffy::AlignItems::Stretch),
-                        size: taffy::Size {
-                            width: percent(0.9),
-                            height: auto(),
-                        },
                         padding: length(20.),
                         gap: length(15.),
                         ..Default::default()

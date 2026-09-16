@@ -37,7 +37,7 @@ impl Invite {
                 }
                 .inner_margin(5.),
             )
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 tui(ui, ui.id().with("invite-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {

@@ -132,7 +132,7 @@ impl eframe::App for SignIn {
                 }
                 .inner_margin(30.),
             )
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 tui(ui, ui.id().with("sign-in-screen"))
                     .reserve_available_space()
                     .style(taffy::Style {

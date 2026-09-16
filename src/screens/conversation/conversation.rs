@@ -588,7 +588,7 @@ impl Conversation {
             .default_size(120.)
             .show_separator_line(false)
             .resizable(false)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 tui(ui, ui.id().with("conversation_screen"))
                     .reserve_available_space()
                     .style(taffy::Style {
@@ -633,7 +633,7 @@ impl Conversation {
                     });
             });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             tui(ui, ui.id().with("conversation_screen"))
                 .reserve_available_space()
                 .style(taffy::Style {

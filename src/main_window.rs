@@ -366,7 +366,7 @@ impl eframe::App for MainWindow {
                     .with_resizable(false),
                 |ui, _| {
                     ui.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
                         ui.add_space(18.);
                         ui.vertical_centered(|ui| {
                             ui.add(

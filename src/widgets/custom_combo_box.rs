@@ -1,10 +1,10 @@
 use eframe::egui::style::{StyleModifier, WidgetVisuals};
 use eframe::egui::{
-    Align2, Color32, Context, Id, InnerResponse, NumExt, Painter, Popup, PopupCloseBehavior, Rect,
-    Response, ScrollArea, Sense, Shape, Stroke, TextStyle, TextWrapMode, Ui, UiBuilder, Vec2,
-    WidgetInfo, WidgetText, WidgetType, vec2,
+    Align, Align2, AsIdSalt, Color32, Context, Id, IdSalt, InnerResponse, Layout, NumExt, Painter,
+    Popup, PopupCloseBehavior, Rect, Response, ScrollArea, Sense, Shape, Stroke, TextStyle,
+    TextWrapMode, Ui, UiBuilder, Vec2, WidgetInfo, WidgetText, WidgetType, vec2,
 };
-use eframe::{egui, epaint};
+use eframe::epaint;
 
 /// A function that paints the [`CustomComboBox`] icon
 pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
@@ -17,7 +17,7 @@ pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 /// # enum Enum { First, Second, Third }
 /// # let mut selected = Enum::First;
 /// let before = selected;
-/// egui::ComboBox::from_label("Select one!")
+/// egui::CustomComboBox::from_label("Select one!")
 ///     .selected_text(format!("{:?}", selected))
 ///     .show_ui(ui, |ui| {
 ///         ui.selectable_value(&mut selected, Enum::First, "First");
@@ -33,7 +33,7 @@ pub type IconPainter = Box<dyn FnOnce(&Ui, Rect, &WidgetVisuals, bool)>;
 /// ```
 #[must_use = "You should call .show*"]
 pub struct CustomComboBox {
-    id_salt: Id,
+    id_salt: IdSalt,
     label: Option<WidgetText>,
     selected_text: WidgetText,
     width: Option<f32>,
@@ -49,9 +49,9 @@ pub struct CustomComboBox {
 #[allow(dead_code)]
 impl CustomComboBox {
     /// Create new [`CustomComboBox`] with id and label
-    pub fn new(id_salt: impl std::hash::Hash, label: impl Into<WidgetText>) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<WidgetText>) -> Self {
         Self {
-            id_salt: Id::new(id_salt),
+            id_salt: IdSalt::new(id_salt),
             label: Some(label.into()),
             selected_text: Default::default(),
             width: None,
@@ -69,7 +69,7 @@ impl CustomComboBox {
     pub fn from_label(label: impl Into<WidgetText>) -> Self {
         let label = label.into();
         Self {
-            id_salt: Id::new(label.text()),
+            id_salt: IdSalt::new(label.text()),
             label: Some(label),
             selected_text: Default::default(),
             width: None,
@@ -84,9 +84,9 @@ impl CustomComboBox {
     }
 
     /// Without label.
-    pub fn from_id_salt(id_salt: impl std::hash::Hash) -> Self {
+    pub fn from_id_salt(id_salt: impl AsIdSalt) -> Self {
         Self {
-            id_salt: Id::new(id_salt),
+            id_salt: IdSalt::new(id_salt),
             label: Default::default(),
             selected_text: Default::default(),
             width: None,
@@ -98,12 +98,6 @@ impl CustomComboBox {
             fill_color: None,
             label_on_right: true,
         }
-    }
-
-    /// Without label.
-    #[deprecated = "Renamed from_id_salt"]
-    pub fn from_id_source(id_salt: impl std::hash::Hash) -> Self {
-        Self::from_id_salt(id_salt)
     }
 
     /// Set the outer width of the button and menu.
@@ -287,9 +281,8 @@ impl CustomComboBox {
                 }
                 ir
             })
-            .inner
         } else {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let mut ir = combo_box_dyn(
                     ui,
                     button_id,
@@ -317,8 +310,8 @@ impl CustomComboBox {
                 }
                 ir
             })
-            .inner
         }
+        .inner
     }
 
     /// Show a list of items with the given selected index.
@@ -411,7 +404,7 @@ fn combo_box_dyn<'c, R>(
             let icon_size = Vec2::splat(ui.spacing().icon_width);
 
             // The combo box selected text will always have this minimum width.
-            // Note: the `ComboBox::width()` if set or `Spacing::combo_width` are considered as the
+            // Note: the `CustomComboBox::width()` if set or `Spacing::combo_width` are considered as the
             // minimum overall width, regardless of the wrap mode.
             let minimum_width = width.unwrap_or_else(|| ui.spacing().combo_width) - 2.0 * margin.x;
 
