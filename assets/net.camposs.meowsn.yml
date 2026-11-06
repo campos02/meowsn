@@ -34,5 +34,5 @@ modules:
     sources:
       - type: git
         url: https://github.com/campos02/meowsn.git
-        commit: "1c7b7946f22ddfbf6ebd64609523577eee40672a"
+        commit: "0748c89cbab94728341b2d000bfb5b7a29d748e2"
       - cargo-sources.json
