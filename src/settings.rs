@@ -14,9 +14,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            server: "ms.msgrsvcs.ctsrv.gay".to_string(),
-            nexus_url: "https://pp.login.ugnet.gay/rdr/pprdr.asp".to_string(),
-            config_server: "https://conf.msgrsvcs.ctsrv.gay/Config/MsgrConfig.asmx".to_string(),
+            server: "ms.msgrsvcs.ctsrv.xyz".to_string(),
+            nexus_url: "https://pp.login.ugnet.xyz/rdr/pprdr.asp".to_string(),
+            config_server: "https://conf.msgrsvcs.ctsrv.xyz/Config/MsgrConfig.asmx".to_string(),
             check_for_updates: true,
             notify_sign_ins: true,
             notify_added_by: true,
